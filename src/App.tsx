@@ -1,17 +1,15 @@
 import React, { useState, useEffect, useRef } from "react";
 
-// Dati estratti dalle tue tabelle PDF per "addestrare" localmente l'AI
-const LOCAL_KNOWLEDGE = `
-Tabelle di confronto materiali caricate:
-- 1.0503 (C45 DIN) = AISI 1045 = UNI C45 
-- 1.7225 (42CrMo4 DIN) = AISI 4140 = UNI 42CrMo4 [cite: 39]
-- 1.0401 (C15 DIN) = AISI 1015 = UNI C15 
-- 1.3505 (100Cr6 DIN) = AISI 52100 = UNI 100Cr6 [cite: 38]
-- Acciaio Inox: 1.4301 = AISI 304 = UNI X5CrNi1810 [cite: 47]
+// Database integrato dalle tue tabelle PDF
+const METALLURGY_DB = `
+RIFERIMENTI TABELLE:
+- Acciai al Carbonio: C15 (1.0401), C45 (1.0503/1.1191), C60 (1.0601)[cite: 36].
+- Acciai Legati: 42CrMo4 (1.7225 -> AISI 4140), 36CrNiMo4 (1.6511 -> AISI 9840), 100Cr6 (1.3505 -> AISI 52100)[cite: 38, 39].
+- Inox: AISI 304 (1.4301), AISI 316 (1.4401), AISI 410 (1.4006), AISI 430 (1.4016)[cite: 45, 47].
+- Ghise: Grigia GG25 (0.6025), Sferoidale GGG40 (0.7040)[cite: 54, 56].
 `;
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState("materiali");
   const [query, setQuery] = useState("");
   const [chat, setChat] = useState<{ role: string; text: string }[]>([]);
   const [loading, setLoading] = useState(false);
@@ -23,29 +21,29 @@ export default function App() {
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
   }, [chat]);
 
-  const askAI = async (customQuery?: string) => {
-    const textToSubmit = customQuery || query;
-    if (!apiKey || !textToSubmit.trim() || loading) return;
+  const askAI = async (text?: string) => {
+    const input = text || query;
+    if (!apiKey || !input.trim() || loading) return;
 
-    const newChat = [...chat, { role: "utente", text: textToSubmit }];
+    const newChat = [...chat, { role: "utente", text: input }];
     setChat(newChat);
     setQuery("");
     setLoading(true);
 
     try {
-      const res = await fetch("https://api.api.groq.com/openai/v1/chat/completions", {
+      const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
         method: "POST",
         headers: { "Content-Type": "application/json", "Authorization": `Bearer ${apiKey.trim()}` },
         body: JSON.stringify({
-          model: "llama-3.3-70b-versatile",
+          model: "llama-3.3-70b-versatile", // Il modello più recente
           messages: [
             { 
               role: "system", 
-              content: `Sei un Copilot per il disegno tecnico. Aiuta l'utente a convertire materiali e parti commerciali. 
-              Usa questi dati tecnici come base prioritaria: ${LOCAL_KNOWLEDGE}. 
-              Rispondi sempre in modo tabellare o sintetico per facilitare il lavoro del disegnatore.` 
+              content: `Sei un Technical Copilot esperto in metallurgia. 
+              Usa questi dati di riferimento: ${METALLURGY_DB}. 
+              Fornisci conversioni tra norme DIN, AISI, UNI e dati su trattamenti termici.` 
             },
-            { role: "user", content: textToSubmit }
+            { role: "user", content: input }
           ],
           temperature: 0.2
         }),
@@ -54,131 +52,87 @@ export default function App() {
       const data = await res.json();
       setChat([...newChat, { role: "AI", text: data.choices[0].message.content }]);
     } catch (e) {
-      setChat([...newChat, { role: "AI", text: "⚠️ Errore critico di sistema." }]);
+      setChat([...newChat, { role: "AI", text: "⚠️ Errore di connessione con Groq." }]);
     } finally {
       setLoading(false);
     }
   };
 
+  // Stili Inline per evitare problemi di CSS
+  const styles = {
+    container: { display: "flex", height: "100vh", backgroundColor: "#f8fafc", fontFamily: "sans-serif" },
+    sidebar: { width: "260px", backgroundColor: "#0f172a", color: "white", padding: "24px", display: "flex", flexDirection: "column" },
+    main: { flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" },
+    statsRow: { display: "flex", gap: "20px", padding: "24px", backgroundColor: "white", borderBottom: "1px solid #e2e8f0" },
+    statBox: { flex: 1, padding: "16px", backgroundColor: "#f1f5f9", borderRadius: "12px" },
+    chatArea: { flex: 1, overflowY: "auto", padding: "24px", display: "flex", flexDirection: "column", gap: "16px" },
+    inputArea: { padding: "24px", backgroundColor: "white", borderTop: "1px solid #e2e8f0" },
+    inputWrapper: { display: "flex", backgroundColor: "white", borderRadius: "12px", border: "1px solid #cbd5e1", padding: "8px", boxShadow: "0 4px 6px -1px rgb(0 0 0 / 0.1)" },
+    button: { backgroundColor: "#0f172a", color: "white", border: "none", borderRadius: "8px", padding: "8px 20px", cursor: "pointer", fontWeight: "bold" },
+    badge: { fontSize: "10px", fontWeight: "bold", padding: "4px 8px", borderRadius: "4px", marginBottom: "4px", display: "inline-block" }
+  };
+
   return (
-    <div className="flex h-screen bg-[#F8FAFC] text-[#1E293B] font-sans">
+    <div style={styles.container}>
       {/* SIDEBAR */}
-      <div className="w-64 bg-[#0F172A] text-white flex flex-col">
-        <div className="p-6">
-          <h1 className="text-xl font-bold tracking-tight">Technical Copilot <span className="text-blue-400">AI</span></h1>
+      <div style={styles.sidebar}>
+        <h2 style={{ fontSize: "1.2rem", fontWeight: "bold", marginBottom: "32px" }}>Technical <span style={{ color: "#3b82f6" }}>AI</span></h2>
+        <div style={{ flex: 1 }}>
+          <p style={{ color: "#64748b", fontSize: "12px", fontWeight: "bold", marginBottom: "12px" }}>MENU</p>
+          <div style={{ padding: "12px", backgroundColor: "#1e293b", borderRadius: "8px", cursor: "pointer" }}>📂 Materiali</div>
         </div>
-        <nav className="flex-1 px-4 space-y-2">
-          <button 
-            onClick={() => setActiveTab("materiali")}
-            className={`w-full text-left p-3 rounded-lg flex items-center gap-3 transition ${activeTab === 'materiali' ? 'bg-blue-600' : 'hover:bg-slate-800'}`}
-          >
-            📂 Materiali
-          </button>
-          <button 
-            onClick={() => setActiveTab("commerciali")}
-            className={`w-full text-left p-3 rounded-lg flex items-center gap-3 transition ${activeTab === 'commerciali' ? 'bg-blue-600' : 'hover:bg-slate-800'}`}
-          >
-            📦 Commerciali
-          </button>
-        </nav>
-        <div className="p-4 text-xs text-slate-500 border-t border-slate-800">
-          Powered by Llama 3.3 & Custom Knowledge
-        </div>
+        <div style={{ fontSize: "11px", color: "#475569" }}>v2.0 - Database PDF Caricato [cite: 33]</div>
       </div>
 
-      {/* MAIN CONTENT */}
-      <div className="flex-1 flex flex-col overflow-hidden">
-        {/* HEADER STATS */}
-        <div className="p-6 grid grid-cols-3 gap-6 bg-white border-bottom shadow-sm">
-          <div className="bg-slate-50 p-4 rounded-xl border border-slate-100">
-            <p className="text-xs text-slate-500 uppercase font-bold">Base Materiali</p>
-            <p className="text-2xl font-black text-blue-600">159</p>
+      {/* MAIN */}
+      <div style={styles.main}>
+        <div style={styles.statsRow}>
+          <div style={styles.statBox}>
+            <p style={{ fontSize: "11px", color: "#64748b", fontWeight: "bold" }}>BASE MATERIALI</p>
+            <p style={{ fontSize: "24px", fontWeight: "900", color: "#2563eb" }}>159</p>
           </div>
-          <div className="bg-slate-50 p-4 rounded-xl border border-slate-100">
-            <p className="text-xs text-slate-500 uppercase font-bold">Attivi</p>
-            <p className="text-2xl font-black text-green-600">159</p>
-          </div>
-          <div className="bg-slate-50 p-4 rounded-xl border border-slate-100">
-            <p className="text-xs text-slate-500 uppercase font-bold">Fonte</p>
-            <p className="text-2xl font-black text-amber-500">Mista</p>
+          <div style={styles.statBox}>
+            <p style={{ fontSize: "11px", color: "#64748b", fontWeight: "bold" }}>FONTE</p>
+            <p style={{ fontSize: "24px", fontWeight: "900", color: "#f59e0b" }}>PDF Mista</p>
           </div>
         </div>
 
-        {/* INTERFACE AREA */}
-        <div className="flex-1 flex overflow-hidden">
-          <div className="flex-1 p-8 flex flex-col max-w-4xl mx-auto w-full">
-            
-            {/* CARICA FONTE BOX */}
-            <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm mb-6 flex justify-between items-center">
-              <div>
-                <h3 className="font-bold">Fonte prioritaria modificabile</h3>
-                <p className="text-sm text-slate-500">Carica le tue dispense tecniche (CSV/Excel)</p>
+        <div ref={scrollRef} style={styles.chatArea}>
+          {chat.length === 0 && <p style={{ textAlign: "center", color: "#94a3b8", marginTop: "100px" }}>Fai una ricerca tecnica (es. Equivalente AISI del 42CrMo4)...</p>}
+          {chat.map((m, i) => (
+            <div key={i} style={{ alignSelf: m.role === "utente" ? "flex-end" : "flex-start", maxWidth: "80%" }}>
+              <div style={{ 
+                padding: "16px", borderRadius: "12px", 
+                backgroundColor: m.role === "utente" ? "#2563eb" : "white",
+                color: m.role === "utente" ? "white" : "#1e293b",
+                boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
+                border: m.role === "AI" ? "1px solid #e2e8f0" : "none"
+              }}>
+                <span style={{ ...styles.badge, backgroundColor: m.role === "utente" ? "#1d4ed8" : "#f1f5f9", color: m.role === "utente" ? "white" : "#64748b" }}>
+                  {m.role === "AI" ? "REPORT TECNICO" : "DESIGNER"}
+                </span>
+                <div style={{ fontSize: "14px", lineHeight: "1.6", whiteSpace: "pre-wrap" }}>{m.text}</div>
               </div>
-              <button className="bg-green-500 text-white px-6 py-2 rounded-lg font-bold hover:bg-green-600 transition shadow-lg shadow-green-100">
-                Carica Fonte
-              </button>
             </div>
+          ))}
+          {loading && <p style={{ color: "#3b82f6", fontSize: "12px" }}>⚙️ Analisi metallurgica in corso...</p>}
+        </div>
 
-            {/* CHAT/SEARCH AREA */}
-            <div ref={scrollRef} className="flex-1 overflow-y-auto mb-4 space-y-4 pr-2">
-              {chat.length === 0 && (
-                <div className="text-center py-20">
-                  <p className="text-slate-400 italic">Fai una ricerca per vedere le equivalenze o i dati tecnici...</p>
-                </div>
-              )}
-              {chat.map((m, i) => (
-                <div key={i} className={`flex ${m.role === 'utente' ? 'justify-end' : 'justify-start'}`}>
-                  <div className={`max-w-[85%] p-4 rounded-2xl shadow-sm border ${m.role === 'utente' ? 'bg-blue-600 text-white border-blue-500' : 'bg-white border-slate-200 text-slate-800'}`}>
-                    <p className="text-[10px] uppercase font-black mb-1 opacity-70">{m.role === 'AI' ? 'System Output' : 'Input Designer'}</p>
-                    <div className="whitespace-pre-wrap text-sm leading-relaxed">{m.text}</div>
-                  </div>
-                </div>
-              ))}
-              {loading && <div className="text-blue-500 text-xs animate-pulse font-bold">GENERAZIONE REPORT IN CORSO...</div>}
-            </div>
-
-            {/* INPUT FIELD & CHIPS */}
-            <div className="space-y-4">
-              <div className="flex gap-2">
-                {["C45", "1045", "42CrMo4", "4140"].map(chip => (
-                  <button 
-                    key={chip} 
-                    onClick={() => askAI(`Dammi i dati e le equivalenze per ${chip}`)}
-                    className="px-3 py-1 bg-slate-200 hover:bg-slate-300 rounded-full text-xs font-semibold text-slate-600 transition"
-                  >
-                    {chip}
-                  </button>
-                ))}
-              </div>
-              <div className="relative">
-                <input 
-                  className="w-full p-4 pr-16 bg-white border border-slate-200 rounded-2xl shadow-xl outline-none focus:border-blue-500 transition"
-                  placeholder="Ask anything (es. Caratteristiche 39NiCrMo3)..."
-                  value={query}
-                  onChange={e => setQuery(e.target.value)}
-                  onKeyDown={e => e.key === "Enter" && askAI()}
-                />
-                <button 
-                  onClick={() => askAI()}
-                  className="absolute right-3 top-3 bottom-3 bg-[#0F172A] text-white px-4 rounded-xl hover:bg-blue-600 transition"
-                >
-                  ➜
-                </button>
-              </div>
-            </div>
+        <div style={styles.inputArea}>
+          <div style={{ display: "flex", gap: "8px", marginBottom: "12px" }}>
+            {["C45", "42CrMo4", "AISI 304", "AISI 316"].map(tag => (
+              <button key={tag} onClick={() => askAI(`Scheda tecnica ${tag}`)} style={{ padding: "4px 12px", borderRadius: "20px", border: "1px solid #e2e8f0", backgroundColor: "white", fontSize: "12px", cursor: "pointer" }}>{tag}</button>
+            ))}
           </div>
-
-          {/* LISTA LATERALE (Simula la lista caricata nell'immagine) */}
-          <div className="w-64 bg-white border-l border-slate-200 p-6 overflow-y-auto">
-            <h4 className="text-xs font-black text-slate-400 uppercase mb-4">Base caricata</h4>
-            <div className="space-y-3">
-              {["C45", "42CrMo4", "AISI 304", "100Cr6", "AISI 431"].map(mat => (
-                <div key={mat} className="p-3 bg-slate-50 rounded-lg border border-slate-100 hover:border-blue-300 cursor-pointer transition">
-                  <p className="text-sm font-bold text-slate-700">{mat}</p>
-                  <p className="text-[10px] text-slate-400">Acciaio legato/inox</p>
-                </div>
-              ))}
-            </div>
+          <div style={styles.inputWrapper}>
+            <input 
+              style={{ flex: 1, border: "none", outline: "none", padding: "12px", fontSize: "15px" }}
+              placeholder="Inserisci materiale o normativa..."
+              value={query}
+              onChange={e => setQuery(e.target.value)}
+              onKeyDown={e => e.key === "Enter" && askAI()}
+            />
+            <button onClick={() => askAI()} style={styles.button}>Invia ➜</button>
           </div>
         </div>
       </div>

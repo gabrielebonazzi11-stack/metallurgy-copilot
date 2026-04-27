@@ -5,7 +5,9 @@ export default function App() {
   const [chat, setChat] = useState<{ role: string; text: string }[]>([]);
   const [loading, setLoading] = useState(false);
 
-  const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+  // Recuperiamo la chiave e rimuoviamo eventuali spazi invisibili (spesso causa del 404)
+  const rawApiKey = import.meta.env.VITE_GEMINI_API_KEY || "";
+  const apiKey = rawApiKey.trim();
 
   const askAI = async () => {
     if (!apiKey || !query.trim() || loading) return;
@@ -16,8 +18,8 @@ export default function App() {
     setLoading(true);
 
     try {
-      // Cambio Versione: usiamo v1 e il modello gemini-pro (molto più stabile)
-      const url = `https://generativelanguage.googleapis.com/v1/models/gemini-pro:generateContent?key=${apiKey}`;
+      // Usiamo v1beta con il suffisso -latest
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${apiKey}`;
       
       const res = await fetch(url, {
         method: "POST",
@@ -64,7 +66,7 @@ export default function App() {
             </span>
           </div>
         ))}
-        {loading && <p style={{ color: "#007bff" }}><em>Analisi metallurgica in corso...</em></p>}
+        {loading && <p style={{ color: "#007bff" }}><em>Analisi in corso...</em></p>}
       </div>
       <div style={{ display: "flex", gap: "10px" }}>
         <input 

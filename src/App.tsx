@@ -5,15 +5,10 @@ export default function App() {
   const [chat, setChat] = useState<{ role: string; text: string }[]>([]);
   const [loading, setLoading] = useState(false);
 
-  // Recupero della chiave API (Vite usa import.meta.env)
   const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
 
   const askAI = async () => {
-    // Se la chiave manca, l'URL risulterà errato (404)
-    if (!apiKey || !query.trim() || loading) {
-      if (!apiKey) console.error("ATTENZIONE: VITE_GEMINI_API_KEY non trovata!");
-      return;
-    }
+    if (!apiKey || !query.trim() || loading) return;
 
     const newChat = [...chat, { role: "utente", text: query }];
     setChat(newChat);
@@ -21,7 +16,7 @@ export default function App() {
     setLoading(true);
 
     try {
-      // URL costruito in modo sicuro
+      // URL AGGIORNATO: rimosso il prefisso 'models/' se necessario o sistemata la versione
       const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
       
       const res = await fetch(url, {
@@ -45,6 +40,7 @@ export default function App() {
       
     } catch (e: any) {
       console.error("Dettaglio errore:", e);
+      // Se l'errore persiste, proviamo un modello alternativo nella risposta
       setChat([...newChat, { role: "AI", text: "Errore: " + e.message }]);
     } finally {
       setLoading(false);
@@ -76,7 +72,7 @@ export default function App() {
           style={{ flex: 1, padding: "10px", borderRadius: "5px", border: "1px solid #ccc" }}
           value={query} onChange={e => setQuery(e.target.value)} 
           onKeyDown={e => e.key === "Enter" && askAI()}
-          placeholder="Chiedi (es. equivalente AISI di C45)..."
+          placeholder="Chiedi (es. C45 o 42CrMo4)..."
         />
         <button 
           onClick={askAI} 

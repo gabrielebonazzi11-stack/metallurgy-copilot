@@ -1,16 +1,16 @@
-import React, { useState, useEffect } from "react";
-import { motion, AnimatePresence } from "framer-motion"; // Assicurati di fare: npm install framer-motion
+import React, { useState, useEffect, useRef } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 
-// DATABASE ESTRATTO DAL TUO PDF [cite: 36, 38, 45, 54, 56]
-const DB_MATERIALI = [
-  { w: "1.0401", din: "C15", aisi: "1015", uni: "C15", tipo: "Carbonio" },
-  { w: "1.0503", din: "C45", aisi: "1045", uni: "C45", tipo: "Carbonio" },
-  { w: "1.7225", din: "42CrMo4", aisi: "4140", uni: "42CrMo4", tipo: "Legato" },
-  { w: "1.3505", din: "100Cr6", aisi: "52100", uni: "100Cr6", tipo: "Legato" },
-  { w: "1.4301", din: "X5CrNi18-10", aisi: "304", uni: "X5CrNi1810", tipo: "Inox" },
-  { w: "1.4404", din: "316L", aisi: "316L", uni: "X2CrNiMo1712", tipo: "Inox" },
-  { w: "0.6025", din: "GG25", aisi: "No 35 B", uni: "G25", tipo: "Ghisa" },
-  { w: "0.7040", din: "GGG 40", aisi: "60-40-18", uni: "GS 400-12", tipo: "Ghisa" },
+// Dati reali estratti dal tuo PDF [cite: 6, 9, 15, 17, 24, 26]
+const PDF_DATA = [
+  { w: "1.0401", din: "C15", aisi: "1015", uni: "C15", tipo: "Acciaio Carbonio" },
+  { w: "1.0503", din: "C45", aisi: "1045", uni: "C45", tipo: "Acciaio Carbonio" },
+  { w: "1.7225", din: "42CrMo4", aisi: "4140", uni: "42CrMo4", tipo: "Acciaio Legato" },
+  { w: "1.3505", din: "100Cr6", aisi: "52100", uni: "100Cr6", tipo: "Acciaio Legato" },
+  { w: "1.4301", din: "X5CrNi18-10", aisi: "304", uni: "X5CrNi1810", tipo: "Inox Austenitico" },
+  { w: "1.4404", din: "X2CrNiMo1712", aisi: "316L", uni: "X2CrNiMo1712", tipo: "Inox Austenitico" },
+  { w: "0.6025", din: "GG 25", aisi: "No 35 B", uni: "G25", tipo: "Ghisa Grigia" },
+  { w: "0.7040", din: "GGG 40", aisi: "60-40-18", uni: "GS 400-12", tipo: "Ghisa Sferoidale" }
 ];
 
 export default function App() {
@@ -19,36 +19,28 @@ export default function App() {
   const [chat, setChat] = useState<{ role: string; text: string }[]>([]);
   const [loading, setLoading] = useState(false);
   const [bomList, setBomList] = useState("");
-  const [hVal, setHVal] = useState<any>("");
-  const [hFrom, setHFrom] = useState("HB");
-
+  const [hardness, setHardness] = useState({ val: "", from: "HB" });
+  
   const apiKey = import.meta.env.VITE_GROQ_API_KEY;
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // --- LOGICA CONVERSIONE DUREZZA PROFESSIONALE ---
-  const getHardness = (v: number, type: string) => {
-    if (!v) return null;
-    let hv = v;
-    if (type === "HRC") hv = (v + 104) / 0.164;
-    if (type === "HB") hv = v / 0.95;
-    if (type === "HRB") hv = (v + 130) / 0.37;
-    
-    return {
-      hv: Math.round(hv),
-      hb: Math.round(hv * 0.95),
-      hrc: hv > 240 ? Math.round(0.164 * hv - 104) : "-",
-      hrb: hv < 240 ? Math.round(0.37 * hv - 130) : "-",
-      hk: Math.round(hv * 1.05),
-      rm: Math.round(hv * 3.35)
-    };
+  // Funzione per gestire il caricamento del file BOM
+  const handleFileLoad = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (ev) => setBomList(ev.target?.result as string);
+      reader.readAsText(file);
+    }
   };
 
-  const results = getHardness(parseFloat(hVal), hFrom);
+  const askAI = async (customText?: string) => {
+    const textToSend = customText || query;
+    if (!textToSend.trim() || loading) return;
 
-  const askAI = async (text?: string) => {
-    const input = text || query;
-    if (!input.trim() || loading) return;
     setLoading(true);
-    setChat(prev => [...prev, { role: "utente", text: input }]);
+    const newChat = [...chat, { role: "utente", text: textToSend }];
+    setChat(newChat);
     setQuery("");
 
     try {
@@ -57,154 +49,163 @@ export default function App() {
         headers: { "Content-Type": "application/json", "Authorization": `Bearer ${apiKey}` },
         body: JSON.stringify({
           model: "llama-3.3-70b-versatile",
-          messages: [{ role: "system", content: "Sei un Ingegnere Metallurgico esperto. Rispondi in italiano usando tabelle per i dati tecnici." }, { role: "user", content: input }],
+          messages: [
+            { role: "system", content: `Sei un esperto metallurgico. Usa questi dati certi: ${JSON.stringify(PDF_DATA)}. Rispondi sempre con tabelle comparative.` },
+            { role: "user", content: textToSend }
+          ],
         }),
       });
       const data = await res.json();
-      setChat(prev => [...prev, { role: "AI", text: data.choices[0].message.content }]);
+      setChat([...newChat, { role: "AI", text: data.choices[0].message.content }]);
     } catch (e) {
-      setChat(prev => [...prev, { role: "AI", text: "Errore API. Controlla la chiave." }]);
+      setChat([...newChat, { role: "AI", text: "Errore di comunicazione con l'AI." }]);
     } finally {
       setLoading(false);
     }
   };
 
+  // Calcolo Durezze (Tutte le scale principali)
+  const calcH = (v: number, type: string) => {
+    if (!v) return null;
+    let hv = type === "HB" ? v / 0.95 : type === "HRC" ? (v + 104) / 0.164 : type === "HRB" ? (v + 130) / 0.37 : v;
+    return {
+      HV: Math.round(hv),
+      HB: Math.round(hv * 0.95),
+      HRC: hv > 240 ? Math.round(0.164 * hv - 104) : "-",
+      HRB: hv <= 240 ? Math.round(0.37 * hv - 130) : "-",
+      HK: Math.round(hv * 1.05),
+      Rm: Math.round(hv * 3.35) // Resistenza N/mm2
+    };
+  };
+
+  const hRes = calcH(parseFloat(hardness.val), hardness.from);
+
   return (
-    <div style={s.app}>
-      {/* SIDEBAR CON ANIMAZIONE */}
-      <motion.aside initial={{ x: -100 }} animate={{ x: 0 }} style={s.sidebar}>
+    <div style={s.container}>
+      {/* SIDEBAR MODERNA */}
+      <aside style={s.sidebar}>
         <div style={s.logo}>TECH<span>COPILOT</span></div>
-        <div style={s.nav}>
-          <NavBtn active={view === 'advisor'} label="Advisor AI" icon="🧠" onClick={() => setView('advisor')} />
-          <NavBtn active={view === 'bom'} label="Materiali BOM" icon="📋" onClick={() => setView('bom')} />
-          <NavBtn active={view === 'calc'} label="Calcolatori" icon="📐" onClick={() => setView('calc')} />
-        </div>
-      </motion.aside>
+        <nav style={s.nav}>
+          <NavBtn active={view === "advisor"} icon="🧠" label="AI Advisor" onClick={() => setView("advisor")} />
+          <NavBtn active={view === "bom"} icon="📋" label="Distinta / BOM" onClick={() => setView("bom")} />
+          <NavBtn active={view === "calc"} icon="📐" label="Calcolatori" onClick={() => setView("calc")} />
+        </nav>
+      </aside>
 
       <main style={s.main}>
         <header style={s.header}>
-          <h2>{view === 'advisor' ? 'AI Metallurgical Advisor' : view === 'bom' ? 'Conversione Distinta Base' : 'Engineering Tools'}</h2>
+          <div style={s.status}>Database PDF: <span style={{color:'#10b981'}}>Attivo</span></div>
         </header>
 
         <AnimatePresence mode="wait">
-          <motion.section 
-            key={view}
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -10 }}
-            transition={{ duration: 0.2 }}
+          <motion.div 
+            key={view} 
+            initial={{ opacity: 0, y: 10 }} 
+            animate={{ opacity: 1, y: 0 }} 
+            exit={{ opacity: 0, y: -10 }} 
             style={s.content}
           >
-            {/* VIEW ADVISOR */}
-            {view === 'advisor' && (
-              <div style={s.chatWrapper}>
-                <div style={s.chatArea}>
-                  {chat.map((m, i) => (
-                    <motion.div initial={{ scale: 0.9 }} animate={{ scale: 1 }} key={i} style={m.role === 'utente' ? s.msgUser : s.msgAi}>
-                      {m.text}
-                    </motion.div>
-                  ))}
-                  {loading && <div style={s.loader}>Analisi in corso...</div>}
+            {/* VIEW: BOM - FUNZIONANTE CON FILE E TESTO */}
+            {view === "bom" && (
+              <div style={s.card}>
+                <h3 style={{marginBottom:'20px'}}>Conversione Distinta Materiali</h3>
+                <div style={{display:'flex', gap:'10px', marginBottom:'15px'}}>
+                  <button style={s.fileBtn} onClick={() => fileInputRef.current?.click()}>📁 Carica File BOM</button>
+                  <input type="file" ref={fileInputRef} hidden onChange={handleFileLoad} accept=".txt,.csv" />
+                  <button style={s.secBtn} onClick={() => setBomList("")}>Svuota</button>
                 </div>
-                <div style={s.inputBar}>
-                  <input style={s.input} value={query} onChange={e => setQuery(e.target.value)} onKeyDown={e => e.key === 'Enter' && askAI()} placeholder="Chiedi info tecniche..." />
+                <textarea 
+                  style={s.textarea} 
+                  placeholder="Incolla qui la lista dei materiali (es. C45, 1.7225, 304L)..." 
+                  value={bomList} 
+                  onChange={(e) => setBomList(e.target.value)}
+                />
+                <button style={s.primaryBtn} onClick={() => askAI(`Analizza e converti questa BOM: ${bomList}`)}>
+                  Avvia Conversione AI
+                </button>
+              </div>
+            )}
+
+            {/* VIEW: CALC - TUTTE LE DUREZZE */}
+            {view === "calc" && (
+              <div style={s.grid}>
+                <div style={s.card}>
+                  <h3>🔄 Convertitore Durezze</h3>
+                  <div style={s.row}>
+                    <input style={s.input} type="number" placeholder="Valore" value={hardness.val} onChange={(e)=>setHardness({...hardness, val: e.target.value})} />
+                    <select style={s.select} value={hardness.from} onChange={(e)=>setHardness({...hardness, from: e.target.value})}>
+                      <option>HB</option><option>HRC</option><option>HRB</option><option>HV</option>
+                    </select>
+                  </div>
+                  <div style={s.resGrid}>
+                    <ValBox label="Vickers" val={hRes?.HV} unit="HV" />
+                    <ValBox label="Brinell" val={hRes?.HB} unit="HB" />
+                    <ValBox label="Rockwell C" val={hRes?.HRC} unit="HRC" />
+                    <ValBox label="Rockwell B" val={hRes?.HRB} unit="HRB" />
+                    <ValBox label="Resistenza" val={hRes?.Rm} unit="N/mm²" highlight />
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* VIEW: ADVISOR */}
+            {view === "advisor" && (
+              <div style={s.chatWrapper}>
+                <div style={s.chatList}>
+                  {chat.map((m, i) => (
+                    <div key={i} style={m.role === "utente" ? s.uMsg : s.aMsg}>{m.text}</div>
+                  ))}
+                  {loading && <div style={{textAlign:'center', color:'#3b82f6'}}>Analisi tecnica in corso...</div>}
+                </div>
+                <div style={s.inputArea}>
+                  <input style={s.input} value={query} onChange={e => setQuery(e.target.value)} onKeyDown={e => e.key === "Enter" && askAI()} placeholder="Chiedi consiglio sui materiali..." />
                   <button style={s.sendBtn} onClick={() => askAI()}>Invia</button>
                 </div>
               </div>
             )}
-
-            {/* VIEW BOM - FUNZIONANTE [cite: 36, 47] */}
-            {view === 'bom' && (
-              <div style={s.card}>
-                <h3>Conversione Massiva</h3>
-                <textarea 
-                  style={s.textarea} 
-                  value={bomList} 
-                  onChange={e => setBomList(e.target.value)} 
-                  placeholder="Inserisci sigle (es: C45, 1.4301, GGG40)..." 
-                />
-                <button style={s.primaryBtn} onClick={() => askAI(`Genera una tabella di confronto tecnico per questi materiali: ${bomList}`)}>
-                  Converti Lista con AI
-                </button>
-                <div style={s.quickTable}>
-                  <p>Suggerimenti rapidi dal Database PDF:</p>
-                  <div style={s.chipArea}>
-                    {DB_MATERIALI.map(m => (
-                      <span key={m.w} onClick={() => setBomList(prev => prev + m.din + ", ")} style={s.chip}>{m.din}</span>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* VIEW CALC - TUTTE LE DUREZZE  */}
-            {view === 'calc' && (
-              <div style={s.grid}>
-                <div style={s.card}>
-                  <h3>🔄 Convertitore Totale Durezze</h3>
-                  <div style={s.row}>
-                    <input style={s.input} type="number" value={hVal} onChange={e => setHVal(e.target.value)} placeholder="Valore" />
-                    <select style={s.select} value={hFrom} onChange={e => setHFrom(e.target.value)}>
-                      <option>HB</option><option>HRC</option><option>HRB</option><option>HV</option>
-                    </select>
-                  </div>
-                  <div style={s.hardnessResults}>
-                    <ResultRow label="Vickers" val={results?.hv} unit="HV" />
-                    <ResultRow label="Brinell" val={results?.hb} unit="HB" />
-                    <ResultRow label="Rockwell C" val={results?.hrc} unit="HRC" />
-                    <ResultRow label="Rockwell B" val={results?.hrb} unit="HRB" />
-                    <ResultRow label="Knoop" val={results?.hk} unit="HK" />
-                    <ResultRow label="Resistenza" val={results?.rm} unit="N/mm²" highlight />
-                  </div>
-                </div>
-              </div>
-            )}
-          </motion.section>
+          </motion.div>
         </AnimatePresence>
       </main>
     </div>
   );
 }
 
-// --- COMPONENTI UI ---
-const NavBtn = ({ active, label, icon, onClick }: any) => (
-  <button onClick={onClick} style={{ ...s.navBtn, backgroundColor: active ? '#3b82f6' : 'transparent', color: active ? 'white' : '#94a3b8' }}>
-    <span style={{ marginRight: '10px' }}>{icon}</span> {label}
+// --- UI COMPONENTS & STYLES ---
+const NavBtn = ({ active, icon, label, onClick }: any) => (
+  <button onClick={onClick} style={{ ...s.navBtn, backgroundColor: active ? "#3b82f6" : "transparent", color: active ? "white" : "#94a3b8" }}>
+    <span style={{marginRight:'12px'}}>{icon}</span> {label}
   </button>
 );
 
-const ResultRow = ({ label, val, unit, highlight }: any) => (
-  <div style={{ ...s.resRow, backgroundColor: highlight ? '#eff6ff' : '#f8fafc' }}>
-    <span>{label}</span>
-    <span style={{ fontWeight: 800, color: highlight ? '#3b82f6' : '#1e293b' }}>{val} {unit}</span>
+const ValBox = ({ label, val, unit, highlight }: any) => (
+  <div style={{...s.valBox, backgroundColor: highlight ? '#f0f9ff' : '#f8fafc'}}>
+    <div style={{fontSize:'11px', color:'#64748b'}}>{label}</div>
+    <div style={{fontSize:'18px', fontWeight:800, color: highlight ? '#3b82f6' : '#1e293b'}}>{val || '--'} <small style={{fontSize:'10px'}}>{unit}</small></div>
   </div>
 );
 
-// --- STILI REVISIONATI ---
 const s: any = {
-  app: { display: 'flex', height: '100vh', backgroundColor: '#f8fafc', color: '#1e293b', fontFamily: 'Inter, sans-serif' },
-  sidebar: { width: '260px', backgroundColor: '#ffffff', borderRight: '1px solid #e2e8f0', padding: '30px 20px', display: 'flex', flexDirection: 'column' },
-  logo: { fontSize: '22px', fontWeight: 900, marginBottom: '40px', letterSpacing: '-1px' },
-  nav: { display: 'flex', flexDirection: 'column', gap: '5px' },
-  navBtn: { border: 'none', padding: '12px 15px', borderRadius: '10px', textAlign: 'left', cursor: 'pointer', fontWeight: 600, transition: '0.3s' },
+  container: { display: 'flex', height: '100vh', backgroundColor: '#f1f5f9', fontFamily: 'Inter, sans-serif' },
+  sidebar: { width: '260px', backgroundColor: '#0f172a', padding: '30px 20px', color: 'white' },
+  logo: { fontSize: '22px', fontWeight: 900, marginBottom: '40px' },
+  nav: { display: 'flex', flexDirection: 'column', gap: '8px' },
+  navBtn: { border: 'none', padding: '12px 16px', borderRadius: '12px', textAlign: 'left', cursor: 'pointer', fontWeight: 600, transition: '0.3s' },
   main: { flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' },
   header: { padding: '20px 40px', backgroundColor: 'white', borderBottom: '1px solid #e2e8f0' },
   content: { flex: 1, padding: '40px', overflowY: 'auto' },
-  chatWrapper: { height: '100%', display: 'flex', flexDirection: 'column', maxWidth: '800px', margin: '0 auto' },
-  chatArea: { flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '15px', paddingBottom: '20px' },
-  msgUser: { alignSelf: 'flex-end', backgroundColor: '#3b82f6', color: 'white', padding: '12px 20px', borderRadius: '15px 15px 0 15px', fontSize: '14px' },
-  msgAi: { alignSelf: 'flex-start', backgroundColor: 'white', border: '1px solid #e2e8f0', padding: '15px 20px', borderRadius: '0 15px 15px 15px', fontSize: '14px', lineHeight: '1.6' },
-  inputBar: { display: 'flex', gap: '10px', backgroundColor: 'white', padding: '10px', borderRadius: '15px', border: '1px solid #e2e8f0' },
-  input: { flex: 1, border: 'none', outline: 'none', padding: '10px' },
-  sendBtn: { backgroundColor: '#1e293b', color: 'white', border: 'none', padding: '10px 20px', borderRadius: '10px', cursor: 'pointer', fontWeight: 700 },
-  card: { backgroundColor: 'white', padding: '30px', borderRadius: '20px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)', border: '1px solid #e2e8f0' },
-  textarea: { width: '100%', height: '120px', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '15px', marginBottom: '15px', outline: 'none' },
-  primaryBtn: { width: '100%', backgroundColor: '#10b981', color: 'white', border: 'none', padding: '15px', borderRadius: '12px', fontWeight: 800, cursor: 'pointer' },
-  grid: { display: 'grid', gridTemplateColumns: '1fr', maxWidth: '600px' },
-  row: { display: 'flex', gap: '10px', marginBottom: '20px' },
+  card: { backgroundColor: 'white', padding: '30px', borderRadius: '24px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)' },
+  textarea: { width: '100%', height: '150px', borderRadius: '12px', border: '1px solid #e2e8f0', padding: '15px', marginBottom: '15px', outline: 'none' },
+  primaryBtn: { width: '100%', padding: '15px', backgroundColor: '#10b981', color: 'white', border: 'none', borderRadius: '12px', fontWeight: 800, cursor: 'pointer' },
+  fileBtn: { padding: '10px 20px', backgroundColor: '#f1f5f9', border: '1px solid #e2e8f0', borderRadius: '8px', cursor: 'pointer', fontWeight: 600 },
+  secBtn: { padding: '10px 20px', background: 'none', border: '1px solid #e2e8f0', borderRadius: '8px', cursor: 'pointer' },
+  input: { flex: 1, padding: '12px', borderRadius: '10px', border: '1px solid #e2e8f0', outline: 'none' },
   select: { padding: '10px', borderRadius: '10px', border: '1px solid #e2e8f0' },
-  resRow: { display: 'flex', justifyContent: 'space-between', padding: '12px 15px', borderRadius: '8px', marginBottom: '5px', fontSize: '14px' },
-  chipArea: { display: 'flex', flexWrap: 'wrap', gap: '8px', marginTop: '10px' },
-  chip: { padding: '5px 12px', backgroundColor: '#f1f5f9', borderRadius: '20px', fontSize: '12px', cursor: 'pointer', fontWeight: 600 },
-  loader: { color: '#3b82f6', fontWeight: 700, fontSize: '12px', textAlign: 'center' }
+  resGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: '10px', marginTop: '20px' },
+  valBox: { padding: '15px', borderRadius: '12px', border: '1px solid #e2e8f0', textAlign: 'center' },
+  chatWrapper: { height: '100%', display: 'flex', flexDirection: 'column', maxWidth: '800px', margin: '0 auto' },
+  chatList: { flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '15px', paddingBottom: '20px' },
+  uMsg: { alignSelf: 'flex-end', backgroundColor: '#3b82f6', color: 'white', padding: '12px 18px', borderRadius: '18px 18px 0 18px' },
+  aMsg: { alignSelf: 'flex-start', backgroundColor: 'white', border: '1px solid #e2e8f0', padding: '12px 18px', borderRadius: '0 18px 18px 18px' },
+  inputArea: { display: 'flex', gap: '10px', padding: '15px', backgroundColor: 'white', borderRadius: '15px', border: '1px solid #e2e8f0' },
+  sendBtn: { padding: '0 25px', backgroundColor: '#0f172a', color: 'white', border: 'none', borderRadius: '10px', cursor: 'pointer', fontWeight: 700 }
 };

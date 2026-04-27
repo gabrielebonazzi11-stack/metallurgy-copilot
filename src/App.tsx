@@ -5,11 +5,12 @@ export default function App() {
   const [chat, setChat] = useState<{ role: string; text: string }[]>([]);
   const [loading, setLoading] = useState(false);
 
+  // Questa variabile legge la chiave che hai messo su Vercel
   const apiKey = import.meta.env.VITE_GROQ_API_KEY;
 
   const askAI = async () => {
     if (!apiKey || !query.trim() || loading) {
-      if (!apiKey) alert("Manca la variabile VITE_GROQ_API_KEY su Vercel!");
+      if (!apiKey) alert("Manca la VITE_GROQ_API_KEY su Vercel!");
       return;
     }
 
@@ -26,9 +27,9 @@ export default function App() {
           "Authorization": `Bearer ${apiKey.trim()}`
         },
         body: JSON.stringify({
-          model: "llama3-8b-8192", // Modello Llama 3 gratuito e veloce
+          model: "llama-3.1-8b-instant", // MODELLO AGGIORNATO (Llama 3.1)
           messages: [
-            { role: "system", content: "Sei un esperto metallurgico. Rispondi in modo tecnico e professionale." },
+            { role: "system", content: "Sei un esperto metallurgico. Rispondi in modo tecnico e professionale in italiano." },
             { role: "user", content: query }
           ],
           temperature: 0.5
@@ -71,7 +72,7 @@ export default function App() {
             </span>
           </div>
         ))}
-        {loading && <p style={{ color: "#007bff" }}><em>Calcolo metallurgico in corso...</em></p>}
+        {loading && <p style={{ color: "#f39c12" }}><em>Analisi metallurgica in corso...</em></p>}
       </div>
       <div style={{ display: "flex", gap: "10px" }}>
         <input 

@@ -5,12 +5,14 @@ export default function App() {
   const [chat, setChat] = useState<{ role: string; text: string }[]>([]);
   const [loading, setLoading] = useState(false);
 
-  // Recuperiamo la chiave e rimuoviamo eventuali spazi invisibili (spesso causa del 404)
-  const rawApiKey = import.meta.env.VITE_GEMINI_API_KEY || "";
-  const apiKey = rawApiKey.trim();
+  // Recuperiamo la chiave OpenAI da Vercel
+  const apiKey = import.meta.env.VITE_OPENAI_API_KEY;
 
   const askAI = async () => {
-    if (!apiKey || !query.trim() || loading) return;
+    if (!apiKey || !query.trim() || loading) {
+      if (!apiKey) alert("Manca la VITE_OPENAI_API_KEY su Vercel!");
+      return;
+    }
 
     const newChat = [...chat, { role: "utente", text: query }];
     setChat(newChat);
@@ -18,16 +20,19 @@ export default function App() {
     setLoading(true);
 
     try {
-      // Usiamo v1beta con il suffisso -latest
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${apiKey}`;
-      
-      const res = await fetch(url, {
+      const res = await fetch("https://api.openai.com/v1/chat/completions", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${apiKey.trim()}`
+        },
         body: JSON.stringify({
-          contents: [{
-            parts: [{ text: "Sei un esperto metallurgico. Rispondi brevemente a questa domanda tecnica: " + query }]
-          }]
+          model: "gpt-4o-mini", // Modello economico, veloce e potentissimo
+          messages: [
+            { role: "system", content: "Sei un esperto metallurgico. Rispondi in modo tecnico e preciso." },
+            { role: "user", content: query }
+          ],
+          temperature: 0.7
         }),
       });
 
@@ -37,12 +42,12 @@ export default function App() {
         throw new Error(data.error.message);
       }
 
-      const aiResponse = data.candidates?.[0]?.content?.parts?.[0]?.text || "Nessuna risposta ricevuta.";
+      const aiResponse = data.choices[0].message.content;
       setChat([...newChat, { role: "AI", text: aiResponse }]);
       
     } catch (e: any) {
-      console.error("Errore:", e);
-      setChat([...newChat, { role: "AI", text: "Errore tecnico: " + e.message }]);
+      console.error("Errore OpenAI:", e);
+      setChat([...newChat, { role: "AI", text: "Errore ChatGPT: " + e.message }]);
     } finally {
       setLoading(false);
     }
@@ -50,19 +55,20 @@ export default function App() {
 
   return (
     <div style={{ padding: "20px", maxWidth: "600px", margin: "0 auto", fontFamily: "sans-serif" }}>
-      <h1 style={{ textAlign: "center" }}>🛠️ Metallurgy Copilot</h1>
+      <h1 style={{ textAlign: "center" }}>🛠️ Metallurgy Copilot (GPT)</h1>
       <div style={{ 
         border: "1px solid #ccc", height: "450px", overflowY: "auto", 
         padding: "15px", marginBottom: "15px", borderRadius: "10px", background: "#f9f9f9" 
       }}>
         {chat.map((m, i) => (
-          <div key={i} style={{ marginBottom: "10px", textAlign: m.role === "utente" ? "right" : "left" }}>
+          <div key={i} style={{ marginBottom: "12px", textAlign: m.role === "utente" ? "right" : "left" }}>
             <span style={{ 
-              display: "inline-block", padding: "8px 12px", borderRadius: "10px",
-              background: m.role === "utente" ? "#007bff" : "#e9e9eb",
-              color: m.role === "utente" ? "#fff" : "#000"
+              display: "inline-block", padding: "10px 14px", borderRadius: "12px",
+              background: m.role === "utente" ? "#007bff" : "#fff",
+              color: m.role === "utente" ? "#fff" : "#333",
+              boxShadow: "0 2px 4px rgba(0,0,0,0.1)"
             }}>
-              <strong>{m.role === "AI" ? "AI" : "Tu"}:</strong> {m.text}
+              <strong>{m.role === "AI" ? "ChatGPT" : "Tu"}:</strong> {m.text}
             </span>
           </div>
         ))}
@@ -70,14 +76,14 @@ export default function App() {
       </div>
       <div style={{ display: "flex", gap: "10px" }}>
         <input 
-          style={{ flex: 1, padding: "10px", borderRadius: "5px", border: "1px solid #ccc" }}
+          style={{ flex: 1, padding: "12px", borderRadius: "8px", border: "1px solid #ccc" }}
           value={query} onChange={e => setQuery(e.target.value)} 
           onKeyDown={e => e.key === "Enter" && askAI()}
-          placeholder="Chiedi al Copilot..."
+          placeholder="Chiedi a ChatGPT (es. Trattamento termico 39NiCrMo3)..."
         />
         <button 
           onClick={askAI} 
-          style={{ padding: "10px 20px", background: "#007bff", color: "#fff", border: "none", borderRadius: "5px", cursor: "pointer" }}
+          style={{ padding: "10px 20px", background: "#28a745", color: "#fff", border: "none", borderRadius: "8px", cursor: "pointer", fontWeight: "bold" }}
         >
           Invia
         </button>

@@ -1,0 +1,72 @@
+import React, { useState } from "react";
+
+export default function App() {
+  const [query, setQuery] = useState("");
+  const [chat, setChat] = useState<{ role: string; content: string }[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  // Questa riga legge la chiave che hai impostato su Vercel
+  const apiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY;
+
+  const askAI = async () => {
+    if (!apiKey) return alert("Errore: Chiave non configurata su Vercel");
+    if (!query.trim()) return;
+
+    setChat(prev => [...prev, { role: "user", content: query }]);
+    setLoading(true);
+    const currentMsg = query;
+    setQuery("");
+
+    try {
+      const response = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            system_instruction: { 
+              parts: [{ text: "Sei un esperto metallurgico. Riferimenti: 1.0503=C45, 1.7225=42CrMo4, 1.4301=AISI304." }] 
+            },
+            contents: [{ parts: [{ text: currentMsg }] }]
+          })
+        }
+      );
+
+      const data = await response.json();
+      if (data.error) throw new Error(data.error.message);
+
+      const text = data.candidates[0].content.parts[0].text;
+      setChat(prev => [...prev, { role: "ai", content: text }]);
+    } catch (err: any) {
+      setChat(prev => [...prev, { role: "ai", content: "Errore: " + err.message }]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div style={{ padding: "20px", fontFamily: "sans-serif", maxWidth: "800px", margin: "auto" }}>
+      <h1 style={{ borderBottom: "2px solid #333" }}>Technical Copilot 🛠️</h1>
+      <div style={{ border: "1px solid #ddd", height: "450px", overflowY: "auto", padding: "15px", margin: "20px 0", borderRadius: "10px", background: "#f9f9f9" }}>
+        {chat.map((m, i) => (
+          <div key={i} style={{ marginBottom: "15px", textAlign: m.role === "user" ? "right" : "left" }}>
+            <div style={{ display: "inline-block", padding: "10px", borderRadius: "10px", background: m.role === "user" ? "#007bff" : "#eee", color: m.role === "user" ? "white" : "black" }}>
+              <strong>{m.role === "user" ? "Tu: " : "AI: "}</strong>{m.content}
+            </div>
+          </div>
+        ))}
+        {loading && <p>Analisi materiali in corso...</p>}
+      </div>
+      <div style={{ display: "flex", gap: "10px" }}>
+        <input 
+          style={{ flex: 1, padding: "12px", borderRadius: "5px", border: "1px solid #ccc" }} 
+          value={query} 
+          onChange={e => setQuery(e.target.value)}
+          onKeyDown={e => e.key === "Enter" && askAI()}
+          placeholder="Esempio: Equivalente C45 in AISI"
+        />
+        <button onClick={askAI} style={{ padding: "10px 20px", background: "#28a745", color: "white", border: "none", borderRadius: "5px", cursor: "pointer" }}>Invia</button>
+      </div>
+    </div>
+  );
+}

@@ -32,14 +32,9 @@ export default function App() {
         body: JSON.stringify({
           model: "llama-3.3-70b-versatile",
           messages: [
-            { role: "system", content: `Sei TechAi, un assistente esperto in meccanica e metallurgia.
-              LINEE GUIDA RISPOSTA:
-              1. Se l'utente saluta o è vago, rispondi in modo cordiale, breve e variabile (es: "Ciao! Sono TechAi, pronto ad aiutarti con i tuoi progetti meccanici. Cosa analizziamo oggi?"). 
-              2. NON elencare le tue conoscenze se non richiesto (non essere arrogante).
-              3. Se l'utente scrive solo una sigla (es: C40), dai una descrizione tecnica completa (analisi, usi, durezza).
-              4. Se l'utente fa una domanda specifica o un calcolo, dai SOLO la risposta richiesta senza dati extra.
-              5. MATEMATICA: Usa <div class="math-frac"><span>N</span><span class="bottom">D</span></div> per le frazioni.
-              6. TABELLE: Usa <table> HTML.` },
+            { role: "system", content: `Sei TechAi. Cordiale, breve se salutato, tecnico se interrogato su materiali.
+              MATEMATICA: Usa <div class="math-frac"><span>N</span><span class="bottom">D</span></div> per le frazioni.
+              TABELLE: Usa <table> HTML.` },
             { role: "user", content: text }
           ],
         }),
@@ -54,23 +49,37 @@ export default function App() {
   return (
     <div style={s.app}>
       <aside style={s.sidebar}>
-        <div style={s.logo}>TECH<span style={{color:'#3b82f6'}}>COPILOT</span></div>
+        <div style={s.logo}>TECH<span style={{color:'#3b82f6'}}>AI</span></div>
         <nav style={s.nav}>
-          <button style={view === "advisor" ? s.navBtnAct : s.navBtn} onClick={() => setView("advisor")}>🧠 AI Advisor</button>
-          <button style={s.navBtn} onClick={() => {setChat([]); setView("advisor");}}>🔄 Nuova Chat</button>
+          <button style={view === "advisor" ? s.navBtnAct : s.navBtn} onClick={() => setView("advisor")}>🧠 Advisor</button>
+          <button style={s.navBtn} onClick={() => {setChat([]); setView("advisor");}}>🔄 Nuova chat</button>
         </nav>
       </aside>
 
       <main style={s.main}>
-        <header style={s.header}><div style={s.badge}>ENGINEERING MODE ON ✅</div></header>
-
-        <section style={{...s.content, justifyContent: isChatEmpty ? 'center' : 'flex-start'}}>
-          {isChatEmpty && (
-            <h1 style={s.welcomeText}>Benvenuto, come posso aiutarti oggi?</h1>
-          )}
-
-          <div style={{...s.chatWrapper, flex: isChatEmpty ? '0 1 auto' : '1'}}>
-            {!isChatEmpty && (
+        <section style={{...s.content, justifyContent: isChatEmpty ? 'center' : 'space-between'}}>
+          
+          {/* CENTER CONTENT (HOME) */}
+          {isChatEmpty ? (
+            <div style={s.homeCenter}>
+              <h1 style={s.welcomeText}>Benvenuto, come posso aiutarti oggi?</h1>
+              <div style={s.searchBarWrapper}>
+                <div style={s.searchBar}>
+                  <textarea 
+                    style={s.textarea} 
+                    rows={1} 
+                    value={query} 
+                    placeholder="Chiedi a TechAI..."
+                    onChange={e => { setQuery(e.target.value); e.target.style.height = 'auto'; e.target.style.height = e.target.scrollHeight + 'px'; }}
+                    onKeyDown={e => e.key === "Enter" && !e.shiftKey && (e.preventDefault(), callAI())}
+                  />
+                  <button style={s.sendBtn} onClick={callAI}>🚀</button>
+                </div>
+              </div>
+            </div>
+          ) : (
+            /* CHAT LAYOUT */
+            <div style={s.chatContainer}>
               <div style={s.msgList}>
                 {chat.map((m, i) => (
                   <div key={i} style={m.role === "utente" ? s.uRow : s.aRow}>
@@ -78,81 +87,70 @@ export default function App() {
                          dangerouslySetInnerHTML={{ __html: m.text.replace(/\n/g, '<br/>') }} />
                   </div>
                 ))}
-                {loading && <div style={s.loader}>✨ Elaborazione in corso...</div>}
+                {loading && <div style={s.loader}>✨ TechAi sta scrivendo...</div>}
                 <div ref={chatEndRef} />
               </div>
-            )}
-
-            {/* BARRA DI RICERCA UNIFICATA (NON CAMBIA FORMA) */}
-            <div style={isChatEmpty ? s.inputHomeWrapper : s.inputChatWrapper}>
-              <div style={s.searchBar}>
-                <textarea 
-                  style={s.textarea} 
-                  rows={1} 
-                  value={query} 
-                  placeholder="Scrivi qui..."
-                  onChange={e => { 
-                    setQuery(e.target.value); 
-                    e.target.style.height = 'auto'; 
-                    e.target.style.height = e.target.scrollHeight + 'px'; 
-                  }}
-                  onKeyDown={e => e.key === "Enter" && !e.shiftKey && (e.preventDefault(), callAI())}
-                />
-                <button style={s.sendBtn} onClick={callAI}>🚀</button>
+              
+              <div style={s.bottomInputWrapper}>
+                <div style={s.searchBar}>
+                  <textarea 
+                    style={s.textarea} 
+                    rows={1} 
+                    value={query} 
+                    placeholder="Chiedi a TechAI..."
+                    onChange={e => { setQuery(e.target.value); e.target.style.height = 'auto'; e.target.style.height = e.target.scrollHeight + 'px'; }}
+                    onKeyDown={e => e.key === "Enter" && !e.shiftKey && (e.preventDefault(), callAI())}
+                  />
+                  <button style={s.sendBtn} onClick={callAI}>🚀</button>
+                </div>
+                <p style={s.disclaimer}>TechAI può commettere errori. Verifica le informazioni importanti.</p>
               </div>
             </div>
-          </div>
+          )}
         </section>
       </main>
 
       <style>{`
-        table { width: 100%; border-collapse: collapse; margin: 15px 0; background: white; border: 1px solid #cbd5e1; border-radius: 8px; overflow: hidden; }
-        th { background: #0f172a; color: white; padding: 12px; text-align: left; }
-        td { padding: 12px; border-bottom: 1px solid #e2e8f0; font-size: 14px; color: #1e293b; }
-        .math-frac { display: inline-block; vertical-align: middle; text-align: center; font-family: "Times New Roman", serif; font-size: 18px; margin: 0 5px; }
-        .math-frac span { display: block; padding: 0 5px; }
-        .math-frac span.bottom { border-top: 2px solid #0f172a; padding-top: 2px; }
+        table { width: 100%; border-collapse: collapse; margin: 15px 0; background: white; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden; }
+        th { background: #f8fafc; color: #64748b; padding: 12px; text-align: left; font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 1px solid #e2e8f0; }
+        td { padding: 12px; border-bottom: 1px solid #f1f5f9; font-size: 14px; color: #1e293b; }
+        .math-frac { display: inline-block; vertical-align: middle; text-align: center; font-family: "Times New Roman", serif; font-size: 18px; margin: 0 4px; }
+        .math-frac span { display: block; padding: 0 4px; }
+        .math-frac span.bottom { border-top: 1.5px solid #1e293b; padding-top: 1px; }
       `}</style>
     </div>
   );
 }
 
 const s: any = {
-  app: { display: 'flex', height: '100vh', backgroundColor: '#f8fafc', fontFamily: 'Inter, sans-serif' },
-  sidebar: { width: '260px', backgroundColor: '#0f172a', padding: '30px 20px', color: 'white' },
-  logo: { fontSize: '24px', fontWeight: 900, marginBottom: '40px', letterSpacing: '-1.5px' },
-  nav: { display: 'flex', flexDirection: 'column', gap: '10px' },
-  navBtn: { padding: '12px', border: 'none', background: 'none', color: '#94a3b8', textAlign: 'left', cursor: 'pointer', fontWeight: 600 },
-  navBtnAct: { padding: '12px', backgroundColor: '#3b82f6', color: 'white', borderRadius: '12px', border: 'none', textAlign: 'left', fontWeight: 600 },
-  main: { flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' },
-  header: { padding: '15px 40px', backgroundColor: 'white', borderBottom: '1px solid #e2e8f0' },
-  badge: { fontSize: '10px', color: '#3b82f6', background: '#eff6ff', padding: '5px 12px', borderRadius: '20px', fontWeight: 800 },
-  content: { flex: 1, padding: '20px 40px', display: 'flex', flexDirection: 'column' },
-  welcomeText: { fontSize: '38px', fontWeight: 700, color: '#1e293b', textAlign: 'center', marginBottom: '30px' },
-  chatWrapper: { display: 'flex', flexDirection: 'column', maxWidth: '800px', width: '100%', margin: '0 auto', transition: 'all 0.3s ease' },
-  msgList: { flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '20px', paddingBottom: '20px' },
+  app: { display: 'flex', height: '100vh', backgroundColor: '#ffffff', fontFamily: 'Inter, system-ui, sans-serif' },
+  sidebar: { width: '240px', backgroundColor: '#f0f4f9', padding: '20px', display: 'flex', flexDirection: 'column', borderRight: '1px solid #e2e8f0' },
+  logo: { fontSize: '20px', fontWeight: 700, marginBottom: '30px', color: '#1e293b', paddingLeft: '10px' },
+  nav: { display: 'flex', flexDirection: 'column', gap: '4px' },
+  navBtn: { padding: '10px 15px', border: 'none', background: 'none', color: '#444746', textAlign: 'left', cursor: 'pointer', fontWeight: 500, borderRadius: '20px', fontSize: '14px' },
+  navBtnAct: { padding: '10px 15px', backgroundColor: '#d3e3fd', color: '#041e49', borderRadius: '20px', border: 'none', textAlign: 'left', fontWeight: 600, fontSize: '14px' },
+  main: { flex: 1, display: 'flex', flexDirection: 'column', position: 'relative' },
+  content: { flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' },
+  homeCenter: { display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%' },
+  welcomeText: { fontSize: '40px', fontWeight: 500, color: '#1e293b', marginBottom: '40px', textAlign: 'center' },
+  chatContainer: { flex: 1, display: 'flex', flexDirection: 'column', width: '100%', maxWidth: '800px', margin: '0 auto', overflow: 'hidden' },
+  msgList: { flex: 1, overflowY: 'auto', padding: '20px', display: 'flex', flexDirection: 'column', gap: '24px' },
   uRow: { display: 'flex', justifyContent: 'flex-end' },
   aRow: { display: 'flex', justifyContent: 'flex-start' },
-  uBox: { backgroundColor: '#3b82f6', color: 'white', padding: '15px 20px', borderRadius: '20px 20px 0 20px', fontSize: '15px' },
-  aBox: { backgroundColor: 'white', border: '1px solid #e2e8f0', padding: '20px', borderRadius: '0 20px 20px 20px', fontSize: '15px', color: '#1e293b', lineHeight: '1.6' },
+  uBox: { backgroundColor: '#f0f4f9', color: '#1e293b', padding: '12px 20px', borderRadius: '18px', maxWidth: '80%', fontSize: '15px' },
+  aBox: { backgroundColor: 'transparent', color: '#1e293b', padding: '12px 0', maxWidth: '100%', fontSize: '16px', lineHeight: '1.6' },
   
-  // CONTAINER DELLA BARRA
-  inputHomeWrapper: { width: '100%', display: 'flex', justifyContent: 'center' },
-  inputChatWrapper: { width: '100%', padding: '20px 0', marginTop: 'auto' },
-  
-  // LA BARRA VERA E PROPRIA (IDENTICA IN ENTRAMBI I CASI)
+  // BARRA STILE GEMINI
+  searchBarWrapper: { width: '100%', maxWidth: '720px', padding: '0 20px' },
+  bottomInputWrapper: { padding: '20px', width: '100%', maxWidth: '800px', margin: '0 auto' },
   searchBar: { 
-    width: '100%', 
-    maxWidth: '700px', 
     display: 'flex', 
     alignItems: 'center', 
-    gap: '15px', 
-    background: 'white', 
-    padding: '12px 25px', 
-    borderRadius: '35px', 
-    border: '2px solid #e2e8f0',
-    boxShadow: '0 4px 20px rgba(0,0,0,0.05)',
-    margin: '0 auto'
+    background: '#f0f4f9', 
+    padding: '8px 20px', 
+    borderRadius: '28px', 
+    transition: 'background 0.2s ease',
+    minHeight: '52px'
   },
   textarea: { 
     flex: 1, 
@@ -160,11 +158,13 @@ const s: any = {
     outline: 'none', 
     resize: 'none', 
     fontSize: '16px', 
-    fontFamily: 'inherit', 
+    background: 'transparent',
+    color: '#1e293b',
     textAlign: 'center', 
     padding: '10px 0',
-    lineHeight: '1.5'
+    maxHeight: '200px'
   },
-  sendBtn: { background: '#0f172a', color: 'white', border: 'none', padding: '10px 18px', borderRadius: '20px', fontWeight: 700, cursor: 'pointer' },
-  loader: { textAlign: 'center', color: '#3b82f6', fontWeight: 700, padding: '10px' }
+  sendBtn: { background: 'none', border: 'none', cursor: 'pointer', fontSize: '18px', padding: '5px' },
+  disclaimer: { fontSize: '11px', color: '#70757a', textAlign: 'center', marginTop: '10px' },
+  loader: { color: '#3b82f6', fontSize: '14px', padding: '10px 0', fontWeight: 500 }
 };

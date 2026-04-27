@@ -5,12 +5,12 @@ export default function App() {
   const [chat, setChat] = useState<{ role: string; text: string }[]>([]);
   const [loading, setLoading] = useState(false);
 
-  // Questa variabile legge la chiave che hai messo su Vercel
+  // Assicurati che su Vercel la variabile si chiami esattamente VITE_GROQ_API_KEY
   const apiKey = import.meta.env.VITE_GROQ_API_KEY;
 
   const askAI = async () => {
     if (!apiKey || !query.trim() || loading) {
-      if (!apiKey) alert("Manca la VITE_GROQ_API_KEY su Vercel!");
+      if (!apiKey) alert("Errore: Manca la chiave VITE_GROQ_API_KEY nelle impostazioni di Vercel!");
       return;
     }
 
@@ -27,18 +27,23 @@ export default function App() {
           "Authorization": `Bearer ${apiKey.trim()}`
         },
         body: JSON.stringify({
-          model: "llama-3.1-8b-instant", // MODELLO AGGIORNATO (Llama 3.1)
+          // Modello aggiornato ad Aprile 2026: performante e stabile
+          model: "llama-3.3-70b-versatile", 
           messages: [
-            { role: "system", content: "Sei un esperto metallurgico. Rispondi in modo tecnico e professionale in italiano." },
+            { 
+              role: "system", 
+              content: "Sei un assistente esperto in metallurgia e scienza dei materiali. Rispondi in modo professionale, tecnico e sempre in lingua italiana." 
+            },
             { role: "user", content: query }
           ],
-          temperature: 0.5
+          temperature: 0.4 // Leggermente più basso per risposte più precise e meno creative
         }),
       });
 
       const data = await res.json();
 
       if (data.error) {
+        // Se Groq restituisce un errore (es. modello non trovato), lo mostriamo in chat
         throw new Error(data.error.message);
       }
 
@@ -47,47 +52,42 @@ export default function App() {
       
     } catch (e: any) {
       console.error("Errore Groq:", e);
-      setChat([...newChat, { role: "AI", text: "Errore Groq: " + e.message }]);
+      setChat([...newChat, { role: "AI", text: "⚠️ Errore Tecnico: " + e.message }]);
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div style={{ padding: "20px", maxWidth: "600px", margin: "0 auto", fontFamily: "sans-serif" }}>
-      <h1 style={{ textAlign: "center" }}>🛠️ Metallurgy Copilot (Groq)</h1>
+    <div style={{ padding: "20px", maxWidth: "700px", margin: "0 auto", fontFamily: "Segoe UI, Tahoma, Geneva, Verdana, sans-serif" }}>
+      <h1 style={{ textAlign: "center", color: "#2c3e50" }}>🛠️ Metallurgy Copilot</h1>
+      <p style={{ textAlign: "center", color: "#7f8c8d", fontSize: "0.9rem" }}>Powered by Groq AI - Llama 3.3</p>
+      
       <div style={{ 
-        border: "1px solid #ccc", height: "450px", overflowY: "auto", 
-        padding: "15px", marginBottom: "15px", borderRadius: "10px", background: "#f9f9f9" 
+        border: "1px solid #dcdde1", height: "500px", overflowY: "auto", 
+        padding: "20px", marginBottom: "20px", borderRadius: "12px", background: "#f5f6fa",
+        boxShadow: "inset 0 2px 4px rgba(0,0,0,0.05)"
       }}>
+        {chat.length === 0 && (
+          <p style={{ color: "#95a5a6", textAlign: "center", marginTop: "200px" }}>
+            Chiedi informazioni su acciai, trattamenti termici o leghe...
+          </p>
+        )}
         {chat.map((m, i) => (
-          <div key={i} style={{ marginBottom: "12px", textAlign: m.role === "utente" ? "right" : "left" }}>
-            <span style={{ 
-              display: "inline-block", padding: "10px 14px", borderRadius: "12px",
-              background: m.role === "utente" ? "#007bff" : "#fff",
-              color: m.role === "utente" ? "#fff" : "#333",
-              boxShadow: "0 2px 4px rgba(0,0,0,0.1)"
+          <div key={i} style={{ marginBottom: "15px", textAlign: m.role === "utente" ? "right" : "left" }}>
+            <div style={{ 
+              display: "inline-block", padding: "12px 16px", borderRadius: "15px",
+              background: m.role === "utente" ? "#007bff" : "#ffffff",
+              color: m.role === "utente" ? "#ffffff" : "#2f3640",
+              boxShadow: "0 2px 5px rgba(0,0,0,0.1)",
+              maxWidth: "80%",
+              whiteSpace: "pre-wrap"
             }}>
-              <strong>{m.role === "AI" ? "Groq AI" : "Tu"}:</strong> {m.text}
-            </span>
+              <strong style={{ display: "block", marginBottom: "4px", fontSize: "0.8rem", opacity: 0.8 }}>
+                {m.role === "AI" ? "ASSISTENTE METALLURGICO" : "TU"}
+              </strong>
+              {m.text}
+            </div>
           </div>
         ))}
-        {loading && <p style={{ color: "#f39c12" }}><em>Analisi metallurgica in corso...</em></p>}
-      </div>
-      <div style={{ display: "flex", gap: "10px" }}>
-        <input 
-          style={{ flex: 1, padding: "12px", borderRadius: "8px", border: "1px solid #ccc" }}
-          value={query} onChange={e => setQuery(e.target.value)} 
-          onKeyDown={e => e.key === "Enter" && askAI()}
-          placeholder="Chiedi a Groq (es. Trattamento C45)..."
-        />
-        <button 
-          onClick={askAI} 
-          style={{ padding: "10px 20px", background: "#f39c12", color: "#fff", border: "none", borderRadius: "8px", cursor: "pointer", fontWeight: "bold" }}
-        >
-          Invia
-        </button>
-      </div>
-    </div>
-  );
-}
+        {loading &&

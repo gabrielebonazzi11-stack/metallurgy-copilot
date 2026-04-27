@@ -16,30 +16,31 @@ export default function App() {
     setLoading(true);
 
     try {
-      // MODIFICA: Usiamo la versione 'v1' invece di 'v1beta' e il modello senza 'models/' davanti nel fetch
-      const res = await fetch(
-        `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            contents: [{ parts: [{ text: "Sei un esperto metallurgico. Domanda: " + query }] }]
-          }),
-        }
-      );
+      // Cambio Versione: usiamo v1 e il modello gemini-pro (molto più stabile)
+      const url = `https://generativelanguage.googleapis.com/v1/models/gemini-pro:generateContent?key=${apiKey}`;
+      
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents: [{
+            parts: [{ text: "Sei un esperto metallurgico. Rispondi brevemente a questa domanda tecnica: " + query }]
+          }]
+        }),
+      });
 
       const data = await res.json();
 
       if (data.error) {
-        // Se v1 fallisce, l'errore apparirà qui in chat per darci un indizio
         throw new Error(data.error.message);
       }
 
       const aiResponse = data.candidates?.[0]?.content?.parts?.[0]?.text || "Nessuna risposta ricevuta.";
       setChat([...newChat, { role: "AI", text: aiResponse }]);
+      
     } catch (e: any) {
       console.error("Errore:", e);
-      setChat([...newChat, { role: "AI", text: "Errore: " + e.message }]);
+      setChat([...newChat, { role: "AI", text: "Errore tecnico: " + e.message }]);
     } finally {
       setLoading(false);
     }
@@ -63,14 +64,14 @@ export default function App() {
             </span>
           </div>
         ))}
-        {loading && <p style={{ color: "#007bff" }}>Analisi in corso...</p>}
+        {loading && <p style={{ color: "#007bff" }}><em>Analisi metallurgica in corso...</em></p>}
       </div>
       <div style={{ display: "flex", gap: "10px" }}>
         <input 
           style={{ flex: 1, padding: "10px", borderRadius: "5px", border: "1px solid #ccc" }}
           value={query} onChange={e => setQuery(e.target.value)} 
           onKeyDown={e => e.key === "Enter" && askAI()}
-          placeholder="Chiedi (es. C45 o 42CrMo4)..."
+          placeholder="Chiedi al Copilot..."
         />
         <button 
           onClick={askAI} 

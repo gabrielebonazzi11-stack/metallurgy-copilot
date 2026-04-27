@@ -16,31 +16,29 @@ export default function App() {
     setLoading(true);
 
     try {
-      // URL AGGIORNATO: rimosso il prefisso 'models/' se necessario o sistemata la versione
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
-      
-      const res = await fetch(url, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          contents: [{
-            parts: [{ text: "Sei un esperto metallurgico. Rispondi alla domanda in modo tecnico: " + query }]
-          }]
-        }),
-      });
+      // MODIFICA: Usiamo la versione 'v1' invece di 'v1beta' e il modello senza 'models/' davanti nel fetch
+      const res = await fetch(
+        `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: "Sei un esperto metallurgico. Domanda: " + query }] }]
+          }),
+        }
+      );
 
       const data = await res.json();
 
       if (data.error) {
+        // Se v1 fallisce, l'errore apparirà qui in chat per darci un indizio
         throw new Error(data.error.message);
       }
 
-      const aiResponse = data.candidates?.[0]?.content?.parts?.[0]?.text || "Nessuna risposta.";
+      const aiResponse = data.candidates?.[0]?.content?.parts?.[0]?.text || "Nessuna risposta ricevuta.";
       setChat([...newChat, { role: "AI", text: aiResponse }]);
-      
     } catch (e: any) {
-      console.error("Dettaglio errore:", e);
-      // Se l'errore persiste, proviamo un modello alternativo nella risposta
+      console.error("Errore:", e);
       setChat([...newChat, { role: "AI", text: "Errore: " + e.message }]);
     } finally {
       setLoading(false);

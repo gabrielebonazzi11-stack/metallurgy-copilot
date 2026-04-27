@@ -1,14 +1,12 @@
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef } from "react";
 
-// DATABASE INTEGRATO DAL TUO PDF (ESTRATTO)
-const MATERIAL_DB = [
-  { w: "1.0401", din: "C15", aisi: "1015", uni: "C15", tipo: "Carbonio" },
-  { w: "1.0503", din: "C45", aisi: "1045", uni: "C45", tipo: "Carbonio" },
-  { w: "1.7225", din: "42CrMo4", aisi: "4140", uni: "42CrMo4", tipo: "Legato" },
-  { w: "1.3505", din: "100Cr6", aisi: "52100", uni: "100Cr6", tipo: "Legato" },
-  { w: "1.4301", din: "X5CrNi18-10", aisi: "304", uni: "X5CrNi1810", tipo: "Inox" },
-  { w: "0.7040", din: "GGG 40", aisi: "60-40-18", uni: "GS 400-12", tipo: "Ghisa" }
-];
+// IL TUO PDF È ORA MEMORIZZATO QUI (Estratto sintetico per l'AI)
+const PDF_DATABASE = `
+Acciai al Carbonio: 1.0038(RSt.37-2), 1.0401(C15), 1.0402(C22), 1.0503(C45), 1.1191(Ck45).
+Acciai Legati: 1.3505(100Cr6/52100), 1.7225(42CrMo4/4140), 1.7131(16MnCr5), 1.2344(H13).
+Inox: 1.4301(304), 1.4404(316L), 1.4016(430), 1.4542(630/17-4PH).
+Ghise: 0.6025(GG25), 0.7040(GGG40).
+`;
 
 export default function App() {
   const [view, setView] = useState("advisor");
@@ -20,52 +18,53 @@ export default function App() {
   const [hFrom, setHFrom] = useState("HB");
 
   const apiKey = import.meta.env.VITE_GROQ_API_KEY;
-  const fileRef = useRef<HTMLInputElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // --- LOGICA DUREZZE PROFESSIONALE (Formule DIN 50150) ---
-  const convertHardness = (val: number, type: string) => {
-    if (!val || isNaN(val)) return null;
-    let hv = val;
-    if (type === "HB") hv = val / 0.95;
-    if (type === "HRC") hv = (val + 104) / 0.164;
-    if (type === "HRB") hv = (val + 130) / 0.37;
-
+  // --- LOGICA CONVERSIONE DUREZZE (Formule Standard) ---
+  const getHardnessConversion = (v: number, type: string) => {
+    if (!v || isNaN(v)) return null;
+    let hv = v;
+    if (type === "HB") hv = v / 0.95;
+    if (type === "HRC") hv = (v + 104) / 0.164;
+    if (type === "HRB") hv = (v + 130) / 0.37;
+    
     return {
       HV: Math.round(hv),
       HB: Math.round(hv * 0.95),
       HRC: hv > 240 ? Math.round(0.164 * hv - 104) : "-",
       HRB: hv <= 240 ? Math.round(0.37 * hv - 130) : "-",
-      HK: Math.round(hv * 1.05),
-      Rm: Math.round(hv * 3.35) // Resistenza a trazione N/mm²
+      Rm: Math.round(hv * 3.35) // Resistenza N/mm²
     };
   };
 
-  const hRes = convertHardness(parseFloat(hVal), hFrom);
+  const results = getHardnessConversion(parseFloat(hVal), hFrom);
 
-  const askAI = async (override?: string) => {
-    const input = override || query;
-    if (!input.trim() || loading) return;
+  // --- FUNZIONE UNIFICATA PER CHIAMATA AI ---
+  const callAI = async (textToProcess?: string) => {
+    const finalQuery = textToProcess || query;
+    if (!finalQuery.trim() || loading) return;
+
     setLoading(true);
-    const newChat = [...chat, { role: "utente", text: input }];
-    setChat(newChat);
+    const updatedChat = [...chat, { role: "utente", text: finalQuery }];
+    setChat(updatedChat);
     setQuery("");
 
     try {
-      const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+      const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
         method: "POST",
         headers: { "Content-Type": "application/json", "Authorization": `Bearer ${apiKey}` },
         body: JSON.stringify({
           model: "llama-3.3-70b-versatile",
           messages: [
-            { role: "system", content: `Sei un Technical Copilot. Usa i dati: ${JSON.stringify(MATERIAL_DB)}. Rispondi con tabelle.` },
-            { role: "user", content: input }
+            { role: "system", content: `Sei un esperto metallurgico. Usa questo database PDF per le equivalenze: ${PDF_DATABASE}. Rispondi sempre con tabelle Markdown pulite.` },
+            { role: "user", content: finalQuery }
           ],
         }),
       });
-      const data = await res.json();
-      setChat([...newChat, { role: "AI", text: data.choices[0].message.content }]);
-    } catch (e) {
-      setChat([...newChat, { role: "AI", text: "Errore API. Controlla la chiave." }]);
+      const data = await response.json();
+      setChat([...updatedChat, { role: "AI", text: data.choices[0].message.content }]);
+    } catch (err) {
+      setChat([...updatedChat, { role: "AI", text: "Errore di connessione. Verifica la API KEY." }]);
     } finally {
       setLoading(false);
     }
@@ -73,148 +72,133 @@ export default function App() {
 
   return (
     <div style={s.app}>
-      {/* SIDEBAR - STILE ORIGINALE */}
+      {/* SIDEBAR */}
       <aside style={s.sidebar}>
         <div style={s.logo}>TECH<span style={{color:'#3b82f6'}}>COPILOT</span></div>
         <nav style={s.nav}>
-          <button style={view==='advisor'?s.btnAct:s.btn} onClick={()=>setView('advisor')}>🧠 Advisor AI</button>
-          <button style={view==='bom'?s.btnAct:s.btn} onClick={()=>setView('bom')}>📋 Distinta BOM</button>
-          <button style={view==='calc'?s.btnAct:s.btn} onClick={()=>setView('calc')}>📐 Calcolatori</button>
+          <button style={view === "advisor" ? s.navBtnAct : s.navBtn} onClick={() => setView("advisor")}>🧠 Advisor AI</button>
+          <button style={view === "bom" ? s.navBtnAct : s.navBtn} onClick={() => setView("bom")}>📋 Distinta BOM</button>
+          <button style={view === "calc" ? s.navBtnAct : s.navBtn} onClick={() => setView("calc")}>📐 Calcolatore</button>
         </nav>
-        <div style={s.sidebarFooter}>DB: PDF_CONFRONTO_V1</div>
       </aside>
 
+      {/* MAIN CONTENT */}
       <main style={s.main}>
         <header style={s.header}>
-          <div style={s.status}><div style={s.dot}></div> Database Materiali PDF Attivo</div>
-          <button style={s.clearBtn} onClick={()=>setChat([])}>Pulisci Chat</button>
+          <div style={s.badge}>DATABASE PDF CARICATO IN MEMORIA</div>
         </header>
 
-        <section style={s.container}>
-          {/* VISTA ADVISOR */}
-          {view === 'advisor' && (
-            <div style={s.chatBox}>
-              <div style={s.scrollArea}>
-                {chat.length === 0 && <div style={s.empty}>Chiedi info su acciai, trattamenti o equivalenti...</div>}
-                {chat.map((m,i) => (
-                  <div key={i} style={m.role==='utente'?s.uMsg:s.aMsg}>
-                    <div style={s.bubble}>{m.text}</div>
-                  </div>
+        <section style={s.content}>
+          {/* VIEW: ADVISOR */}
+          {view === "advisor" && (
+            <div style={s.chatWrapper}>
+              <div style={s.msgList}>
+                {chat.map((m, i) => (
+                  <div key={i} style={m.role === "utente" ? s.uMsg : s.aMsg}>{m.text}</div>
                 ))}
-                {loading && <div style={s.loader}>Analisi tecnica...</div>}
               </div>
-              <div style={s.inputBar}>
-                <input style={s.input} value={query} onChange={e=>setQuery(e.target.value)} onKeyDown={e=>e.key==='Enter'&&askAI()} placeholder="Scrivi qui la tua domanda tecnica..." />
-                <button style={s.sendBtn} onClick={()=>askAI()}>Invia</button>
+              <div style={s.inputArea}>
+                <input style={s.input} value={query} onChange={e => setQuery(e.target.value)} onKeyDown={e => e.key === "Enter" && callAI()} placeholder="Chiedi equivalenze o consigli tecnici..." />
+                <button style={s.sendBtn} onClick={() => callAI()}>Invia</button>
               </div>
             </div>
           )}
 
-          {/* VISTA BOM - CARICAMENTO FILE E PDF */}
-          {view === 'bom' && (
+          {/* VIEW: BOM - TASTO VERDE RIPRISTINATO */}
+          {view === "bom" && (
             <div style={s.card}>
-              <h3>Conversione Materiali (BOM)</h3>
-              <p style={s.subtitle}>Puoi inserire le sigle manualmente o caricare un file della distinta.</p>
+              <h3>Analisi Distinta Materiali</h3>
+              <p style={{fontSize:'13px', color:'#64748b', marginBottom:'15px'}}>L'AI utilizzerà i dati del PDF per trovare gli equivalenti W.-Nr, AISI e UNI.</p>
               
-              <div style={s.toolRow}>
-                <label style={s.fileLabel}>
-                  📁 Carica Distinta (PDF/TXT/CSV)
-                  <input type="file" hidden ref={fileRef} onChange={(e) => {
-                    const f = e.target.files?.[0];
-                    if(f) {
-                      const r = new FileReader();
-                      r.onload = (ev) => setBomList(ev.target?.result as string);
-                      r.readAsText(f);
-                    }
-                  }} />
-                </label>
-                <button style={s.secBtn} onClick={()=>setBomList("")}>Reset</button>
+              <div style={{display:'flex', gap:'10px', marginBottom:'15px'}}>
+                <button style={s.secBtn} onClick={() => fileInputRef.current?.click()}>📁 Carica File</button>
+                <input type="file" ref={fileInputRef} hidden onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if(f) {
+                    const reader = new FileReader();
+                    reader.onload = (ev) => setBomList(ev.target?.result as string);
+                    reader.readAsText(f);
+                  }
+                }} />
+                <button style={s.secBtn} onClick={() => setBomList("")}>Pulisci</button>
               </div>
 
-              <textarea style={s.textarea} value={bomList} onChange={e=>setBomList(e.target.value)} placeholder="Esempio:&#10;C45&#10;1.7225&#10;AISI 304" />
-              <button style={s.primaryBtn} onClick={()=>askAI(`Analizza questa distinta materiali e crea una tabella con equivalenti W.-Nr, AISI, UNI: ${bomList}`)}>
-                AVVIA CONVERSIONE BATCH
+              <textarea 
+                style={s.textarea} 
+                value={bomList} 
+                onChange={e => setBomList(e.target.value)} 
+                placeholder="Incolla qui la lista dei materiali (es. C45, 1.7225, 304L)..."
+              />
+              
+              {/* IL TASTO VERDE ORA FUNZIONA CORRETTAMENTE */}
+              <button 
+                style={s.primaryBtn} 
+                onClick={() => {
+                   if(!bomList) alert("Inserisci prima dei materiali!");
+                   else callAI(`Analizza questa lista materiali e crea una tabella comparativa usando i dati del PDF: ${bomList}`);
+                }}
+              >
+                {loading ? "ANALISI IN CORSO..." : "AVVIA ANALISI BATCH"}
               </button>
             </div>
           )}
 
-          {/* VISTA CALCOLATORI - DUREZZE PROFESSIONALI */}
-          {view === 'calc' && (
-            <div style={s.grid}>
-              <div style={s.card}>
-                <h3>🔄 Convertitore Durezze Totale</h3>
-                <div style={s.row}>
-                  <input style={s.input} type="number" value={hVal} onChange={e=>setHVal(e.target.value)} placeholder="Valore" />
-                  <select style={s.select} value={hFrom} onChange={e=>setHFrom(e.target.value)}>
-                    <option>HB</option><option>HRC</option><option>HRB</option><option>HV</option>
-                  </select>
-                </div>
-                <div style={s.resGrid}>
-                  <ResultItem label="Vickers" val={hRes?.HV} unit="HV" />
-                  <ResultItem label="Brinell" val={hRes?.HB} unit="HB" />
-                  <ResultItem label="Rockwell C" val={hRes?.HRC} unit="HRC" />
-                  <ResultItem label="Rockwell B" val={hRes?.HRB} unit="HRB" />
-                  <ResultItem label="Knoop" val={hRes?.HK} unit="HK" />
-                  <ResultItem label="Resistenza (Rm)" val={hRes?.Rm} unit="N/mm²" blue />
-                </div>
+          {/* VIEW: CALC */}
+          {view === "calc" && (
+            <div style={s.card}>
+              <h3>Convertitore Durezze e Resistenza</h3>
+              <div style={{display:'flex', gap:'10px', marginBottom:'25px'}}>
+                <input style={s.input} type="number" value={hVal} onChange={e => setHVal(e.target.value)} placeholder="Valore" />
+                <select style={s.select} value={hFrom} onChange={e => setHFrom(e.target.value)}>
+                  <option>HB</option><option>HRC</option><option>HRB</option><option>HV</option>
+                </select>
+              </div>
+              <div style={s.resGrid}>
+                <ValBox label="Vickers" val={results?.HV} unit="HV" />
+                <ValBox label="Brinell" val={results?.HB} unit="HB" />
+                <ValBox label="Rockwell C" val={results?.HRC} unit="HRC" />
+                <ValBox label="Resistenza" val={results?.Rm} unit="N/mm²" highlight />
               </div>
             </div>
           )}
         </section>
       </main>
-
-      <style>{`
-        @keyframes slideUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-        .container-anim { animation: slideUp 0.3s ease-out; }
-      `}</style>
     </div>
   );
 }
 
-// --- SOTTO-COMPONENTI ---
-const ResultItem = ({label, val, unit, blue}: any) => (
-  <div style={{...s.resBox, backgroundColor: blue ? '#eff6ff' : '#f8fafc'}}>
-    <div style={s.resLabel}>{label}</div>
-    <div style={{...s.resVal, color: blue ? '#3b82f6' : '#1e293b'}}>{val || '--'} <small style={{fontSize:'10px'}}>{unit}</small></div>
+// --- UI COMPONENTS ---
+const ValBox = ({ label, val, unit, highlight }: any) => (
+  <div style={{...s.valBox, backgroundColor: highlight ? '#f0f9ff' : '#f8fafc', border: highlight ? '1px solid #3b82f6' : '1px solid #e2e8f0'}}>
+    <div style={{fontSize:'11px', color:'#64748b', fontWeight:700}}>{label}</div>
+    <div style={{fontSize:'20px', fontWeight:800, color: highlight ? '#3b82f6' : '#1e293b'}}>{val || '--'} <small style={{fontSize:'10px'}}>{unit}</small></div>
   </div>
 );
 
-// --- STILI JSS (SIDEBAR SCURA + CARD PULITE) ---
+// --- STILI JSS ---
 const s: any = {
-  app: { display: 'flex', height: '100vh', backgroundColor: '#f1f5f9', fontFamily: 'Inter, sans-serif' },
-  sidebar: { width: '260px', backgroundColor: '#0f172a', color: 'white', padding: '30px 20px', display: 'flex', flexDirection: 'column' },
-  logo: { fontSize: '22px', fontWeight: 900, marginBottom: '40px', letterSpacing: '-1px' },
-  nav: { flex: 1, display: 'flex', flexDirection: 'column', gap: '8px' },
-  btn: { padding: '12px 15px', border: 'none', borderRadius: '12px', backgroundColor: 'transparent', color: '#94a3b8', textAlign: 'left', cursor: 'pointer', fontWeight: 600, transition: '0.2s' },
-  btnAct: { padding: '12px 15px', border: 'none', borderRadius: '12px', backgroundColor: '#3b82f6', color: 'white', textAlign: 'left', cursor: 'pointer', fontWeight: 600 },
-  sidebarFooter: { fontSize: '10px', color: '#475569', borderTop: '1px solid #1e293b', paddingTop: '15px' },
+  app: { display: 'flex', height: '100vh', backgroundColor: '#f8fafc', fontFamily: 'Inter, system-ui, sans-serif' },
+  sidebar: { width: '260px', backgroundColor: '#0f172a', padding: '30px 20px', color: 'white', display: 'flex', flexDirection: 'column' },
+  logo: { fontSize: '22px', fontWeight: 900, marginBottom: '40px' },
+  nav: { display: 'flex', flexDirection: 'column', gap: '8px' },
+  navBtn: { padding: '12px 15px', border: 'none', borderRadius: '12px', textAlign: 'left', cursor: 'pointer', background: 'none', color: '#94a3b8', fontWeight: 600 },
+  navBtnAct: { padding: '12px 15px', border: 'none', borderRadius: '12px', textAlign: 'left', cursor: 'pointer', backgroundColor: '#3b82f6', color: 'white', fontWeight: 600 },
   main: { flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' },
-  header: { padding: '15px 40px', backgroundColor: 'white', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' },
-  status: { fontSize: '12px', fontWeight: 700, color: '#64748b', display: 'flex', alignItems: 'center', gap: '8px' },
-  dot: { width: '8px', height: '8px', backgroundColor: '#10b981', borderRadius: '50%' },
-  clearBtn: { background: 'none', border: 'none', color: '#ef4444', fontSize: '11px', fontWeight: 800, cursor: 'pointer' },
-  container: { flex: 1, padding: '40px', overflowY: 'auto' },
-  card: { backgroundColor: 'white', padding: '30px', borderRadius: '24px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)', border: '1px solid #e2e8f0' },
-  subtitle: { fontSize: '14px', color: '#64748b', marginBottom: '20px' },
-  toolRow: { display: 'flex', gap: '10px', marginBottom: '15px' },
-  fileLabel: { padding: '10px 20px', backgroundColor: '#f1f5f9', borderRadius: '10px', cursor: 'pointer', fontSize: '13px', fontWeight: 700, border: '1px solid #e2e8f0' },
-  secBtn: { padding: '10px 20px', background: 'none', border: '1px solid #e2e8f0', borderRadius: '10px', cursor: 'pointer', fontSize: '13px' },
-  textarea: { width: '100%', height: '180px', border: '1px solid #e2e8f0', borderRadius: '16px', padding: '15px', outline: 'none', fontFamily: 'monospace' },
-  primaryBtn: { width: '100%', padding: '15px', backgroundColor: '#10b981', color: 'white', border: 'none', borderRadius: '12px', fontWeight: 800, cursor: 'pointer', marginTop: '15px' },
-  chatBox: { height: '100%', display: 'flex', flexDirection: 'column', maxWidth: '850px', margin: '0 auto' },
-  scrollArea: { flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '15px', paddingBottom: '20px' },
-  uMsg: { alignSelf: 'flex-end', backgroundColor: '#3b82f6', color: 'white', padding: '12px 18px', borderRadius: '18px 18px 2px 18px', fontSize: '14px', maxWidth: '80%' },
-  aMsg: { alignSelf: 'flex-start', backgroundColor: 'white', border: '1px solid #e2e8f0', padding: '12px 18px', borderRadius: '2px 18px 18px 18px', fontSize: '14px', maxWidth: '80%', color: '#1e293b' },
-  inputBar: { display: 'flex', gap: '10px', backgroundColor: 'white', padding: '8px', borderRadius: '16px', border: '1px solid #e2e8f0' },
-  input: { flex: 1, border: 'none', outline: 'none', padding: '10px 15px' },
-  sendBtn: { backgroundColor: '#0f172a', color: 'white', border: 'none', padding: '10px 20px', borderRadius: '12px', fontWeight: 700, cursor: 'pointer' },
-  grid: { display: 'grid', gridTemplateColumns: '1fr', maxWidth: '700px' },
-  row: { display: 'flex', gap: '10px', marginBottom: '20px' },
-  select: { padding: '10px', borderRadius: '10px', border: '1px solid #e2e8f0', outline: 'none' },
-  resGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '12px' },
-  resBox: { padding: '15px', borderRadius: '15px', border: '1px solid #e2e8f0', textAlign: 'center' },
-  resLabel: { fontSize: '11px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', marginBottom: '5px' },
-  resVal: { fontSize: '20px', fontWeight: 800 },
-  empty: { textAlign: 'center', marginTop: '100px', color: '#94a3b8' },
-  loader: { textAlign: 'center', color: '#3b82f6', fontWeight: 700, fontSize: '12px' }
+  header: { padding: '15px 40px', backgroundColor: 'white', borderBottom: '1px solid #e2e8f0' },
+  badge: { fontSize: '10px', color: '#10b981', fontWeight: 800, backgroundColor: '#ecfdf5', padding: '5px 12px', borderRadius: '20px', display: 'inline-block' },
+  content: { flex: 1, padding: '40px', overflowY: 'auto' },
+  card: { backgroundColor: 'white', padding: '30px', borderRadius: '24px', boxShadow: '0 4px 12px rgba(0,0,0,0.05)', border: '1px solid #e2e8f0', maxWidth: '800px' },
+  textarea: { width: '100%', height: '180px', borderRadius: '15px', border: '1px solid #e2e8f0', padding: '15px', outline: 'none', marginBottom: '15px', transition: '0.3s' },
+  primaryBtn: { width: '100%', padding: '16px', backgroundColor: '#10b981', color: 'white', border: 'none', borderRadius: '14px', fontWeight: 800, cursor: 'pointer', fontSize: '14px' },
+  secBtn: { padding: '10px 18px', backgroundColor: '#f1f5f9', border: '1px solid #e2e8f0', borderRadius: '10px', cursor: 'pointer', fontSize: '13px', fontWeight: 600 },
+  chatWrapper: { height: '100%', display: 'flex', flexDirection: 'column', maxWidth: '800px' },
+  msgList: { flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '12px', paddingBottom: '20px' },
+  uMsg: { alignSelf: 'flex-end', backgroundColor: '#3b82f6', color: 'white', padding: '12px 16px', borderRadius: '18px 18px 2px 18px', fontSize: '14px' },
+  aMsg: { alignSelf: 'flex-start', backgroundColor: 'white', border: '1px solid #e2e8f0', padding: '12px 16px', borderRadius: '2px 18px 18px 18px', fontSize: '14px', color: '#334155' },
+  inputArea: { display: 'flex', gap: '10px', padding: '10px', backgroundColor: 'white', borderRadius: '16px', border: '1px solid #e2e8f0' },
+  input: { flex: 1, border: 'none', outline: 'none', padding: '10px' },
+  sendBtn: { backgroundColor: '#0f172a', color: 'white', border: 'none', borderRadius: '10px', padding: '10px 20px', fontWeight: 700, cursor: 'pointer' },
+  resGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '15px' },
+  valBox: { padding: '20px', borderRadius: '18px', textAlign: 'center' },
+  select: { padding: '10px', borderRadius: '10px', border: '1px solid #e2e8f0' }
 };

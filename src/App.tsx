@@ -11,9 +11,18 @@ const THEMES = [
 
 type Role = "utente" | "AI";
 
+interface Attachment {
+  name: string;
+  type: string;
+  size: number;
+  url?: string;
+  content?: string;
+}
+
 interface Message {
   role: Role;
   text: string;
+  attachments?: Attachment[];
 }
 
 interface ChatSession {
@@ -33,7 +42,7 @@ const defaultUser: UserProfile = {
   email: "mario.rossi@tech.it",
 };
 
-const STORAGE_KEY = "techai_ultimate_v5_slide_sidebar";
+const STORAGE_KEY = "techai_ultimate_v6_file_vision";
 
 export default function App() {
   const [query, setQuery] = useState("");
@@ -169,18 +178,114 @@ export default function App() {
       name.endsWith(".h") ||
       name.endsWith(".sql") ||
       name.endsWith(".yaml") ||
-      name.endsWith(".yml")
+      name.endsWith(".yml") ||
+      name.endsWith(".step") ||
+      name.endsWith(".stp") ||
+      name.endsWith(".iges") ||
+      name.endsWith(".igs")
     );
   };
 
-  const readTextFile = async (file: File) => {
-    if (!isSupportedTextFile(file)) {
-      throw new Error(
-        "Formato non leggibile senza librerie. Questa versione supporta solo file testuali: TXT, CSV, JSON, MD, XML, HTML, CSS, JS, TS, TSX e simili."
-      );
+  const fileToBase64 = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  };
+
+  const callVisionAI = async (file: File, prompt: string) => {
+    if (!apiKey) {
+      throw new Error("Chiave API mancante. Controlla VITE_GROQ_API_KEY nelle variabili ambiente.");
     }
 
-    return await file.text();
+    const base64Image = await fileToBase64(file);
+
+    const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model: "meta-llama/llama-4-scout-17b-16e-instruct",
+        messages: [
+          {
+            role: "system",
+            content:
+              `Sei TechAI. Utente: ${user.name}. Focus: ${interest}. ` +
+              "Se ricevi una tavola tecnica, uno schizzo, uno screenshot CAD o un componente meccanico, analizzalo in modo tecnico. " +
+              "Evidenzia errori, mancanze, quote, tolleranze, viste, materiali, lavorazioni, rischi progettuali e prossimi controlli. " +
+              "Non inventare misure non leggibili: se qualcosa non si vede, dichiaralo.",
+          },
+          {
+            role: "user",
+            content: [
+              {
+                type: "text",
+                text: prompt,
+              },
+              {
+                type: "image_url",
+                image_url: {
+                  url: base64Image,
+                },
+              },
+            ],
+          },
+        ],
+        temperature: 0.2,
+      }),
+    });
+
+    const data = await res.json();
+
+    if (!res.ok) {
+      throw new Error(data?.error?.message || "Errore durante l'analisi immagine.");
+    }
+
+    return data?.choices?.[0]?.message?.content || "Errore nella risposta vision.";
+  };
+
+  const callTextAI = async (messages: Message[]) => {
+    if (!apiKey) {
+      throw new Error("Chiave API mancante. Controlla VITE_GROQ_API_KEY nelle variabili ambiente.");
+    }
+
+    const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model: "llama-3.3-70b-versatile",
+        messages: [
+          {
+            role: "system",
+            content:
+              `Sei TechAI. Utente: ${user.name}. Focus: ${interest}. ` +
+              "Rispondi in modo chiaro, tecnico e ordinato. " +
+              "Se l'utente carica file testuali, analizza il contenuto presente in chat. " +
+              "Per progettazione meccanica, usa approccio da ufficio tecnico: ipotesi, controlli, errori, rischi, prossimi step.",
+          },
+          ...messages.map(m => ({
+            role: m.role === "utente" ? "user" : "assistant",
+            content: m.text,
+          })),
+        ],
+        temperature: 0.2,
+      }),
+    });
+
+    const data = await res.json();
+
+    if (!res.ok) {
+      throw new Error(data?.error?.message || "Errore nella chiamata AI.");
+    }
+
+    return data?.choices?.[0]?.message?.content || "Errore nella risposta AI.";
   };
 
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -191,28 +296,107 @@ export default function App() {
     setFileLoading(true);
 
     try {
-      const extractedText = await readTextFile(file);
-      const cleanedText = extractedText.trim();
+      const isImage = file.type.startsWith("image/");
+      const isText = isSupportedTextFile(file);
+      const fileUrl = URL.createObjectURL(file);
+
+      if (isImage) {
+        const userMessage: Message = {
+          role: "utente",
+          text:
+            `🖼️ Immagine caricata: ${file.name}\n` +
+            `Tipo: ${file.type || "sconosciuto"}\n` +
+            `Dimensione: ${(file.size / 1024).toFixed(1)} KB\n\n` +
+            "Richiesta: analisi tecnica dell'immagine.",
+          attachments: [
+            {
+              name: file.name,
+              type: file.type,
+              size: file.size,
+              url: fileUrl,
+            },
+          ],
+        };
+
+        addMessageToChat(chatId, userMessage);
+
+        const aiText = await callVisionAI(
+          file,
+          "Analizza questa immagine dal punto di vista della progettazione meccanica. Se è una tavola tecnica, controlla viste, sezioni, quote, tolleranze, rugosità, materiali, filettature, fori, errori e informazioni mancanti. Se è uno screenshot CAD, suggerisci cosa fare operativamente."
+        );
+
+        addMessageToChat(chatId, {
+          role: "AI",
+          text: aiText,
+        });
+
+        return;
+      }
+
+      if (isText) {
+        const extractedText = await file.text();
+        const cleanedText = extractedText.trim();
+
+        const userMessage: Message = {
+          role: "utente",
+          text:
+            `📎 File caricato: ${file.name}\n` +
+            `Tipo: ${file.type || "sconosciuto"}\n` +
+            `Dimensione: ${(file.size / 1024).toFixed(1)} KB\n\n` +
+            `CONTENUTO DEL FILE:\n${cleanedText || "Il file risulta vuoto."}`,
+          attachments: [
+            {
+              name: file.name,
+              type: file.type || "text/plain",
+              size: file.size,
+              url: fileUrl,
+              content: cleanedText,
+            },
+          ],
+        };
+
+        const oldMessages = chats.find(c => c.id === chatId)?.messages || [];
+        const updatedMessages = [...oldMessages, userMessage];
+        replaceMessagesInChat(chatId, updatedMessages);
+
+        const aiText = await callTextAI([
+          ...updatedMessages,
+          {
+            role: "utente",
+            text: `Analizza il file "${file.name}" e dammi un report tecnico ordinato. Se è un file STEP/STP/IGES letto come testo, prova a riconoscere unità, struttura, entità principali e limiti dell'analisi.`,
+          },
+        ]);
+
+        replaceMessagesInChat(chatId, [...updatedMessages, { role: "AI", text: aiText }]);
+        return;
+      }
 
       addMessageToChat(chatId, {
         role: "utente",
         text:
-          `📎 File caricato: ${file.name}
-` +
-          `Tipo: ${file.type || "sconosciuto"}
-` +
-          `Dimensione: ${(file.size / 1024).toFixed(1)} KB
-
-` +
-          `CONTENUTO DEL FILE:
-${cleanedText || "Il file risulta vuoto."}`,
+          `📦 File caricato: ${file.name}\n` +
+          `Tipo: ${file.type || "sconosciuto"}\n` +
+          `Dimensione: ${(file.size / 1024).toFixed(1)} KB\n\n` +
+          "Questo formato è stato allegato, ma non è ancora interpretabile direttamente dal frontend.",
+        attachments: [
+          {
+            name: file.name,
+            type: file.type || "application/octet-stream",
+            size: file.size,
+            url: fileUrl,
+          },
+        ],
       });
 
-      setQuery(`Analizza il file "${file.name}" e fammi un riassunto chiaro dei punti principali.`);
+      addMessageToChat(chatId, {
+        role: "AI",
+        text:
+          "File ricevuto. Per interpretare davvero questo formato serve una fase dedicata: PDF → estrazione testo/immagini, DOCX → parser, ZIP → decompressione, CAD binari → backend tecnico. Per ora posso conservarlo come allegato, ma non leggerne il contenuto.",
+      });
     } catch (error: any) {
       addMessageToChat(chatId, {
         role: "AI",
-        text: error?.message || "Non sono riuscito a leggere il file.",
+        text: error?.message || "Errore durante l'analisi del file.",
       });
     } finally {
       setFileLoading(false);
@@ -234,37 +418,12 @@ ${cleanedText || "Il file risulta vuoto."}`,
     replaceMessagesInChat(chatId, updatedMessages);
 
     try {
-      const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${apiKey}`,
-        },
-        body: JSON.stringify({
-          model: "llama-3.3-70b-versatile",
-          messages: [
-            {
-              role: "system",
-              content:
-                `Sei TechAI. Utente: ${user.name}. Focus: ${interest}. ` +
-                "Rispondi in modo chiaro, tecnico e ordinato. Se l'utente carica un file, analizza il contenuto testuale presente in chat.",
-            },
-            ...updatedMessages.map(m => ({
-              role: m.role === "utente" ? "user" : "assistant",
-              content: m.text,
-            })),
-          ],
-        }),
-      });
-
-      const data = await res.json();
-      const aiText = data?.choices?.[0]?.message?.content || "Errore nella risposta AI.";
-
+      const aiText = await callTextAI(updatedMessages);
       replaceMessagesInChat(chatId, [...updatedMessages, { role: "AI", text: aiText }]);
-    } catch {
+    } catch (error: any) {
       replaceMessagesInChat(chatId, [
         ...updatedMessages,
-        { role: "AI", text: "Errore API. Controlla chiave API, connessione o limiti del modello." },
+        { role: "AI", text: error?.message || "Errore API. Controlla chiave API, connessione o limiti del modello." },
       ]);
     } finally {
       setLoading(false);
@@ -306,45 +465,34 @@ ${cleanedText || "Il file risulta vuoto."}`,
     </button>
   );
 
-  const formatText = (text: string) => {
-    return text.split("
-").map((line, i) => {
-      const trimmed = line.trim();
+  const renderAttachments = (attachments?: Attachment[]) => {
+    if (!attachments || attachments.length === 0) return null;
 
-      if (!trimmed) {
-        return <div key={i} style={{ height: 8 }} />;
-      }
+    return (
+      <div style={s.attachmentList}>
+        {attachments.map((file, idx) => (
+          <div key={`${file.name}-${idx}`} style={{ ...s.attachmentCard, border: `1px solid ${theme.border || theme.surface}` }}>
+            {file.type.startsWith("image/") && file.url ? (
+              <img src={file.url} alt={file.name} style={s.previewImage} />
+            ) : (
+              <div style={s.fileChip}>📄 {file.name}</div>
+            )}
 
-      if (trimmed.startsWith("**") && trimmed.endsWith("**")) {
-        return (
-          <div
-            key={i}
-            style={{
-              ...s.messageTitle,
-              color: theme.primary,
-              borderBottom: `1px solid ${theme.border || theme.surface}`,
-            }}
-          >
-            {trimmed.replace(/\*\*/g, "")}
+            <div style={s.attachmentMeta}>
+              <div style={{ fontWeight: 700 }}>{file.name}</div>
+              <div style={{ opacity: 0.65, fontSize: 12 }}>
+                {(file.size / 1024).toFixed(1)} KB · {file.type || "tipo sconosciuto"}
+              </div>
+              {file.url && (
+                <a href={file.url} download={file.name} style={{ color: theme.primary, fontSize: 12, fontWeight: 700 }}>
+                  Apri/scarica allegato
+                </a>
+              )}
+            </div>
           </div>
-        );
-      }
-
-      if (trimmed.startsWith("* ") || trimmed.startsWith("+ ") || trimmed.startsWith("- ")) {
-        return (
-          <div key={i} style={s.messageListItem}>
-            <span style={{ color: theme.primary, fontWeight: 900 }}>•</span>
-            <span>{trimmed.slice(2)}</span>
-          </div>
-        );
-      }
-
-      return (
-        <div key={i} style={s.messageLine}>
-          {line}
-        </div>
-      );
-    });
+        ))}
+      </div>
+    );
   };
 
   const renderInputBar = (placeholder: string) => (
@@ -352,7 +500,7 @@ ${cleanedText || "Il file risulta vuoto."}`,
       <input
         ref={fileInputRef}
         type="file"
-        accept=".txt,.md,.csv,.json,.xml,.html,.css,.js,.jsx,.ts,.tsx,.py,.java,.cpp,.c,.h,.sql,.yaml,.yml"
+        accept=".txt,.md,.csv,.json,.xml,.html,.css,.js,.jsx,.ts,.tsx,.py,.java,.cpp,.c,.h,.sql,.yaml,.yml,.png,.jpg,.jpeg,.webp,.gif,.pdf,.step,.stp,.iges,.igs,.zip,.doc,.docx,.xlsx"
         style={{ display: "none" }}
         onChange={handleFileUpload}
       />
@@ -360,8 +508,8 @@ ${cleanedText || "Il file risulta vuoto."}`,
       <button
         style={{ ...s.fileBtn, color: theme.primary }}
         onClick={() => fileInputRef.current?.click()}
-        title="Carica file testuale"
-        disabled={fileLoading}
+        title="Carica file o immagine"
+        disabled={fileLoading || loading}
       >
         {fileLoading ? (
           "…"
@@ -435,7 +583,7 @@ ${cleanedText || "Il file risulta vuoto."}`,
             onClick={() => setSidebarOpen(prev => !prev)}
             title={sidebarOpen ? "Chiudi barra laterale" : "Apri barra laterale"}
           >
-            {sidebarOpen ? "☰" : "☰"}
+            ☰
           </button>
         </div>
 
@@ -495,8 +643,8 @@ ${cleanedText || "Il file risulta vuoto."}`,
           {currentMessages.length === 0 ? (
             <div style={s.homeWrapper}>
               <h1 style={s.welcomeText}>Benvenuto {user.name.split(" ")[0]}, come posso aiutarti?</h1>
-              {renderInputBar("Chiedi a TechAI o carica un file testuale...")}
-              <p style={s.fileHint}>Supporta file testuali: TXT, CSV, JSON, MD, XML, HTML, CSS, JS, TS, TSX.</p>
+              {renderInputBar("Chiedi a TechAI o carica file/immagini tecniche...")}
+              <p style={s.fileHint}>Supporta testo, codice, immagini e allegati tecnici. Le immagini vengono analizzate con modello vision.</p>
             </div>
           ) : (
             <div style={s.chatView}>
@@ -510,17 +658,18 @@ ${cleanedText || "Il file risulta vuoto."}`,
                           : { ...s.aBox, color: theme.text }
                       }
                     >
-                      {formatText(m.text)}
+                      {m.text}
+                      {renderAttachments(m.attachments)}
                     </div>
                   </div>
                 ))}
 
-                {fileLoading && <div style={{ color: theme.primary, textAlign: "center" }}>📎 Lettura file in corso...</div>}
+                {fileLoading && <div style={{ color: theme.primary, textAlign: "center" }}>📎 Analisi file in corso...</div>}
                 {loading && <div style={{ color: theme.primary, textAlign: "center" }}>✨ TechAI sta elaborando...</div>}
                 <div ref={chatEndRef} />
               </div>
 
-              <div style={s.bottomInput}>{renderInputBar("Scrivi qui o carica un file testuale...")}</div>
+              <div style={s.bottomInput}>{renderInputBar("Scrivi qui o carica file/immagini...")}</div>
             </div>
           )}
         </section>
@@ -614,6 +763,7 @@ ${cleanedText || "Il file risulta vuoto."}`,
         html, body, #root { width: 100%; height: 100%; margin: 0; overflow: hidden; }
         textarea::placeholder { opacity: 0.55; }
         button:disabled { opacity: 0.45; cursor: not-allowed; }
+        a { text-decoration: none; }
         ::-webkit-scrollbar { width: 5px; }
         ::-webkit-scrollbar-thumb { background: rgba(120,120,120,0.35); border-radius: 10px; }
       `}</style>
@@ -674,25 +824,11 @@ const s: any = {
   aBox: { padding: "10px 0", lineHeight: 1.7, fontSize: 16, whiteSpace: "pre-wrap", maxWidth: "92%", overflowWrap: "anywhere" },
   bottomInput: { padding: "10px 0 8px", flexShrink: 0 },
 
-  messageTitle: {
-    fontSize: 18,
-    fontWeight: 800,
-    marginTop: 18,
-    marginBottom: 10,
-    paddingBottom: 6,
-    letterSpacing: "-0.3px",
-  },
-  messageListItem: {
-    display: "flex",
-    alignItems: "flex-start",
-    gap: 8,
-    margin: "4px 0",
-    lineHeight: 1.65,
-  },
-  messageLine: {
-    lineHeight: 1.7,
-    margin: "2px 0",
-  },
+  attachmentList: { marginTop: 12, display: "flex", flexDirection: "column", gap: 10 },
+  attachmentCard: { borderRadius: 14, padding: 10, background: "rgba(255,255,255,0.35)", display: "flex", flexDirection: "column", gap: 8, maxWidth: 330 },
+  previewImage: { width: "100%", maxWidth: 310, maxHeight: 260, objectFit: "contain", borderRadius: 12, display: "block" },
+  fileChip: { padding: "10px 12px", borderRadius: 10, background: "rgba(120,120,120,0.12)", fontSize: 13, fontWeight: 700, overflowWrap: "anywhere" },
+  attachmentMeta: { display: "flex", flexDirection: "column", gap: 4, fontSize: 13, overflowWrap: "anywhere" },
 
   overlay: { position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", display: "flex", justifyContent: "center", alignItems: "center", zIndex: 1000, padding: 16 },
   modal: { borderRadius: 24, width: "min(620px, 100%)", height: "min(450px, calc(100dvh - 32px))", display: "flex", overflow: "hidden", boxShadow: "0 30px 60px rgba(0,0,0,0.25)" },

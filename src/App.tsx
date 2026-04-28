@@ -290,6 +290,10 @@ ${cleanedText || "Il file risulta vuoto."}`,
     <button
       style={{
         ...s.iconBtn,
+        width: sidebarOpen ? "100%" : 44,
+        height: 44,
+        justifyContent: sidebarOpen ? "flex-start" : "center",
+        padding: sidebarOpen ? "0 12px" : 0,
         backgroundColor: active ? theme.surface : "transparent",
         color: active ? theme.primary : theme.text,
         border: `1px solid ${active ? theme.border || theme.surface : "transparent"}`,
@@ -346,16 +350,6 @@ ${cleanedText || "Il file risulta vuoto."}`,
 
   return (
     <div style={{ ...s.app, backgroundColor: theme.bg, color: theme.text }}>
-      {!sidebarOpen && (
-        <button
-          style={{ ...s.floatingMenu, backgroundColor: theme.surface, color: theme.text, border: `1px solid ${theme.border}` }}
-          onClick={() => setSidebarOpen(true)}
-          title="Apri menu"
-        >
-          ☰
-        </button>
-      )}
-
       <aside
         style={{
           ...s.sidebar,
@@ -365,26 +359,31 @@ ${cleanedText || "Il file risulta vuoto."}`,
           borderRight: `1px solid ${theme.border || theme.surface}`,
         }}
       >
-        <div style={s.sidebarTop}>
-          <div style={s.logoWrap}>
-            <div style={{ ...s.logoMark, backgroundColor: theme.primary }}>T</div>
-            {sidebarOpen && (
+        <div style={{ ...s.sidebarTop, justifyContent: sidebarOpen ? "space-between" : "center" }}>
+          {sidebarOpen && (
+            <div style={s.logoWrap}>
+              <div style={{ ...s.logoMark, backgroundColor: theme.primary }}>T</div>
               <div style={s.logoText}>
                 TECH<span style={{ color: theme.primary }}>AI</span>
               </div>
-            )}
-          </div>
+            </div>
+          )}
 
           <button
-            style={{ ...s.collapseBtn, color: theme.text, border: `1px solid ${theme.border || theme.surface}` }}
+            style={{
+              ...s.collapseBtn,
+              color: theme.text,
+              backgroundColor: sidebarOpen ? "transparent" : theme.surface,
+              border: `1px solid ${theme.border || theme.surface}`,
+            }}
             onClick={() => setSidebarOpen(prev => !prev)}
-            title={sidebarOpen ? "Chiudi sidebar" : "Apri sidebar"}
+            title={sidebarOpen ? "Chiudi barra laterale" : "Apri barra laterale"}
           >
-            {sidebarOpen ? "‹" : "›"}
+            {sidebarOpen ? "☰" : "☰"}
           </button>
         </div>
 
-        <div style={s.iconNav}>
+        <div style={{ ...s.iconNav, alignItems: sidebarOpen ? "stretch" : "center" }}>
           {iconBtn("＋", "Nuova", createNewChat)}
           {iconBtn("💬", "Chat", () => setSidebarOpen(true), sidebarOpen)}
           {iconBtn("⚙️", "Impostazioni", () => { setActiveTab("Aspetto"); setShowSettings(true); })}
@@ -550,21 +549,9 @@ ${cleanedText || "Il file risulta vuoto."}`,
 const s: any = {
   app: { display: "flex", height: "100dvh", width: "100vw", overflow: "hidden", minWidth: 0 },
 
-  floatingMenu: {
-    position: "fixed",
-    top: 14,
-    left: 14,
-    zIndex: 50,
-    width: 42,
-    height: 42,
-    borderRadius: 14,
-    cursor: "pointer",
-    fontSize: 20,
-  },
-
   sidebar: {
     height: "100dvh",
-    padding: "14px",
+    padding: "10px",
     display: "flex",
     flexDirection: "column",
     gap: "12px",
@@ -572,15 +559,15 @@ const s: any = {
     flexShrink: 0,
   },
 
-  sidebarTop: { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, minHeight: 42 },
+  sidebarTop: { display: "flex", alignItems: "center", gap: 8, minHeight: 50, flexShrink: 0 },
   logoWrap: { display: "flex", alignItems: "center", gap: 10, minWidth: 0 },
   logoMark: { width: 34, height: 34, borderRadius: 12, color: "white", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 900 },
   logoText: { fontSize: 21, fontWeight: 900, letterSpacing: "-1px", whiteSpace: "nowrap" },
-  collapseBtn: { width: 34, height: 34, borderRadius: 12, background: "transparent", cursor: "pointer", fontSize: 24, lineHeight: 1 },
+  collapseBtn: { width: 44, height: 44, borderRadius: 14, cursor: "pointer", fontSize: 22, lineHeight: 1, display: "flex", alignItems: "center", justifyContent: "center" },
 
-  iconNav: { display: "flex", flexDirection: "column", gap: 6 },
-  iconBtn: { minHeight: 42, borderRadius: 14, cursor: "pointer", display: "flex", alignItems: "center", gap: 10, padding: "0 12px", fontSize: 14, fontWeight: 700, background: "transparent", textAlign: "left" },
-  icon: { width: 22, display: "inline-flex", justifyContent: "center", fontSize: 18, flexShrink: 0 },
+  iconNav: { display: "flex", flexDirection: "column", gap: 10, flexShrink: 0 },
+  iconBtn: { minHeight: 44, borderRadius: 14, cursor: "pointer", display: "flex", alignItems: "center", gap: 10, fontSize: 14, fontWeight: 700, background: "transparent", textAlign: "left", flexShrink: 0 },
+  icon: { width: 22, height: 22, display: "inline-flex", justifyContent: "center", alignItems: "center", fontSize: 18, flexShrink: 0 },
   iconLabel: { whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" },
 
   chatHistory: { flex: 1, minHeight: 0, overflowY: "auto", overflowX: "hidden", display: "flex", flexDirection: "column", gap: 6, paddingRight: 2 },
@@ -589,8 +576,8 @@ const s: any = {
   historyTitle: { overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis", flex: 1 },
   deleteBtn: { border: "none", background: "transparent", cursor: "pointer", fontSize: 18, opacity: 0.55 },
 
-  sidebarAccount: { display: "flex", alignItems: "center", gap: 10, minHeight: 48, padding: "8px", cursor: "pointer", borderRadius: 14, flexShrink: 0 },
-  avatar: { width: 34, height: 34, borderRadius: "50%", color: "white", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: 14, flexShrink: 0 },
+  sidebarAccount: { display: "flex", alignItems: "center", gap: 10, minHeight: 48, padding: "7px", cursor: "pointer", borderRadius: 14, flexShrink: 0 },
+  avatar: { width: 38, height: 38, borderRadius: "50%", color: "white", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: 14, flexShrink: 0 },
   accountText: { display: "flex", flexDirection: "column", minWidth: 0 },
 
   main: { flex: 1, minWidth: 0, height: "100dvh", display: "flex", flexDirection: "column", position: "relative", overflow: "hidden" },
@@ -624,5 +611,3 @@ const s: any = {
   themeOption: { padding: 12, borderRadius: 12, cursor: "pointer", display: "flex", alignItems: "center", gap: 12, fontSize: 13 },
   saveBtn: { marginTop: "auto", padding: 14, border: "none", borderRadius: 14, color: "white", fontWeight: 700, cursor: "pointer" },
 };
-
-

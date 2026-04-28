@@ -842,8 +842,7 @@ export default function App() {
       name.endsWith(".yml")
     );
   };
-
-  const readTextFile = async (file: File) => {
+  
   const readTextFile = async (file: File) => {
   const name = file.name.toLowerCase();
 

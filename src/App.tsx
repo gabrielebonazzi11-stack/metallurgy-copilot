@@ -1,11 +1,4 @@
 import React, { useState, useRef, useEffect } from "react";
-import * as pdfjsLib from "pdfjs-dist";
-import pdfWorker from "pdfjs-dist/build/pdf.worker.min?url";
-import mammoth from "mammoth/mammoth.browser";
-import * as XLSX from "xlsx";
-import JSZip from "jszip";
-
-pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorker;
 
 const THEMES = [
   { name: "Industrial Blue", primary: "#3b82f6", bg: "#f8fafc", surface: "#eff6ff", text: "#1e293b", border: "#dbeafe" },
@@ -320,81 +313,8 @@ export default function App() {
     return resized.toDataURL("image/jpeg", quality);
   };
 
-  const pdfToImages = async (file: File, maxPages = MAX_PDF_PAGES_TO_ANALYZE): Promise<string[]> => {
-    const buffer = await file.arrayBuffer();
-    const pdf = await pdfjsLib.getDocument({ data: buffer }).promise;
-    const pageCount = Math.min(pdf.numPages, maxPages);
-    const images: string[] = [];
-
-    for (let i = 1; i <= pageCount; i++) {
-      const page = await pdf.getPage(i);
-      const viewport = page.getViewport({ scale: 2 });
-      const canvas = document.createElement("canvas");
-      const ctx = canvas.getContext("2d");
-      if (!ctx) throw new Error("Canvas non disponibile per il PDF.");
-      canvas.width = viewport.width;
-      canvas.height = viewport.height;
-      await page.render({ canvasContext: ctx, viewport }).promise;
-      images.push(canvasToDataUrl(canvas));
-    }
-
-    return images;
-  };
-
-  const extractPdfText = async (file: File): Promise<string> => {
-    const buffer = await file.arrayBuffer();
-    const pdf = await pdfjsLib.getDocument({ data: buffer }).promise;
-    const pageCount = Math.min(pdf.numPages, 20);
-    const chunks: string[] = [];
-
-    for (let i = 1; i <= pageCount; i++) {
-      const page = await pdf.getPage(i);
-      const textContent = await page.getTextContent();
-      const pageText = textContent.items.map((item: any) => item.str).join(" ");
-      chunks.push(`\n--- PAGINA ${i} ---\n${pageText}`);
-    }
-
-    return truncateText(chunks.join("\n"));
-  };
-
-  const extractDocxText = async (file: File): Promise<string> => {
-    const buffer = await file.arrayBuffer();
-    const result = await mammoth.extractRawText({ arrayBuffer: buffer });
-    return truncateText(result.value || "Nessun testo estratto dal DOCX.");
-  };
-
-  const extractSpreadsheetText = async (file: File): Promise<string> => {
-    const buffer = await file.arrayBuffer();
-    const workbook = XLSX.read(buffer, { type: "array" });
-    const parts: string[] = [];
-
-    workbook.SheetNames.forEach(sheetName => {
-      const sheet = workbook.Sheets[sheetName];
-      const csv = XLSX.utils.sheet_to_csv(sheet);
-      parts.push(`\n--- FOGLIO: ${sheetName} ---\n${csv}`);
-    });
-
-    return truncateText(parts.join("\n"));
-  };
-
-  const extractZipText = async (file: File): Promise<string> => {
-    const zip = await JSZip.loadAsync(file);
-    const parts: string[] = [];
-    const allowed = ["txt", "md", "csv", "json", "xml", "html", "css", "js", "jsx", "ts", "tsx", "py", "java", "cpp", "c", "h", "sql", "yaml", "yml", "step", "stp"];
-
-    for (const [path, entry] of Object.entries(zip.files)) {
-      if (entry.dir) continue;
-      const ext = getExt(path);
-      if (!allowed.includes(ext)) {
-        parts.push(`\n--- ${path} ---\n[File presente nello ZIP ma non letto: formato ${ext || "sconosciuto"}]`);
-        continue;
-      }
-      const content = await entry.async("text");
-      parts.push(`\n--- ${path} ---\n${content}`);
-      if (parts.join("\n").length > TEXT_LIMIT) break;
-    }
-
-    return truncateText(parts.join("\n") || "ZIP vuoto o senza file leggibili.");
+  const readUnavailableFile = async (file: File) => {
+    return `Il file "${file.name}" è stato caricato, ma questa build senza librerie esterne non può estrarre direttamente il contenuto di PDF, DOCX, XLSX o ZIP. Per ora carica immagini JPG/PNG/WebP o file testuali TXT/CSV/JSON/STEP.`;
   };
 
   const callVisionAI = async (imageDataUrls: string[], prompt: string) => {
@@ -529,71 +449,14 @@ export default function App() {
         return;
       }
 
-      if (kind === "pdf") {
-        const pageImages = await pdfToImages(file);
-        const previewUrls = pageImages;
-        let extractedText = "";
-        try {
-          extractedText = await extractPdfText(file);
-        } catch {
-          extractedText = "Testo PDF non estraibile. Analisi fatta sulle pagine convertite in immagini.";
-        }
-
-        const userMessage: Message = {
-          role: "utente",
-          text:
-            `📄 PDF caricato: ${file.name}\n` +
-            `Dimensione: ${(file.size / 1024).toFixed(1)} KB\n` +
-            `Pagine analizzate come immagini: ${pageImages.length}\n\n` +
-            `TESTO ESTRATTO PARZIALE:\n${extractedText}`,
-          attachments: [{ name: file.name, type: file.type || "application/pdf", size: file.size, kind, url: fileUrl, previewUrls, extractedText }],
-        };
-
-        const oldMessages = chats.find(c => c.id === chatId)?.messages || [];
-        const updatedMessages = [...oldMessages, userMessage];
-        replaceMessagesInChat(chatId, updatedMessages);
-
-        const aiText = await callVisionAI(
-          pageImages,
-          `Analizza questo PDF tecnico convertito in immagini. Sono al massimo le prime ${MAX_PDF_PAGES_TO_ANALYZE} pagine. Testo estratto dal PDF, se utile:\n${extractedText}\n\nSe è una tavola meccanica o documento tecnico: identifica contenuto, quote/tabelle/viste leggibili, errori, mancanze, rischi e azioni pratiche. Non inventare dati non leggibili.`
-        );
-
-        replaceMessagesInChat(chatId, [...updatedMessages, { role: "AI", text: aiText }]);
-        return;
-      }
-
-      if (kind === "docx") {
-        const extractedText = await extractDocxText(file);
+      if (kind === "pdf" || kind === "docx" || kind === "spreadsheet" || kind === "zip") {
+        const extractedText = await readUnavailableFile(file);
         await analyzeExtractedText(
           chatId,
           file,
-          { name: file.name, type: file.type || "application/vnd.openxmlformats-officedocument.wordprocessingml.document", size: file.size, kind, url: fileUrl, extractedText },
+          { name: file.name, type: file.type || "application/octet-stream", size: file.size, kind, url: fileUrl, extractedText },
           extractedText,
-          `Analizza il DOCX "${file.name}" come documento tecnico. Riassumi contenuto, errori, punti critici, parti mancanti e miglioramenti.`
-        );
-        return;
-      }
-
-      if (kind === "spreadsheet") {
-        const extractedText = await extractSpreadsheetText(file);
-        await analyzeExtractedText(
-          chatId,
-          file,
-          { name: file.name, type: file.type || "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", size: file.size, kind, url: fileUrl, extractedText },
-          extractedText,
-          `Analizza il foglio "${file.name}". Se è BOM/distinta/calcoli, controlla duplicati, celle vuote, quantità, materiali, codici, incoerenze e suggerisci correzioni.`
-        );
-        return;
-      }
-
-      if (kind === "zip") {
-        const extractedText = await extractZipText(file);
-        await analyzeExtractedText(
-          chatId,
-          file,
-          { name: file.name, type: file.type || "application/zip", size: file.size, kind, url: fileUrl, extractedText },
-          extractedText,
-          `Analizza il contenuto leggibile dello ZIP "${file.name}". Riassumi struttura, file rilevanti, errori tecnici e prossimi step.`
+          `Spiega all'utente che il file "${file.name}" è stato ricevuto, ma questa build senza librerie non può leggerlo direttamente. Suggerisci il formato alternativo migliore: immagini per tavole/PDF, CSV per Excel, TXT per documenti.`
         );
         return;
       }

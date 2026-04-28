@@ -33,6 +33,27 @@ interface SavedLogin {
   lastAccess: string;
 }
 
+interface ChecklistForm {
+  componentType: string;
+  material: string;
+  load: string;
+  environment: string;
+  machining: string;
+  safetyFactor: string;
+  tolerances: string;
+  roughness: string;
+  notes: string;
+}
+
+type ChecklistStatus = "✅ Conforme" | "⚠️ Da verificare" | "❌ Errore critico";
+
+interface ChecklistResult {
+  area: string;
+  status: ChecklistStatus;
+  detail: string;
+  suggestion: string;
+}
+
 const defaultUser: UserProfile = {
   name: "Mario Rossi",
   email: "mario.rossi@tech.it",
@@ -49,6 +70,7 @@ export default function App() {
   const [fileLoading, setFileLoading] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showLoginPanel, setShowLoginPanel] = useState(false);
+  const [showChecklist, setShowChecklist] = useState(false);
   const [activeTab, setActiveTab] = useState("Aspetto");
   const [sidebarOpen, setSidebarOpen] = useState(true);
 
@@ -62,6 +84,19 @@ export default function App() {
   const [loginError, setLoginError] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [savedLogins, setSavedLogins] = useState<SavedLogin[]>([]);
+
+  const [checklistForm, setChecklistForm] = useState<ChecklistForm>({
+    componentType: "",
+    material: "",
+    load: "",
+    environment: "",
+    machining: "",
+    safetyFactor: "",
+    tolerances: "",
+    roughness: "",
+    notes: "",
+  });
+  const [checklistResults, setChecklistResults] = useState<ChecklistResult[]>([]);
 
   const apiKey = import.meta.env.VITE_GROQ_API_KEY;
   const chatEndRef = useRef<HTMLDivElement>(null);
@@ -224,7 +259,130 @@ export default function App() {
   const openLoginInsideApp = () => {
     setShowLoginPanel(true);
     setShowSettings(false);
+    setShowChecklist(false);
     setLoginError("");
+  };
+
+  const updateChecklistField = (field: keyof ChecklistForm, value: string) => {
+    setChecklistForm(prev => ({ ...prev, [field]: value }));
+  };
+
+  const runProjectChecklist = () => {
+    const f = checklistForm;
+    const material = f.material.trim().toLowerCase();
+    const loadValue = Number(String(f.load).replace(",", "."));
+    const safetyValue = Number(String(f.safetyFactor).replace(",", "."));
+    const environment = f.environment.trim().toLowerCase();
+    const tolerances = f.tolerances.trim().toLowerCase();
+    const roughness = f.roughness.trim().toLowerCase();
+    const machining = f.machining.trim().toLowerCase();
+
+    const results: ChecklistResult[] = [];
+
+    results.push({
+      area: "Materiale selezionato",
+      status: material ? "⚠️ Da verificare" : "❌ Errore critico",
+      detail: material
+        ? `Materiale indicato: ${f.material}. Va confrontato con carico, ambiente e lavorazione.`
+        : "Materiale non indicato: non è possibile valutare resistenza, trattamenti e lavorabilità.",
+      suggestion: material
+        ? "Controlla Rm, Re/Rp0.2, durezza, saldabilità e disponibilità commerciale. Per acciai comuni verifica anche la sigla EN/UNI/DIN."
+        : "Inserisci una sigla materiale, ad esempio C45, S235, 42CrMo4, 11SMnPb37, AISI 304.",
+    });
+
+    results.push({
+      area: "Coerenza carico/materiale",
+      status: !f.load.trim() || Number.isNaN(loadValue) || loadValue <= 0 ? "❌ Errore critico" : material ? "⚠️ Da verificare" : "❌ Errore critico",
+      detail: !f.load.trim() || Number.isNaN(loadValue) || loadValue <= 0
+        ? "Carico non indicato o non numerico."
+        : `Carico indicativo inserito: ${f.load} N. La sola checklist non sostituisce la verifica tensionale.`,
+      suggestion: "Esegui almeno una verifica rapida a trazione/flessione/taglio/torsione in base al componente. Indica anche braccio, sezione resistente e tipo di sollecitazione.",
+    });
+
+    results.push({
+      area: "Ambiente d'uso",
+      status: environment ? "⚠️ Da verificare" : "⚠️ Da verificare",
+      detail: environment
+        ? `Ambiente indicato: ${f.environment}.`
+        : "Ambiente non specificato: corrosione, temperatura, umidità e polveri possono cambiare la scelta del materiale.",
+      suggestion: environment.includes("corros") || environment.includes("umid") || environment.includes("esterno")
+        ? "Valuta inox, zincatura, brunitura, verniciatura o trattamento superficiale. Specifica sempre la protezione in tavola."
+        : "Specifica se il pezzo lavora a secco, in esterno, in olio, in ambiente corrosivo o ad alta temperatura.",
+    });
+
+    results.push({
+      area: "Trattamenti termici/superficiali",
+      status: material ? "⚠️ Da verificare" : "❌ Errore critico",
+      detail: material
+        ? "La necessità di trattamenti dipende da usura, fatica, durezza superficiale e accoppiamenti."
+        : "Senza materiale non si possono proporre trattamenti compatibili.",
+      suggestion: material.includes("c45")
+        ? "Per C45 valuta bonifica o tempra superficiale se servono resistenza e durezza."
+        : material.includes("42crmo4")
+          ? "Per 42CrMo4 valuta bonifica se servono alte prestazioni meccaniche."
+          : "Aggiungi una nota se sono richiesti bonifica, cementazione, nitrurazione, tempra, zincatura o anodizzazione.",
+    });
+
+    results.push({
+      area: "Tensioni ammissibili",
+      status: material && f.load.trim() ? "⚠️ Da verificare" : "❌ Errore critico",
+      detail: "La tensione ammissibile non è stata calcolata automaticamente in questa prima checklist.",
+      suggestion: "Ricava σamm = Re/n oppure usa criteri a fatica se il carico è variabile. Inserisci sempre il coefficiente di sicurezza usato.",
+    });
+
+    results.push({
+      area: "Coefficiente di sicurezza",
+      status: !f.safetyFactor.trim() || Number.isNaN(safetyValue) ? "❌ Errore critico" : safetyValue < 1.5 ? "❌ Errore critico" : safetyValue < 2 ? "⚠️ Da verificare" : "✅ Conforme",
+      detail: !f.safetyFactor.trim() || Number.isNaN(safetyValue)
+        ? "Coefficiente di sicurezza non indicato."
+        : `Coefficiente di sicurezza indicato: n = ${f.safetyFactor}.`,
+      suggestion: !f.safetyFactor.trim() || Number.isNaN(safetyValue)
+        ? "Inserisci n. Per componenti statici spesso si parte da valori indicativi ≥ 2, salvo norme specifiche."
+        : safetyValue < 1.5
+          ? "Valore molto basso: giustificalo con norma, prove o calcolo accurato."
+          : "Verifica che il coefficiente sia coerente con incertezza del carico, conseguenze del cedimento e materiale.",
+    });
+
+    results.push({
+      area: "Tolleranze dimensionali",
+      status: tolerances ? "✅ Conforme" : "⚠️ Da verificare",
+      detail: tolerances ? `Tolleranze indicate: ${f.tolerances}.` : "Non risultano tolleranze o accoppiamenti indicati.",
+      suggestion: tolerances
+        ? "Controlla che siano presenti soprattutto sulle quote funzionali, sedi cuscinetto, fori di centraggio, spine, alberi e accoppiamenti."
+        : "Aggiungi tolleranze sulle quote funzionali. Esempi: Ø10 H7, Ø20 h6, posizione fori, planarità superfici di appoggio.",
+    });
+
+    results.push({
+      area: "Raggi e smussi",
+      status: f.notes.toLowerCase().includes("smus") || f.notes.toLowerCase().includes("raggio") || f.notes.toLowerCase().includes("raccord") ? "✅ Conforme" : "⚠️ Da verificare",
+      detail: "La checklist cerca indicazioni testuali su smussi/raccordi nelle note.",
+      suggestion: "Specifica smussi generali, ad esempio 'Smussi non quotati 0.5x45°', e raggi di raccordo dove servono per fatica o lavorazione.",
+    });
+
+    results.push({
+      area: "Fori e filetti normalizzati",
+      status: f.notes.toLowerCase().includes("m") || f.notes.toLowerCase().includes("foro") || f.notes.toLowerCase().includes("filett") ? "⚠️ Da verificare" : "⚠️ Da verificare",
+      detail: "Controllare sempre che fori, maschiature e lamature siano quotati secondo norma.",
+      suggestion: "Per viti indica M, passo se non grosso, profondità utile, lamatura/svasatura e classe vite se presente in distinta.",
+    });
+
+    results.push({
+      area: "Rugosità",
+      status: roughness ? "✅ Conforme" : "⚠️ Da verificare",
+      detail: roughness ? `Rugosità indicata: ${f.roughness}.` : "Rugosità non indicata.",
+      suggestion: roughness
+        ? "Verifica che la rugosità sia assegnata alle superfici funzionali e non solo come valore generale."
+        : "Aggiungi rugosità generale e rugosità specifiche per sedi, scorrimenti, appoggi, tenute e accoppiamenti.",
+    });
+
+    results.push({
+      area: "Note di lavorazione",
+      status: machining || f.notes.trim() ? "⚠️ Da verificare" : "⚠️ Da verificare",
+      detail: machining ? `Lavorazione indicata: ${f.machining}.` : "Lavorazione non specificata.",
+      suggestion: "Indica se il pezzo è tornito, fresato, saldato, piegato, tagliato laser, rettificato o trattato. Aggiungi note per sbavatura e protezione superficiale.",
+    });
+
+    setChecklistResults(results);
   };
 
   const isSupportedTextFile = (file: File) => {
@@ -659,6 +817,7 @@ export default function App() {
           {iconBtn("＋", "Nuova", createNewChat)}
           {iconBtn("≡", "Chat", () => setSidebarOpen(true), sidebarOpen)}
           {iconBtn("🔐", isLoggedIn ? "Account" : "Login", openLoginInsideApp)}
+          {iconBtn("✓", "Checklist", () => setShowChecklist(true))}
           {iconBtn("⚙", "Impostazioni", () => { setActiveTab("Aspetto"); setShowSettings(true); })}
         </div>
 
@@ -756,6 +915,84 @@ export default function App() {
               >
                 ×
               </button>
+            </div>
+          </div>
+        )}
+
+        {showChecklist && (
+          <div style={s.overlay}>
+            <div style={{ ...s.checklistModal, background: isDark ? "#111111" : "white", color: theme.text, border: `1px solid ${theme.border}` }}>
+              <div style={s.modalHeader}>
+                <div>
+                  <h2 style={{ fontSize: "20px", margin: 0 }}>Checklist tecnica progetto</h2>
+                  <p style={s.checklistSubtitle}>Controllo preliminare automatico per componenti meccanici.</p>
+                </div>
+                <button
+                  style={{ ...s.backBtn, color: theme.text, border: `1px solid ${theme.border}` }}
+                  onClick={() => setShowChecklist(false)}
+                >
+                  ← Indietro
+                </button>
+              </div>
+
+              <div style={s.checklistLayout}>
+                <div style={s.checklistFormArea}>
+                  <div style={s.checklistGrid}>
+                    <div>
+                      <label style={s.label}>Tipo componente</label>
+                      <input style={{ ...s.input, background: isDark ? "#050505" : "#ffffff", color: theme.text, border: `1px solid ${theme.border}` }} value={checklistForm.componentType} onChange={e => updateChecklistField("componentType", e.target.value)} placeholder="Albero, perno, staffa, flangia..." />
+                    </div>
+                    <div>
+                      <label style={s.label}>Materiale</label>
+                      <input style={{ ...s.input, background: isDark ? "#050505" : "#ffffff", color: theme.text, border: `1px solid ${theme.border}` }} value={checklistForm.material} onChange={e => updateChecklistField("material", e.target.value)} placeholder="C45, S235, 42CrMo4..." />
+                    </div>
+                    <div>
+                      <label style={s.label}>Carico indicativo [N]</label>
+                      <input style={{ ...s.input, background: isDark ? "#050505" : "#ffffff", color: theme.text, border: `1px solid ${theme.border}` }} value={checklistForm.load} onChange={e => updateChecklistField("load", e.target.value)} placeholder="2500" />
+                    </div>
+                    <div>
+                      <label style={s.label}>Coefficiente sicurezza</label>
+                      <input style={{ ...s.input, background: isDark ? "#050505" : "#ffffff", color: theme.text, border: `1px solid ${theme.border}` }} value={checklistForm.safetyFactor} onChange={e => updateChecklistField("safetyFactor", e.target.value)} placeholder="2" />
+                    </div>
+                  </div>
+
+                  <label style={s.label}>Ambiente d'uso</label>
+                  <input style={{ ...s.input, background: isDark ? "#050505" : "#ffffff", color: theme.text, border: `1px solid ${theme.border}` }} value={checklistForm.environment} onChange={e => updateChecklistField("environment", e.target.value)} placeholder="Interno, esterno, umido, corrosivo, olio..." />
+
+                  <label style={s.label}>Lavorazione prevista</label>
+                  <input style={{ ...s.input, background: isDark ? "#050505" : "#ffffff", color: theme.text, border: `1px solid ${theme.border}` }} value={checklistForm.machining} onChange={e => updateChecklistField("machining", e.target.value)} placeholder="Tornitura, fresatura, saldatura, rettifica..." />
+
+                  <label style={s.label}>Tolleranze / accoppiamenti presenti</label>
+                  <input style={{ ...s.input, background: isDark ? "#050505" : "#ffffff", color: theme.text, border: `1px solid ${theme.border}` }} value={checklistForm.tolerances} onChange={e => updateChecklistField("tolerances", e.target.value)} placeholder="Ø20 h6, foro Ø10 H7, posizione fori..." />
+
+                  <label style={s.label}>Rugosità</label>
+                  <input style={{ ...s.input, background: isDark ? "#050505" : "#ffffff", color: theme.text, border: `1px solid ${theme.border}` }} value={checklistForm.roughness} onChange={e => updateChecklistField("roughness", e.target.value)} placeholder="Ra 3.2 generale, Ra 1.6 sedi..." />
+
+                  <label style={s.label}>Note tecniche</label>
+                  <textarea style={{ ...s.checklistTextarea, background: isDark ? "#050505" : "#ffffff", color: theme.text, border: `1px solid ${theme.border}` }} value={checklistForm.notes} onChange={e => updateChecklistField("notes", e.target.value)} placeholder="Smussi, raggi, filetti, trattamenti, note cartiglio..." />
+
+                  <button style={{ ...s.checkBtn, background: theme.primary }} onClick={runProjectChecklist}>Esegui checklist</button>
+                </div>
+
+                <div style={s.checklistResultsArea}>
+                  {checklistResults.length === 0 ? (
+                    <div style={{ ...s.emptyChecklist, border: `1px dashed ${theme.border}` }}>
+                      Inserisci i dati del pezzo e premi “Esegui checklist”.
+                    </div>
+                  ) : (
+                    checklistResults.map((item, index) => (
+                      <div key={index} style={{ ...s.resultCard, background: isDark ? "#050505" : "#f8fafc", border: `1px solid ${theme.border}` }}>
+                        <div style={s.resultTop}>
+                          <strong>{item.area}</strong>
+                          <span style={s.resultStatus}>{item.status}</span>
+                        </div>
+                        <p style={s.resultDetail}>{item.detail}</p>
+                        <p style={{ ...s.resultSuggestion, borderLeft: `3px solid ${theme.primary}` }}>{item.suggestion}</p>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
             </div>
           </div>
         )}
@@ -1191,6 +1428,20 @@ const s: any = {
   themeGrid: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(135px, 1fr))", gap: 10 },
   themeOption: { padding: 12, borderRadius: 14, cursor: "pointer", display: "flex", alignItems: "center", gap: 12, fontSize: 13, fontWeight: 700 },
   saveBtn: { marginTop: "auto", padding: 14, border: "none", borderRadius: 14, color: "white", fontWeight: 700, cursor: "pointer" },
+  checklistModal: { borderRadius: 24, width: "min(1120px, calc(100vw - 32px))", height: "min(760px, calc(100dvh - 32px))", display: "flex", flexDirection: "column", overflow: "hidden", boxShadow: "0 30px 70px rgba(0,0,0,0.28)", padding: 28 },
+  checklistSubtitle: { margin: "6px 0 0", fontSize: 13, opacity: 0.62 },
+  checklistLayout: { flex: 1, minHeight: 0, display: "grid", gridTemplateColumns: "minmax(340px, 0.9fr) minmax(360px, 1.1fr)", gap: 22, overflow: "hidden" },
+  checklistFormArea: { overflowY: "auto", paddingRight: 6 },
+  checklistResultsArea: { overflowY: "auto", display: "flex", flexDirection: "column", gap: 12, paddingRight: 6 },
+  checklistGrid: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 },
+  checklistTextarea: { width: "100%", minHeight: 92, padding: 12, borderRadius: 12, marginBottom: 20, outline: "none", fontSize: 14, resize: "vertical" },
+  checkBtn: { width: "100%", padding: 15, border: "none", borderRadius: 14, color: "white", fontWeight: 850, cursor: "pointer", fontSize: 15 },
+  emptyChecklist: { borderRadius: 18, minHeight: 160, display: "flex", alignItems: "center", justifyContent: "center", textAlign: "center", opacity: 0.68, padding: 18, fontSize: 14 },
+  resultCard: { borderRadius: 18, padding: 16 },
+  resultTop: { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, marginBottom: 8, fontSize: 14 },
+  resultStatus: { fontWeight: 900, fontSize: 13, whiteSpace: "nowrap" },
+  resultDetail: { margin: "0 0 10px", lineHeight: 1.5, fontSize: 13, opacity: 0.82 },
+  resultSuggestion: { margin: 0, paddingLeft: 10, lineHeight: 1.5, fontSize: 13, fontWeight: 650 },
   accountButtonRow: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginTop: 4, marginBottom: 4 },
   miniPrimaryBtn: { border: "none", color: "white", padding: 12, borderRadius: 12, cursor: "pointer", fontWeight: 800 },
   miniDangerBtn: { border: "none", color: "#991b1b", background: "#fee2e2", padding: 12, borderRadius: 12, cursor: "pointer", fontWeight: 800 },

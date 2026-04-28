@@ -1,11 +1,12 @@
 import React, { useState, useRef, useEffect } from "react";
 
 const THEMES = [
-  { name: "Industrial Blue", primary: "#3b82f6", bg: "#f8fafc", surface: "#eff6ff", text: "#1e293b" },
-  { name: "Slate Grey", primary: "#475569", bg: "#f1f5f9", surface: "#e2e8f0", text: "#1e293b" },
-  { name: "Forest Green", primary: "#15803d", bg: "#f0fdf4", surface: "#dcfce7", text: "#166534" },
-  { name: "Deep Burgundy", primary: "#991b1b", bg: "#fef2f2", surface: "#fee2e2", text: "#7f1d1d" },
-  { name: "Sandstone", primary: "#a8a29e", bg: "#fafaf9", surface: "#f5f5f4", text: "#44403c" },
+  { name: "Industrial Blue", primary: "#3b82f6", bg: "#f8fafc", surface: "#eff6ff", text: "#1e293b", border: "#dbeafe" },
+  { name: "Slate Grey", primary: "#475569", bg: "#f1f5f9", surface: "#e2e8f0", text: "#1e293b", border: "#cbd5e1" },
+  { name: "Forest Green", primary: "#22c55e", bg: "#f0fdf4", surface: "#dcfce7", text: "#14532d", border: "#bbf7d0" },
+  { name: "Deep Burgundy", primary: "#dc2626", bg: "#fef2f2", surface: "#fee2e2", text: "#7f1d1d", border: "#fecaca" },
+  { name: "Sandstone", primary: "#a8a29e", bg: "#fafaf9", surface: "#f5f5f4", text: "#44403c", border: "#e7e5e4" },
+  { name: "Dark Black", primary: "#60a5fa", bg: "#050505", surface: "#111111", text: "#f8fafc", border: "#262626" },
 ];
 
 type Role = "utente" | "AI";
@@ -329,7 +330,7 @@ ${cleanedText || "Il file risulta vuoto."}`,
 
   return (
     <div key={theme.name} style={{ ...s.app, backgroundColor: theme.bg, color: theme.text }}>
-      <aside style={{ ...s.sidebar, backgroundColor: theme.bg, borderRight: `1px solid ${theme.surface}` }}>
+      <aside style={{ ...s.sidebar, backgroundColor: theme.bg, borderRight: `1px solid ${theme.border || theme.surface}` }}>
         <div style={s.logo}>
           TECH<span style={{ color: theme.primary }}>AI</span>
         </div>
@@ -350,6 +351,7 @@ ${cleanedText || "Il file risulta vuoto."}`,
                 ...s.historyItem,
                 backgroundColor: chat.id === activeChatId ? theme.surface : "transparent",
                 color: chat.id === activeChatId ? theme.primary : theme.text,
+                border: `1px solid ${chat.id === activeChatId ? theme.border || theme.surface : "transparent"}`,
               }}
             >
               <div style={s.historyTitle} onClick={() => setActiveChatId(chat.id)}>
@@ -391,7 +393,7 @@ ${cleanedText || "Il file risulta vuoto."}`,
         </div>
       </aside>
 
-      <main style={s.main}>
+      <main style={{ ...s.main, backgroundColor: theme.bg }}>
         <section style={{ ...s.content, justifyContent: currentMessages.length === 0 ? "center" : "flex-start" }}>
           {currentMessages.length === 0 ? (
             <div style={s.homeWrapper}>
@@ -491,7 +493,8 @@ ${cleanedText || "Il file risulta vuoto."}`,
                         style={{
                           ...s.themeOption,
                           background: theme.name === t.name ? theme.surface : "transparent",
-                          border: theme.name === t.name ? `1px solid ${t.primary}` : "1px solid transparent",
+                          color: theme.name === "Dark Black" ? "#f8fafc" : "#1e293b",
+                          border: theme.name === t.name ? `1px solid ${t.primary}` : `1px solid ${theme.border || "transparent"}`,
                         }}
                       >
                         <div style={{ width: 12, height: 12, borderRadius: "50%", background: t.primary }} />
@@ -538,8 +541,8 @@ ${cleanedText || "Il file risulta vuoto."}`,
 }
 
 const s: any = {
-  app: { display: "flex", height: "100vh", width: "100vw", overflow: "hidden" },
-  sidebar: { width: "270px", padding: "20px", display: "flex", flexDirection: "column", gap: "10px" },
+  app: { display: "flex", height: "100dvh", width: "100vw", overflow: "hidden", minWidth: 0 },
+  sidebar: { width: "260px", minWidth: "230px", maxWidth: "260px", height: "100dvh", padding: "16px", display: "flex", flexDirection: "column", gap: "10px", overflow: "hidden" },
   logo: { fontSize: "22px", fontWeight: 900, marginBottom: "20px", letterSpacing: "-1px" },
   newChatBtn: { border: "none", borderRadius: "12px", padding: "12px", color: "white", fontWeight: 700, cursor: "pointer", marginBottom: "10px" },
   chatHistory: { flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", gap: "6px" },
@@ -550,31 +553,32 @@ const s: any = {
   avatar: { width: "32px", height: "32px", borderRadius: "50%", color: "white", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: "14px" },
   accountText: { display: "flex", flexDirection: "column" },
   settingsBtn: { padding: "15px 10px", cursor: "pointer", borderTop: "1px solid rgba(0,0,0,0.05)", fontSize: "13px", fontWeight: 600 },
-  main: { flex: 1, display: "flex", flexDirection: "column", position: "relative" },
-  content: { flex: 1, display: "flex", flexDirection: "column", alignItems: "center" },
-  homeWrapper: { width: "100%", maxWidth: "650px", textAlign: "center", marginTop: "-15vh" },
-  welcomeText: { fontSize: "36px", fontWeight: 600, marginBottom: "40px", letterSpacing: "-1px" },
+  main: { flex: 1, minWidth: 0, height: "100dvh", display: "flex", flexDirection: "column", position: "relative", overflow: "hidden" },
+  content: { flex: 1, minHeight: 0, width: "100%", display: "flex", flexDirection: "column", alignItems: "center", overflow: "hidden" },
+  homeWrapper: { width: "100%", maxWidth: "650px", textAlign: "center", padding: "0 20px" },
+  welcomeText: { fontSize: "clamp(26px, 4vw, 36px)", fontWeight: 600, marginBottom: "32px", letterSpacing: "-1px" },
   searchBar: { display: "flex", alignItems: "center", borderRadius: "32px", padding: "8px 20px", width: "100%", minHeight: "60px", boxShadow: "0 4px 20px rgba(0,0,0,0.03)" },
   fileBtn: { background: "none", border: "none", cursor: "pointer", fontSize: "22px", marginRight: "8px" },
   textarea: { flex: 1, background: "none", border: "none", outline: "none", textAlign: "center", fontSize: "17px", resize: "none", padding: "10px 0" },
   sendBtn: { background: "none", border: "none", cursor: "pointer", fontSize: "22px", marginLeft: "8px" },
   fileHint: { fontSize: "12px", opacity: 0.6, marginTop: "14px" },
-  chatView: { width: "100%", maxWidth: "850px", flex: 1, display: "flex", flexDirection: "column", padding: "20px" },
-  msgList: { flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", gap: "25px", padding: "20px 0" },
+  chatView: { width: "100%", maxWidth: "850px", flex: 1, minHeight: 0, display: "flex", flexDirection: "column", padding: "16px 20px", overflow: "hidden" },
+  msgList: { flex: 1, minHeight: 0, overflowY: "auto", overflowX: "hidden", display: "flex", flexDirection: "column", gap: "18px", padding: "12px 0" },
   uRow: { display: "flex", justifyContent: "flex-end" },
   aRow: { display: "flex", justifyContent: "flex-start" },
-  uBox: { padding: "14px 22px", borderRadius: "22px", maxWidth: "80%", fontSize: "15px", whiteSpace: "pre-wrap" },
-  aBox: { padding: "12px 0", lineHeight: "1.7", fontSize: "16px", whiteSpace: "pre-wrap", maxWidth: "90%" },
-  bottomInput: { padding: "20px 0" },
+  uBox: { padding: "14px 22px", borderRadius: "22px", maxWidth: "80%", fontSize: "15px", whiteSpace: "pre-wrap", overflowWrap: "anywhere" },
+  aBox: { padding: "12px 0", lineHeight: "1.7", fontSize: "16px", whiteSpace: "pre-wrap", maxWidth: "90%", overflowWrap: "anywhere" },
+  bottomInput: { padding: "12px 0 8px", flexShrink: 0 },
   overlay: { position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", display: "flex", justifyContent: "center", alignItems: "center", zIndex: 1000 },
-  modal: { background: "white", borderRadius: "28px", width: "600px", height: "450px", display: "flex", overflow: "hidden", color: "#1e293b", boxShadow: "0 30px 60px rgba(0,0,0,0.2)" },
+  modal: { background: "white", borderRadius: "24px", width: "min(600px, calc(100vw - 32px))", height: "min(450px, calc(100dvh - 32px))", display: "flex", overflow: "hidden", color: "#1e293b", boxShadow: "0 30px 60px rgba(0,0,0,0.2)" },
   modalSide: { width: "180px", background: "#f8fafc", padding: "30px", borderRight: "1px solid #e2e8f0", display: "flex", flexDirection: "column", gap: "15px" },
   modalMain: { flex: 1, padding: "40px", display: "flex", flexDirection: "column" },
   tab: { cursor: "pointer", fontSize: "14px" },
   label: { fontSize: "11px", fontWeight: 800, color: "#94a3b8", textTransform: "uppercase", marginBottom: "8px", display: "block" },
   input: { width: "100%", padding: "12px", borderRadius: "12px", border: "1px solid #e2e8f0", marginBottom: "20px", outline: "none", fontSize: "14px" },
   badge: { fontSize: "12px", color: "#10b981", fontWeight: 700, background: "#f0fdf4", padding: "10px", borderRadius: "10px", textAlign: "center" },
-  themeGrid: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" },
+  themeGrid: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))", gap: "10px" }
   themeOption: { padding: "12px", borderRadius: "12px", cursor: "pointer", display: "flex", alignItems: "center", gap: "12px", fontSize: "13px" },
   saveBtn: { marginTop: "auto", padding: "15px", border: "none", borderRadius: "15px", color: "white", fontWeight: 700, cursor: "pointer" },
 };
+

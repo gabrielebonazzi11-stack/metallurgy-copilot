@@ -12,9 +12,18 @@ const THEMES = [
 
 type Role = "utente" | "AI";
 
+interface FileAttachment {
+  name: string;
+  type: string;
+  size: number;
+}
+
 interface Message {
   role: Role;
   text: string;
+  hiddenText?: string;
+  imageUrl?: string;
+  fileAttachment?: FileAttachment;
 }
 
 interface ChatSession {
@@ -912,15 +921,18 @@ export default function App() {
       const extractedText = await readTextFile(file);
       const cleanedText = extractedText.trim();
 
-      addMessageToChat(chatId, {
-        role: "utente",
-        text:
-          `📎 File caricato: ${file.name}\n` +
-          `Tipo: ${file.type || "sconosciuto"}\n` +
-          `Dimensione: ${(file.size / 1024).toFixed(1)} KB\n\n` +
-          `CONTENUTO DEL FILE:\n${cleanedText || "Il file risulta vuoto."}`,
-      });
-
+  addMessageToChat(chatId, {
+  role: "utente",
+  text: `📎 File caricato: ${file.name}`,
+  hiddenText:
+    `CONTENUTO DEL FILE "${file.name}":\n` +
+    `${cleanedText || "Il file risulta vuoto."}`,
+  fileAttachment: {
+    name: file.name,
+    type: file.type || "sconosciuto",
+    size: file.size,
+  },
+});
       setQuery(`Analizza il file "${file.name}" e fammi un riassunto chiaro dei punti principali.`);
     } catch (error: any) {
       addMessageToChat(chatId, {
@@ -970,7 +982,7 @@ export default function App() {
             },
             ...updatedMessages.map(m => ({
               role: m.role === "utente" ? "user" : "assistant",
-              content: m.text,
+              content: m.hiddenText ? `${m.text}\n\n${m.hiddenText}` : m.text,
             })),
           ],
         }),
@@ -1387,6 +1399,50 @@ export default function App() {
                       }
                     >
                       {formatText(m.text)}
+                      {m.fileAttachment && (
+  <div style={{
+    marginTop: 10,
+    display: "flex",
+    alignItems: "center",
+    gap: 10,
+    padding: "10px 12px",
+    borderRadius: 12,
+    background: "rgba(120,120,120,0.10)",
+    border: `1px solid ${theme.border}`,
+    maxWidth: 320,
+  }}>
+    <div style={{
+      width: 34,
+      height: 42,
+      borderRadius: 6,
+      background: theme.primary,
+      color: "white",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      fontWeight: 900,
+      fontSize: 18,
+    }}>
+      📄
+    </div>
+
+    <div style={{ minWidth: 0 }}>
+      <div style={{
+        fontWeight: 800,
+        fontSize: 13,
+        whiteSpace: "nowrap",
+        overflow: "hidden",
+        textOverflow: "ellipsis",
+      }}>
+        {m.fileAttachment.name}
+      </div>
+
+      <div style={{ fontSize: 11, opacity: 0.65 }}>
+        {(m.fileAttachment.size / 1024).toFixed(1)} KB · PDF/file caricato
+      </div>
+    </div>
+  </div>
+)}
                     </div>
                   </div>
                 ))}

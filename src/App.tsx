@@ -10,22 +10,10 @@ const THEMES = [
 ];
 
 type Role = "utente" | "AI";
-type AttachmentKind = "image" | "pdf" | "text" | "spreadsheet" | "docx" | "zip" | "cad" | "generic";
-
-interface Attachment {
-  name: string;
-  type: string;
-  size: number;
-  kind: AttachmentKind;
-  url?: string;
-  previewUrls?: string[];
-  extractedText?: string;
-}
 
 interface Message {
   role: Role;
   text: string;
-  attachments?: Attachment[];
 }
 
 interface ChatSession {
@@ -36,43 +24,19 @@ interface ChatSession {
 }
 
 interface UserProfile {
-  id?: string;
   name: string;
   email: string;
-  phone?: string;
-  plan?: "Free" | "Pro" | "Business";
 }
 
 const defaultUser: UserProfile = {
-  id: "demo-user",
   name: "Mario Rossi",
   email: "mario.rossi@tech.it",
-  phone: "",
-  plan: "Free",
 };
 
-const STORAGE_KEY = "techai_ultimate_v7_all_files";
-const TEXT_LIMIT = 24000;
-const MAX_PDF_PAGES_TO_ANALYZE = 5;
-const MAX_IMAGES_PER_VISION_REQUEST = 5;
-
-const truncateText = (text: string, limit = TEXT_LIMIT) => {
-  if (text.length <= limit) return text;
-  return text.slice(0, limit) + `\n\n[TESTO TAGLIATO: il file contiene ${text.length} caratteri totali]`;
-};
-
-const getExt = (name: string) => name.toLowerCase().split(".").pop() || "";
+const STORAGE_KEY = "techai_ultimate_v5_slide_sidebar";
 
 export default function App() {
   const [query, setQuery] = useState("");
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [authMode, setAuthMode] = useState<"login" | "register">("login");
-  const [authEmail, setAuthEmail] = useState("");
-  const [authPassword, setAuthPassword] = useState("");
-  const [authConfirmPassword, setAuthConfirmPassword] = useState("");
-  const [authName, setAuthName] = useState("");
-  const [authPhone, setAuthPhone] = useState("");
-  const [authError, setAuthError] = useState("");
   const [chats, setChats] = useState<ChatSession[]>([]);
   const [activeChatId, setActiveChatId] = useState<string | null>(null);
 
@@ -106,7 +70,6 @@ export default function App() {
       setChats(p.chats || []);
       setActiveChatId(p.activeChatId || null);
       setSidebarOpen(p.sidebarOpen ?? true);
-      setIsAuthenticated(p.isAuthenticated ?? false);
     } catch {
       console.warn("Impossibile leggere il salvataggio locale.");
     }
@@ -115,150 +78,20 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem(
       STORAGE_KEY,
-      JSON.stringify({ themeName: theme.name, interest, user, chats, activeChatId, sidebarOpen, isAuthenticated })
+      JSON.stringify({
+        themeName: theme.name,
+        interest,
+        user,
+        chats,
+        activeChatId,
+        sidebarOpen,
+      })
     );
-  }, [theme, interest, user, chats, activeChatId, sidebarOpen, isAuthenticated]);
+  }, [theme, interest, user, chats, activeChatId, sidebarOpen]);
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [currentMessages, loading, fileLoading]);
-
-  const handleAuthSubmit = () => {
-    setAuthError("");
-
-    if (!authEmail.trim()) {
-      setAuthError("Inserisci una email valida.");
-      return;
-    }
-
-    if (!authPassword.trim()) {
-      setAuthError("Inserisci la password.");
-      return;
-    }
-
-    if (authMode === "register" && authPassword.length < 6) {
-      setAuthError("La password deve avere almeno 6 caratteri.");
-      return;
-    }
-
-    if (authMode === "register" && authPassword !== authConfirmPassword) {
-      setAuthError("Le password non coincidono.");
-      return;
-    }
-
-    if (authMode === "register" && !authName.trim()) {
-      setAuthError("Inserisci il nome visualizzato.");
-      return;
-    }
-
-    // Predisposizione frontend. Qui poi collegheremo Supabase Auth.
-    setUser({
-      id: crypto.randomUUID(),
-      name: authMode === "register" ? authName.trim() : authEmail.split("@")[0],
-      email: authEmail.trim(),
-      phone: authPhone.trim(),
-      plan: "Free",
-    });
-    setIsAuthenticated(true);
-    setAuthPassword("");
-    setAuthConfirmPassword("");
-  };
-
-  const handleLogout = () => {
-    setIsAuthenticated(false);
-    setActiveChatId(null);
-    setChats([]);
-    setQuery("");
-  };
-
-  const handleGuestAccess = () => {
-    setUser({
-      id: "guest-user",
-      name: "Ospite",
-      email: "",
-      phone: "",
-      plan: "Free",
-    });
-    setIsAuthenticated(true);
-    setAuthError("");
-  };
-
-  const renderAuthScreen = () => (
-    <div style={{ ...s.authPage, backgroundColor: theme.bg, color: theme.text }}>
-      <div style={{ ...s.authCard, backgroundColor: theme.surface, border: `1px solid ${theme.border || theme.surface}` }}>
-        <div style={s.authLogo}>TECH<span style={{ color: theme.primary }}>AI</span></div>
-
-        <h1 style={s.authTitle}>{authMode === "login" ? "Accedi" : "Crea account"}</h1>
-        <p style={s.authSubtitle}>
-          {authMode === "login"
-            ? "Accedi per salvare chat, file e impostazioni."
-            : "Crea un account per usare l'area privata."}
-        </p>
-
-        {authMode === "register" && (
-          <input
-            style={s.authInput}
-            value={authName}
-            onChange={e => setAuthName(e.target.value)}
-            placeholder="Nome visualizzato"
-          />
-        )}
-
-        <input
-          style={s.authInput}
-          value={authEmail}
-          onChange={e => setAuthEmail(e.target.value)}
-          placeholder="Email"
-          type="email"
-        />
-
-        <input
-          style={s.authInput}
-          value={authPassword}
-          onChange={e => setAuthPassword(e.target.value)}
-          placeholder={authMode === "register" ? "Inserisci password" : "Password"}
-          type="password"
-          onKeyDown={e => e.key === "Enter" && handleAuthSubmit()}
-        />
-
-        {authMode === "register" && (
-          <input
-            style={s.authInput}
-            value={authConfirmPassword}
-            onChange={e => setAuthConfirmPassword(e.target.value)}
-            placeholder="Conferma password"
-            type="password"
-            onKeyDown={e => e.key === "Enter" && handleAuthSubmit()}
-          />
-        )}
-
-        {authError && <div style={s.authError}>{authError}</div>}
-
-        <button style={{ ...s.authPrimaryBtn, backgroundColor: theme.primary }} onClick={handleAuthSubmit}>
-          {authMode === "login" ? "Accedi con email" : "Registrati con email"}
-        </button>
-
-        <button style={s.authSecondaryBtn} onClick={() => setAuthError("Login Google predisposto: verrà collegato con Supabase Auth.")}>Continua con Google</button>
-        <button style={s.authSecondaryBtn} onClick={() => setAuthError("Login telefono predisposto: richiede configurazione SMS in Supabase.")}>Continua con cellulare</button>
-
-        <button style={s.guestBtn} onClick={handleGuestAccess}>
-          Continua come ospite
-        </button>
-
-        <button
-          style={{ ...s.authSwitchBtn, color: theme.primary }}
-          onClick={() => {
-            setAuthError("");
-            setAuthPassword("");
-            setAuthConfirmPassword("");
-            setAuthMode(authMode === "login" ? "register" : "login");
-          }}
-        >
-          {authMode === "login" ? "Crea account" : "Hai già un account? Accedi"}
-        </button>
-      </div>
-    </div>
-  );
 
   const createChatObject = (title = "Nuova chat"): ChatSession => ({
     id: crypto.randomUUID(),
@@ -277,6 +110,7 @@ export default function App() {
 
   const ensureActiveChat = (title = "Nuova chat") => {
     if (activeChatId) return activeChatId;
+
     const newChat = createChatObject(title);
     setChats(prev => [newChat, ...prev]);
     setActiveChatId(newChat.id);
@@ -288,265 +122,98 @@ export default function App() {
     if (activeChatId === id) setActiveChatId(null);
   };
 
-  const replaceMessagesInChat = (chatId: string, messages: Message[]) => {
-    setChats(prev => prev.map(chat => {
-      if (chat.id !== chatId) return chat;
-      const title = chat.title === "Nuova chat" && messages[0]?.text ? messages[0].text.slice(0, 32) + "..." : chat.title;
-      return { ...chat, title, messages };
-    }));
-  };
-
   const addMessageToChat = (chatId: string, message: Message) => {
-    const oldMessages = chats.find(c => c.id === chatId)?.messages || [];
-    replaceMessagesInChat(chatId, [...oldMessages, message]);
-  };
+    setChats(prev =>
+      prev.map(chat => {
+        if (chat.id !== chatId) return chat;
 
-  const getFileKind = (file: File): AttachmentKind => {
-    const ext = getExt(file.name);
-    if (file.type.startsWith("image/")) return "image";
-    if (file.type === "application/pdf" || ext === "pdf") return "pdf";
-    if (["docx"].includes(ext)) return "docx";
-    if (["xlsx", "xls", "csv"].includes(ext)) return ext === "csv" ? "text" : "spreadsheet";
-    if (["zip"].includes(ext)) return "zip";
-    if (["step", "stp", "iges", "igs"].includes(ext)) return "cad";
-    if (isSupportedTextFile(file)) return "text";
-    return "generic";
-  };
+        const messages = [...chat.messages, message];
+        const shouldRename = chat.title === "Nuova chat" && messages.length > 0;
 
-  const isSupportedTextFile = (file: File) => {
-    const ext = getExt(file.name);
-    return (
-      file.type.startsWith("text/") ||
-      ["txt", "md", "csv", "json", "xml", "html", "css", "js", "jsx", "ts", "tsx", "py", "java", "cpp", "c", "h", "sql", "yaml", "yml", "step", "stp", "iges", "igs", "log"].includes(ext)
+        return {
+          ...chat,
+          messages,
+          title: shouldRename ? messages[0].text.slice(0, 32) + "..." : chat.title,
+        };
+      })
     );
   };
 
-  const imageFileToResizedDataUrl = (file: File, maxSize = 1600, quality = 0.82): Promise<string> => {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      const img = new Image();
-
-      reader.onload = () => {
-        img.src = reader.result as string;
-      };
-      reader.onerror = reject;
-
-      img.onload = () => {
-        let { width, height } = img;
-        const ratio = Math.min(maxSize / width, maxSize / height, 1);
-        width = Math.round(width * ratio);
-        height = Math.round(height * ratio);
-
-        const canvas = document.createElement("canvas");
-        const ctx = canvas.getContext("2d");
-        if (!ctx) return reject(new Error("Canvas non disponibile."));
-
-        canvas.width = width;
-        canvas.height = height;
-        ctx.drawImage(img, 0, 0, width, height);
-        resolve(canvas.toDataURL("image/jpeg", quality));
-      };
-
-      img.onerror = reject;
-      reader.readAsDataURL(file);
-    });
+  const replaceMessagesInChat = (chatId: string, messages: Message[]) => {
+    setChats(prev =>
+      prev.map(chat => (chat.id === chatId ? { ...chat, messages } : chat))
+    );
   };
 
-  const canvasToDataUrl = (canvas: HTMLCanvasElement, maxSize = 1600, quality = 0.82) => {
-    const resized = document.createElement("canvas");
-    const ctx = resized.getContext("2d");
-    if (!ctx) throw new Error("Canvas non disponibile.");
+  const isSupportedTextFile = (file: File) => {
+    const name = file.name.toLowerCase();
+    const type = file.type;
 
-    let width = canvas.width;
-    let height = canvas.height;
-    const ratio = Math.min(maxSize / width, maxSize / height, 1);
-    width = Math.round(width * ratio);
-    height = Math.round(height * ratio);
-
-    resized.width = width;
-    resized.height = height;
-    ctx.drawImage(canvas, 0, 0, width, height);
-    return resized.toDataURL("image/jpeg", quality);
+    return (
+      type.startsWith("text/") ||
+      name.endsWith(".txt") ||
+      name.endsWith(".md") ||
+      name.endsWith(".csv") ||
+      name.endsWith(".json") ||
+      name.endsWith(".xml") ||
+      name.endsWith(".html") ||
+      name.endsWith(".css") ||
+      name.endsWith(".js") ||
+      name.endsWith(".jsx") ||
+      name.endsWith(".ts") ||
+      name.endsWith(".tsx") ||
+      name.endsWith(".py") ||
+      name.endsWith(".java") ||
+      name.endsWith(".cpp") ||
+      name.endsWith(".c") ||
+      name.endsWith(".h") ||
+      name.endsWith(".sql") ||
+      name.endsWith(".yaml") ||
+      name.endsWith(".yml")
+    );
   };
 
-  const readUnavailableFile = async (file: File) => {
-    return `Il file "${file.name}" è stato caricato, ma questa build senza librerie esterne non può estrarre direttamente il contenuto di PDF, DOCX, XLSX o ZIP. Per ora carica immagini JPG/PNG/WebP o file testuali TXT/CSV/JSON/STEP.`;
-  };
+  const readTextFile = async (file: File) => {
+    if (!isSupportedTextFile(file)) {
+      throw new Error(
+        "Formato non leggibile senza librerie. Questa versione supporta solo file testuali: TXT, CSV, JSON, MD, XML, HTML, CSS, JS, TS, TSX e simili."
+      );
+    }
 
-  const callVisionAI = async (imageDataUrls: string[], prompt: string) => {
-    if (!apiKey) throw new Error("Chiave API mancante. Controlla VITE_GROQ_API_KEY nelle variabili ambiente.");
-
-    const limitedImages = imageDataUrls.slice(0, MAX_IMAGES_PER_VISION_REQUEST);
-
-    const content = [
-      { type: "text", text: prompt },
-      ...limitedImages.map(url => ({ type: "image_url", image_url: { url } })),
-    ];
-
-    const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        model: "meta-llama/llama-4-scout-17b-16e-instruct",
-        messages: [
-          {
-            role: "user",
-            content,
-          },
-        ],
-        temperature: 0.1,
-        max_completion_tokens: 1600,
-      }),
-    });
-
-    const data = await res.json();
-    console.log("VISION RESPONSE", data);
-    if (!res.ok) throw new Error(data?.error?.message || "Errore durante l'analisi vision.");
-    return data?.choices?.[0]?.message?.content || "Il modello non ha restituito contenuto leggibile.";
-  };
-
-  const callTextAI = async (messages: Message[]) => {
-    if (!apiKey) throw new Error("Chiave API mancante. Controlla VITE_GROQ_API_KEY nelle variabili ambiente.");
-
-    const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        model: "llama-3.3-70b-versatile",
-        messages: [
-          {
-            role: "system",
-            content:
-              `Sei TechAI. Utente: ${user.name}. Focus: ${interest}. ` +
-              "Agisci come assistente per progettazione meccanica e ufficio tecnico. " +
-              "Quando analizzi file, produci report con: contenuto riconosciuto, problemi, errori, rischi, controlli da fare, prossimi step. " +
-              "Non inventare valori mancanti.",
-          },
-          ...messages.map(m => ({
-            role: m.role === "utente" ? "user" : "assistant",
-            content: m.text,
-          })),
-        ],
-        temperature: 0.2,
-        max_completion_tokens: 1800,
-      }),
-    });
-
-    const data = await res.json();
-    console.log("TEXT RESPONSE", data);
-    if (!res.ok) throw new Error(data?.error?.message || "Errore nella chiamata AI.");
-    return data?.choices?.[0]?.message?.content || "Errore nella risposta AI.";
-  };
-
-  const analyzeExtractedText = async (chatId: string, file: File, attachment: Attachment, extractedText: string, instruction: string) => {
-    const userMessage: Message = {
-      role: "utente",
-      text:
-        `📎 File caricato: ${file.name}\n` +
-        `Tipo: ${file.type || "sconosciuto"}\n` +
-        `Dimensione: ${(file.size / 1024).toFixed(1)} KB\n\n` +
-        `CONTENUTO ESTRATTO:\n${extractedText}`,
-      attachments: [attachment],
-    };
-
-    const oldMessages = chats.find(c => c.id === chatId)?.messages || [];
-    const updatedMessages = [...oldMessages, userMessage];
-    replaceMessagesInChat(chatId, updatedMessages);
-
-    const aiText = await callTextAI([
-      ...updatedMessages,
-      { role: "utente", text: instruction },
-    ]);
-
-    replaceMessagesInChat(chatId, [...updatedMessages, { role: "AI", text: aiText }]);
+    return await file.text();
   };
 
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
-    if (!file || fileLoading || loading) return;
+    if (!file || fileLoading) return;
 
     const chatId = ensureActiveChat(`File: ${file.name}`);
     setFileLoading(true);
 
     try {
-      const kind = getFileKind(file);
-      const fileUrl = URL.createObjectURL(file);
-
-      if (kind === "image") {
-        const previewUrl = fileUrl;
-        const imageDataUrl = await imageFileToResizedDataUrl(file);
-
-        const userMessage: Message = {
-          role: "utente",
-          text:
-            `🖼️ Immagine caricata: ${file.name}\n` +
-            `Tipo: ${file.type || "sconosciuto"}\n` +
-            `Dimensione: ${(file.size / 1024).toFixed(1)} KB\n\n` +
-            "Richiesta: interpretazione tecnica dell'immagine.",
-          attachments: [{ name: file.name, type: file.type, size: file.size, kind, url: previewUrl, previewUrls: [previewUrl] }],
-        };
-
-        const oldMessages = chats.find(c => c.id === chatId)?.messages || [];
-        const updatedMessages = [...oldMessages, userMessage];
-        replaceMessagesInChat(chatId, updatedMessages);
-
-        const aiText = await callVisionAI(
-          [imageDataUrl],
-          "Analizza questa immagine tecnica. Se è una tavola meccanica: identifica viste/sezioni, quote leggibili, tolleranze, rugosità, filettature, materiali, note, errori e mancanze. Se è uno screenshot CAD: spiega cosa si vede e cosa fare operativamente. Rispondi in italiano con sezioni: Cosa vedo, Problemi, Controlli consigliati, Azioni pratiche. Non inventare misure non leggibili."
-        );
-
-        replaceMessagesInChat(chatId, [...updatedMessages, { role: "AI", text: aiText }]);
-        return;
-      }
-
-      if (kind === "pdf" || kind === "docx" || kind === "spreadsheet" || kind === "zip") {
-        const extractedText = await readUnavailableFile(file);
-        await analyzeExtractedText(
-          chatId,
-          file,
-          { name: file.name, type: file.type || "application/octet-stream", size: file.size, kind, url: fileUrl, extractedText },
-          extractedText,
-          `Spiega all'utente che il file "${file.name}" è stato ricevuto, ma questa build senza librerie non può leggerlo direttamente. Suggerisci il formato alternativo migliore: immagini per tavole/PDF, CSV per Excel, TXT per documenti.`
-        );
-        return;
-      }
-
-      if (kind === "text" || kind === "cad") {
-        const extractedText = truncateText(await file.text());
-        await analyzeExtractedText(
-          chatId,
-          file,
-          { name: file.name, type: file.type || "text/plain", size: file.size, kind, url: fileUrl, extractedText },
-          extractedText,
-          kind === "cad"
-            ? `Analizza il file CAD testuale "${file.name}". Se è STEP/STP/IGES, prova a riconoscere unità, intestazione, entità principali, nomi, geometrie base e limiti dell'analisi. Non fingere di aver ricostruito il 3D completo.`
-            : `Analizza il file testuale "${file.name}" e dammi un report tecnico ordinato.`
-        );
-        return;
-      }
+      const extractedText = await readTextFile(file);
+      const cleanedText = extractedText.trim();
 
       addMessageToChat(chatId, {
         role: "utente",
         text:
-          `📦 File caricato: ${file.name}\n` +
-          `Tipo: ${file.type || "sconosciuto"}\n` +
-          `Dimensione: ${(file.size / 1024).toFixed(1)} KB\n\n` +
-          "Formato non ancora interpretabile direttamente in questa versione frontend.",
-        attachments: [{ name: file.name, type: file.type || "application/octet-stream", size: file.size, kind, url: fileUrl }],
+          `📎 File caricato: ${file.name}
+` +
+          `Tipo: ${file.type || "sconosciuto"}
+` +
+          `Dimensione: ${(file.size / 1024).toFixed(1)} KB
+
+` +
+          `CONTENUTO DEL FILE:
+${cleanedText || "Il file risulta vuoto."}`,
       });
 
+      setQuery(`Analizza il file "${file.name}" e fammi un riassunto chiaro dei punti principali.`);
+    } catch (error: any) {
       addMessageToChat(chatId, {
         role: "AI",
-        text: "File ricevuto, ma per interpretare questo formato serve un backend specifico o una libreria dedicata. Posso comunque tenerlo come allegato.",
+        text: error?.message || "Non sono riuscito a leggere il file.",
       });
-    } catch (error: any) {
-      addMessageToChat(chatId, { role: "AI", text: error?.message || "Errore durante l'analisi del file." });
     } finally {
       setFileLoading(false);
       if (event.target) event.target.value = "";
@@ -554,7 +221,7 @@ export default function App() {
   };
 
   const callAI = async () => {
-    if (!query.trim() || loading || fileLoading) return;
+    if (!query.trim() || loading) return;
 
     const text = query;
     const chatId = ensureActiveChat(text.slice(0, 32) + "...");
@@ -563,20 +230,59 @@ export default function App() {
 
     const oldMessages = chats.find(c => c.id === chatId)?.messages || [];
     const updatedMessages: Message[] = [...oldMessages, { role: "utente", text }];
+
     replaceMessagesInChat(chatId, updatedMessages);
 
     try {
-      const aiText = await callTextAI(updatedMessages);
+      const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify({
+          model: "llama-3.3-70b-versatile",
+          messages: [
+            {
+              role: "system",
+              content:
+                `Sei TechAI. Utente: ${user.name}. Focus: ${interest}. ` +
+                "Rispondi in modo chiaro, tecnico e ordinato. Se l'utente carica un file, analizza il contenuto testuale presente in chat.",
+            },
+            ...updatedMessages.map(m => ({
+              role: m.role === "utente" ? "user" : "assistant",
+              content: m.text,
+            })),
+          ],
+        }),
+      });
+
+      const data = await res.json();
+      const aiText = data?.choices?.[0]?.message?.content || "Errore nella risposta AI.";
+
       replaceMessagesInChat(chatId, [...updatedMessages, { role: "AI", text: aiText }]);
-    } catch (error: any) {
-      replaceMessagesInChat(chatId, [...updatedMessages, { role: "AI", text: error?.message || "Errore API." }]);
+    } catch {
+      replaceMessagesInChat(chatId, [
+        ...updatedMessages,
+        { role: "AI", text: "Errore API. Controlla chiave API, connessione o limiti del modello." },
+      ]);
     } finally {
       setLoading(false);
     }
   };
 
   const saveAll = () => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({ themeName: theme.name, interest, user, chats, activeChatId, sidebarOpen, isAuthenticated }));
+    localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({
+        themeName: theme.name,
+        interest,
+        user,
+        chats,
+        activeChatId,
+        sidebarOpen,
+      })
+    );
     setShowSettings(false);
   };
 
@@ -600,34 +306,54 @@ export default function App() {
     </button>
   );
 
-  const renderAttachments = (attachments?: Attachment[]) => {
-    if (!attachments?.length) return null;
+  const formatText = (text: string) => {
+    const parts = text.split(/(\*\*[^*]+\*\*)/g);
 
-    return (
-      <div style={s.attachmentList}>
-        {attachments.map((file, idx) => (
-          <div key={`${file.name}-${idx}`} style={{ ...s.attachmentCard, border: `1px solid ${theme.border || theme.surface}` }}>
-            {file.previewUrls?.length ? (
-              <div style={s.previewGrid}>
-                {file.previewUrls.slice(0, 5).map((url, i) => (
-                  <img key={i} src={url} alt={`${file.name} preview ${i + 1}`} style={s.previewImage} />
-                ))}
-              </div>
-            ) : file.type.startsWith("image/") && file.url ? (
-              <img src={file.url} alt={file.name} style={s.previewImage} />
-            ) : (
-              <div style={s.fileChip}>📄 {file.name}</div>
-            )}
+    return parts.map((part, partIndex) => {
+      if (!part) return null;
 
-            <div style={s.attachmentMeta}>
-              <div style={{ fontWeight: 700 }}>{file.name}</div>
-              <div style={{ opacity: 0.65, fontSize: 12 }}>{file.kind} · {(file.size / 1024).toFixed(1)} KB · {file.type || "tipo sconosciuto"}</div>
-              {file.url && <a href={file.url} download={file.name} style={{ color: theme.primary, fontSize: 12, fontWeight: 700 }}>Apri/scarica allegato</a>}
-            </div>
+      const trimmedPart = part.trim();
+
+      if (trimmedPart.startsWith("**") && trimmedPart.endsWith("**")) {
+        return (
+          <div
+            key={`title-${partIndex}`}
+            style={{
+              ...s.messageTitle,
+              color: theme.primary,
+              borderBottom: `1px solid ${theme.border || theme.surface}`,
+            }}
+          >
+            {trimmedPart.replace(/\*\*/g, "")}
           </div>
-        ))}
-      </div>
-    );
+        );
+      }
+
+      return part.split("
+").map((line, i) => {
+        const trimmed = line.trim();
+        const key = `line-${partIndex}-${i}`;
+
+        if (!trimmed) {
+          return <div key={key} style={{ height: 8 }} />;
+        }
+
+        if (trimmed.startsWith("* ") || trimmed.startsWith("+ ") || trimmed.startsWith("- ")) {
+          return (
+            <div key={key} style={s.messageListItem}>
+              <span style={{ color: theme.primary, fontWeight: 900 }}>•</span>
+              <span>{trimmed.slice(2)}</span>
+            </div>
+          );
+        }
+
+        return (
+          <div key={key} style={s.messageLine}>
+            {line}
+          </div>
+        );
+      });
+    });
   };
 
   const renderInputBar = (placeholder: string) => (
@@ -635,13 +361,33 @@ export default function App() {
       <input
         ref={fileInputRef}
         type="file"
-        accept=".txt,.md,.csv,.json,.xml,.html,.css,.js,.jsx,.ts,.tsx,.py,.java,.cpp,.c,.h,.sql,.yaml,.yml,.png,.jpg,.jpeg,.webp,.gif,.pdf,.step,.stp,.iges,.igs,.zip,.docx,.xlsx,.xls"
+        accept=".txt,.md,.csv,.json,.xml,.html,.css,.js,.jsx,.ts,.tsx,.py,.java,.cpp,.c,.h,.sql,.yaml,.yml"
         style={{ display: "none" }}
         onChange={handleFileUpload}
       />
 
-      <button style={{ ...s.fileBtn, color: theme.primary }} onClick={() => fileInputRef.current?.click()} title="Carica file o immagine" disabled={fileLoading || loading}>
-        {fileLoading ? "…" : "📎"}
+      <button
+        style={{ ...s.fileBtn, color: theme.primary }}
+        onClick={() => fileInputRef.current?.click()}
+        title="Carica file testuale"
+        disabled={fileLoading}
+      >
+        {fileLoading ? (
+          "…"
+        ) : (
+          <svg
+            width="20"
+            height="20"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.8"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <path d="M21.44 11.05 12.2 20.29a6 6 0 0 1-8.49-8.49l9.24-9.24a4 4 0 0 1 5.66 5.66L9.64 17.2a2 2 0 0 1-2.83-2.83l8.49-8.49" />
+          </svg>
+        )}
       </button>
 
       <textarea
@@ -657,48 +403,99 @@ export default function App() {
         onKeyDown={e => e.key === "Enter" && !e.shiftKey && (e.preventDefault(), callAI())}
       />
 
-      <button style={{ ...s.sendBtn, color: theme.primary }} onClick={callAI} disabled={loading || fileLoading}>➤</button>
+      <button
+        style={{ ...s.sendBtn, color: theme.primary }}
+        onClick={callAI}
+        disabled={loading || fileLoading}
+      >
+        ➤
+      </button>
     </div>
   );
 
-  if (!isAuthenticated) return renderAuthScreen();
-
   return (
     <div style={{ ...s.app, backgroundColor: theme.bg, color: theme.text }}>
-      <aside style={{ ...s.sidebar, width: sidebarOpen ? 280 : 74, minWidth: sidebarOpen ? 280 : 74, backgroundColor: isDark ? "#050505" : theme.bg, borderRight: `1px solid ${theme.border || theme.surface}` }}>
+      <aside
+        style={{
+          ...s.sidebar,
+          width: sidebarOpen ? 280 : 74,
+          minWidth: sidebarOpen ? 280 : 74,
+          backgroundColor: isDark ? "#050505" : theme.bg,
+          borderRight: `1px solid ${theme.border || theme.surface}`,
+        }}
+      >
         <div style={{ ...s.sidebarTop, justifyContent: sidebarOpen ? "space-between" : "center" }}>
           {sidebarOpen && (
             <div style={s.logoWrap}>
               <div style={{ ...s.logoMark, backgroundColor: theme.primary }}>T</div>
-              <div style={s.logoText}>TECH<span style={{ color: theme.primary }}>AI</span></div>
+              <div style={s.logoText}>
+                TECH<span style={{ color: theme.primary }}>AI</span>
+              </div>
             </div>
           )}
-          <button style={{ ...s.collapseBtn, color: theme.text, backgroundColor: sidebarOpen ? "transparent" : theme.surface, border: `1px solid ${theme.border || theme.surface}` }} onClick={() => setSidebarOpen(prev => !prev)}>☰</button>
+
+          <button
+            style={{
+              ...s.collapseBtn,
+              color: theme.text,
+              backgroundColor: sidebarOpen ? "transparent" : theme.surface,
+              border: `1px solid ${theme.border || theme.surface}`,
+            }}
+            onClick={() => setSidebarOpen(prev => !prev)}
+            title={sidebarOpen ? "Chiudi barra laterale" : "Apri barra laterale"}
+          >
+            {sidebarOpen ? "☰" : "☰"}
+          </button>
         </div>
 
         <div style={{ ...s.iconNav, alignItems: sidebarOpen ? "stretch" : "center" }}>
           {iconBtn("＋", "Nuova", createNewChat)}
           {iconBtn("≡", "Chat", () => setSidebarOpen(true), sidebarOpen)}
           {iconBtn("⚙", "Impostazioni", () => { setActiveTab("Aspetto"); setShowSettings(true); })}
-          {iconBtn("⇥", "Logout", handleLogout)}
         </div>
 
         {sidebarOpen && (
           <div style={s.chatHistory}>
             <div style={s.historyHeader}>Cronologia</div>
-            {chats.length === 0 && <div style={{ fontSize: 12, opacity: 0.6, padding: "8px" }}>Nessuna chat salvata</div>}
+
+            {chats.length === 0 && (
+              <div style={{ fontSize: 12, opacity: 0.6, padding: "8px" }}>Nessuna chat salvata</div>
+            )}
+
             {chats.map(chat => (
-              <div key={chat.id} style={{ ...s.historyItem, backgroundColor: chat.id === activeChatId ? theme.surface : "transparent", color: chat.id === activeChatId ? theme.primary : theme.text, border: `1px solid ${chat.id === activeChatId ? theme.border || theme.surface : "transparent"}` }}>
-                <div style={s.historyTitle} onClick={() => setActiveChatId(chat.id)}>{chat.title}</div>
-                <button style={s.deleteBtn} onClick={() => deleteChat(chat.id)}>×</button>
+              <div
+                key={chat.id}
+                style={{
+                  ...s.historyItem,
+                  backgroundColor: chat.id === activeChatId ? theme.surface : "transparent",
+                  color: chat.id === activeChatId ? theme.primary : theme.text,
+                  border: `1px solid ${chat.id === activeChatId ? theme.border || theme.surface : "transparent"}`,
+                }}
+              >
+                <div style={s.historyTitle} onClick={() => setActiveChatId(chat.id)}>
+                  {chat.title}
+                </div>
+
+                <button style={s.deleteBtn} onClick={() => deleteChat(chat.id)} title="Elimina chat">
+                  ×
+                </button>
               </div>
             ))}
           </div>
         )}
 
-        <div style={{ ...s.sidebarAccount, justifyContent: sidebarOpen ? "flex-start" : "center" }} onClick={() => { setActiveTab("Account"); setShowSettings(true); }}>
+        <div
+          style={{ ...s.sidebarAccount, justifyContent: sidebarOpen ? "flex-start" : "center" }}
+          onClick={() => { setActiveTab("Account"); setShowSettings(true); }}
+        >
           <div style={{ ...s.avatar, backgroundColor: theme.primary }}>{user.name.charAt(0)}</div>
-          {sidebarOpen && <div style={s.accountText}><div style={{ fontWeight: 700, fontSize: "13px" }}>{user.name}</div><div style={{ fontSize: "11px", opacity: 0.7 }}>Piano {user.plan || "Free"}</div></div>}
+
+          {sidebarOpen && (
+            <div style={s.accountText}>
+              <div style={{ fontWeight: 700, fontSize: "13px" }}>{user.name}</div>
+              <div style={{ fontSize: "11px", opacity: 0.7 }}>Piano Pro</div>
+            </div>
+          )}
         </div>
       </aside>
 
@@ -707,25 +504,32 @@ export default function App() {
           {currentMessages.length === 0 ? (
             <div style={s.homeWrapper}>
               <h1 style={s.welcomeText}>Benvenuto {user.name.split(" ")[0]}, come posso aiutarti?</h1>
-              {renderInputBar("Chiedi a TechAI o carica PDF, immagini, DOCX, XLSX, ZIP, STEP...")}
-              <p style={s.fileHint}>PDF e immagini vengono analizzati visivamente; DOCX/XLSX/ZIP/testi vengono estratti e analizzati come testo.</p>
+              {renderInputBar("Chiedi a TechAI o carica un file testuale...")}
+              <p style={s.fileHint}>Supporta file testuali: TXT, CSV, JSON, MD, XML, HTML, CSS, JS, TS, TSX.</p>
             </div>
           ) : (
             <div style={s.chatView}>
               <div style={s.msgList}>
                 {currentMessages.map((m, i) => (
                   <div key={i} style={m.role === "utente" ? s.uRow : s.aRow}>
-                    <div style={m.role === "utente" ? { ...s.uBox, backgroundColor: theme.surface, border: `1px solid ${theme.border || theme.surface}` } : { ...s.aBox, color: theme.text }}>
-                      {m.text}
-                      {renderAttachments(m.attachments)}
+                    <div
+                      style={
+                        m.role === "utente"
+                          ? { ...s.uBox, backgroundColor: theme.surface, border: `1px solid ${theme.border || theme.surface}` }
+                          : { ...s.aBox, color: theme.text }
+                      }
+                    >
+                      {formatText(m.text)}
                     </div>
                   </div>
                 ))}
-                {fileLoading && <div style={{ color: theme.primary, textAlign: "center" }}>📎 Lettura e interpretazione file...</div>}
+
+                {fileLoading && <div style={{ color: theme.primary, textAlign: "center" }}>📎 Lettura file in corso...</div>}
                 {loading && <div style={{ color: theme.primary, textAlign: "center" }}>✨ TechAI sta elaborando...</div>}
                 <div ref={chatEndRef} />
               </div>
-              <div style={s.bottomInput}>{renderInputBar("Scrivi qui o carica un file tecnico...")}</div>
+
+              <div style={s.bottomInput}>{renderInputBar("Scrivi qui o carica un file testuale...")}</div>
             </div>
           )}
         </section>
@@ -734,13 +538,78 @@ export default function App() {
           <div style={s.overlay}>
             <div style={{ ...s.modal, background: isDark ? "#111111" : "white", color: theme.text, border: `1px solid ${theme.border}` }}>
               <div style={{ ...s.modalSide, background: isDark ? "#050505" : "#f8fafc", borderRight: `1px solid ${theme.border}` }}>
-                {["Account", "Aspetto", "AI Focus"].map(t => <div key={t} onClick={() => setActiveTab(t)} style={{ ...s.tab, color: activeTab === t ? theme.primary : theme.text, fontWeight: activeTab === t ? 800 : 400 }}>{t}</div>)}
+                {["Account", "Aspetto", "AI Focus"].map(t => (
+                  <div
+                    key={t}
+                    onClick={() => setActiveTab(t)}
+                    style={{ ...s.tab, color: activeTab === t ? theme.primary : theme.text, fontWeight: activeTab === t ? 800 : 400 }}
+                  >
+                    {t}
+                  </div>
+                ))}
               </div>
+
               <div style={s.modalMain}>
                 <h2 style={{ fontSize: "18px", marginBottom: "20px" }}>{activeTab}</h2>
-                {activeTab === "Account" && <div><label style={s.label}>Nome Visualizzato</label><input style={s.input} value={user.name} onChange={e => setUser({ ...user, name: e.target.value })} /><label style={s.label}>Email</label><input style={s.input} value={user.email} onChange={e => setUser({ ...user, email: e.target.value })} /><label style={s.label}>Telefono</label><input style={s.input} value={user.phone || ""} onChange={e => setUser({ ...user, phone: e.target.value })} /><div style={s.badge}>Account privato: predisposto per collegamento Supabase ✅</div></div>}
-                {activeTab === "Aspetto" && <div style={s.themeGrid}>{THEMES.map(t => <div key={t.name} onClick={() => setTheme(t)} style={{ ...s.themeOption, background: theme.name === t.name ? theme.surface : "transparent", color: theme.text, border: theme.name === t.name ? `1px solid ${t.primary}` : `1px solid ${theme.border || "transparent"}` }}><div style={{ width: 12, height: 12, borderRadius: "50%", background: t.name === "Dark Black" ? "#0b0b0b" : t.primary, border: t.name === "Dark Black" ? "1px solid #f8fafc" : "none" }} />{t.name}</div>)}</div>}
-                {activeTab === "AI Focus" && <div><label style={s.label}>Ambito Tecnico Principale</label><input style={s.input} value={interest} onChange={e => setInterest(e.target.value)} /></div>}
+
+                {activeTab === "Account" && (
+                  <div>
+                    <label style={s.label}>Nome Visualizzato</label>
+                    <input style={s.input} value={user.name} onChange={e => setUser({ ...user, name: e.target.value })} />
+
+                    <label style={s.label}>Email</label>
+                    <input style={s.input} value={user.email} onChange={e => setUser({ ...user, email: e.target.value })} />
+
+                    <div style={s.badge}>Stato Account: Abbonamento Attivo ✅</div>
+                  </div>
+                )}
+
+                {activeTab === "Aspetto" && (
+                  <div style={s.themeGrid}>
+                    {THEMES.map(t => (
+                      <div
+                        key={t.name}
+                        onClick={() => setTheme(t)}
+                        style={{
+                          ...s.themeOption,
+                          background: theme.name === t.name ? theme.surface : "transparent",
+                          color: theme.text,
+                          border:
+                            theme.name === "Dark Black"
+                              ? theme.name === t.name
+                                ? "1px solid #5b5b5b"
+                                : "1px solid #2f2f2f"
+                              : theme.name === t.name
+                                ? `1px solid ${t.primary}`
+                                : `1px solid ${theme.border || "transparent"}`,
+                          boxShadow:
+                            theme.name === "Dark Black" && theme.name === t.name
+                              ? "0 0 0 1px rgba(255,255,255,0.06) inset"
+                              : "none",
+                        }}
+                      >
+                        <div
+                          style={{
+                            width: 12,
+                            height: 12,
+                            borderRadius: "50%",
+                            background: t.name === "Dark Black" ? "#0b0b0b" : t.primary,
+                            border: t.name === "Dark Black" ? "1px solid #f8fafc" : "none",
+                          }}
+                        />
+                        {t.name}
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {activeTab === "AI Focus" && (
+                  <div>
+                    <label style={s.label}>Ambito Tecnico Principale</label>
+                    <input style={s.input} value={interest} onChange={e => setInterest(e.target.value)} />
+                  </div>
+                )}
+
                 <button style={{ ...s.saveBtn, background: theme.primary }} onClick={saveAll}>Salva modifiche</button>
               </div>
             </div>
@@ -754,7 +623,6 @@ export default function App() {
         html, body, #root { width: 100%; height: 100%; margin: 0; overflow: hidden; }
         textarea::placeholder { opacity: 0.55; }
         button:disabled { opacity: 0.45; cursor: not-allowed; }
-        a { text-decoration: none; }
         ::-webkit-scrollbar { width: 5px; }
         ::-webkit-scrollbar-thumb { background: rgba(120,120,120,0.35); border-radius: 10px; }
       `}</style>
@@ -763,46 +631,50 @@ export default function App() {
 }
 
 const s: any = {
-  authPage: { position: "fixed", inset: 0, width: "100vw", height: "100dvh", display: "flex", alignItems: "center", justifyContent: "center", padding: 20, overflowY: "auto" },
-  authCard: { width: "100%", maxWidth: 380, borderRadius: 24, padding: 28, boxShadow: "0 24px 60px rgba(15,23,42,0.12)", display: "flex", flexDirection: "column", gap: 10 },
-  authLogo: { fontSize: 24, fontWeight: 900, textAlign: "center", marginBottom: 6, letterSpacing: "-1px" },
-  authTitle: { fontSize: 24, fontWeight: 800, textAlign: "center", margin: "0 0 4px" },
-  authSubtitle: { fontSize: 13, opacity: 0.65, textAlign: "center", margin: "0 0 14px", lineHeight: 1.4 },
-  authInput: { width: "100%", height: 44, padding: "0 13px", borderRadius: 12, border: "1px solid rgba(120,120,120,0.28)", outline: "none", fontSize: 14, background: "rgba(255,255,255,0.88)" },
-  authPrimaryBtn: { width: "100%", height: 46, border: "none", borderRadius: 13, color: "white", fontWeight: 800, cursor: "pointer", marginTop: 4 },
-  authSecondaryBtn: { width: "100%", height: 43, border: "1px solid rgba(120,120,120,0.25)", borderRadius: 12, background: "rgba(255,255,255,0.75)", cursor: "pointer", fontWeight: 700 },
-  authSwitchBtn: { border: "none", background: "transparent", cursor: "pointer", fontWeight: 800, marginTop: 4, textAlign: "center" },
-  guestBtn: { width: "100%", height: 44, border: "1px solid rgba(120,120,120,0.25)", borderRadius: 12, background: "rgba(255,255,255,0.45)", cursor: "pointer", fontWeight: 800 },
-  authDivider: { textAlign: "center", fontSize: 12, opacity: 0.55, margin: "6px 0" },
-  authError: { fontSize: 12, color: "#dc2626", background: "rgba(220,38,38,0.08)", padding: 10, borderRadius: 10, marginBottom: 4 },
   app: { display: "flex", height: "100dvh", width: "100vw", overflow: "hidden", minWidth: 0 },
-  sidebar: { height: "100dvh", padding: "10px", display: "flex", flexDirection: "column", gap: "12px", overflow: "hidden", flexShrink: 0 },
+
+  sidebar: {
+    height: "100dvh",
+    padding: "10px",
+    display: "flex",
+    flexDirection: "column",
+    gap: "12px",
+    overflow: "hidden",
+    flexShrink: 0,
+  },
+
   sidebarTop: { display: "flex", alignItems: "center", gap: 8, minHeight: 50, flexShrink: 0 },
   logoWrap: { display: "flex", alignItems: "center", gap: 10, minWidth: 0 },
   logoMark: { width: 34, height: 34, borderRadius: 12, color: "white", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 900 },
   logoText: { fontSize: 21, fontWeight: 900, letterSpacing: "-1px", whiteSpace: "nowrap" },
   collapseBtn: { width: 44, height: 44, borderRadius: 14, cursor: "pointer", fontSize: 22, lineHeight: 1, display: "flex", alignItems: "center", justifyContent: "center" },
+
   iconNav: { display: "flex", flexDirection: "column", gap: 10, flexShrink: 0 },
   iconBtn: { minHeight: 44, borderRadius: 14, cursor: "pointer", display: "flex", alignItems: "center", gap: 10, fontSize: 14, fontWeight: 700, background: "transparent", textAlign: "left", flexShrink: 0 },
   icon: { width: 22, height: 22, display: "inline-flex", justifyContent: "center", alignItems: "center", fontSize: 15, fontWeight: 600, opacity: 0.88, letterSpacing: "-1px", flexShrink: 0 },
   iconLabel: { whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" },
+
   chatHistory: { flex: 1, minHeight: 0, overflowY: "auto", overflowX: "hidden", display: "flex", flexDirection: "column", gap: 6, paddingRight: 2 },
   historyHeader: { fontSize: 11, textTransform: "uppercase", fontWeight: 800, opacity: 0.5, padding: "6px 8px" },
   historyItem: { minHeight: 38, display: "flex", alignItems: "center", justifyContent: "space-between", borderRadius: 12, padding: "8px 10px", fontSize: 13, cursor: "pointer" },
   historyTitle: { overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis", flex: 1 },
   deleteBtn: { border: "none", background: "transparent", cursor: "pointer", fontSize: 18, opacity: 0.55 },
+
   sidebarAccount: { display: "flex", alignItems: "center", gap: 10, minHeight: 48, padding: "7px", cursor: "pointer", borderRadius: 14, marginTop: "auto", flexShrink: 0 },
   avatar: { width: 38, height: 38, borderRadius: "50%", color: "white", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: 14, flexShrink: 0 },
   accountText: { display: "flex", flexDirection: "column", minWidth: 0 },
+
   main: { flex: 1, minWidth: 0, height: "100dvh", display: "flex", flexDirection: "column", position: "relative", overflow: "hidden" },
   content: { flex: 1, minHeight: 0, width: "100%", display: "flex", flexDirection: "column", alignItems: "center", overflow: "hidden" },
   homeWrapper: { width: "100%", maxWidth: 720, textAlign: "center", padding: "0 22px" },
   welcomeText: { fontSize: "clamp(25px, 4vw, 38px)", fontWeight: 600, marginBottom: 30, letterSpacing: "-1px" },
+
   searchBar: { display: "flex", alignItems: "center", borderRadius: 28, padding: "6px 16px", width: "100%", minHeight: 56, boxShadow: "0 8px 24px rgba(0,0,0,0.04)", backdropFilter: "blur(10px)", flexShrink: 0 },
-  fileBtn: { width: 34, height: 34, background: "none", border: "none", cursor: "pointer", marginRight: 6, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", opacity: 0.85, fontSize: 19 },
+  fileBtn: { width: 34, height: 34, background: "none", border: "none", cursor: "pointer", marginRight: 6, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", opacity: 0.85 },
   textarea: { flex: 1, minWidth: 0, maxHeight: 140, background: "none", border: "none", outline: "none", textAlign: "center", fontSize: 16, resize: "none", padding: "10px 0", overflowY: "auto" },
   sendBtn: { width: 34, height: 34, background: "none", border: "none", cursor: "pointer", fontSize: 20, marginLeft: 6, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", opacity: 0.9 },
   fileHint: { fontSize: 12, opacity: 0.58, marginTop: 12 },
+
   chatView: { width: "100%", maxWidth: 900, flex: 1, minHeight: 0, display: "flex", flexDirection: "column", padding: "14px 22px", overflow: "hidden" },
   msgList: { flex: 1, minHeight: 0, overflowY: "auto", overflowX: "hidden", display: "flex", flexDirection: "column", gap: 18, padding: "10px 0" },
   uRow: { display: "flex", justifyContent: "flex-end" },
@@ -810,12 +682,27 @@ const s: any = {
   uBox: { padding: "13px 18px", borderRadius: 20, maxWidth: "82%", fontSize: 15, whiteSpace: "pre-wrap", overflowWrap: "anywhere" },
   aBox: { padding: "10px 0", lineHeight: 1.7, fontSize: 16, whiteSpace: "pre-wrap", maxWidth: "92%", overflowWrap: "anywhere" },
   bottomInput: { padding: "10px 0 8px", flexShrink: 0 },
-  attachmentList: { marginTop: 12, display: "flex", flexDirection: "column", gap: 10 },
-  attachmentCard: { borderRadius: 14, padding: 10, background: "rgba(255,255,255,0.35)", display: "flex", flexDirection: "column", gap: 8, maxWidth: 360 },
-  previewGrid: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(110px, 1fr))", gap: 8 },
-  previewImage: { width: "100%", maxWidth: 330, maxHeight: 260, objectFit: "contain", borderRadius: 12, display: "block", background: "rgba(0,0,0,0.04)" },
-  fileChip: { padding: "10px 12px", borderRadius: 10, background: "rgba(120,120,120,0.12)", fontSize: 13, fontWeight: 700, overflowWrap: "anywhere" },
-  attachmentMeta: { display: "flex", flexDirection: "column", gap: 4, fontSize: 13, overflowWrap: "anywhere" },
+
+  messageTitle: {
+    fontSize: 20,
+    fontWeight: 850,
+    marginTop: 22,
+    marginBottom: 12,
+    paddingBottom: 8,
+    letterSpacing: "-0.4px",
+  },
+  messageListItem: {
+    display: "flex",
+    alignItems: "flex-start",
+    gap: 8,
+    margin: "4px 0",
+    lineHeight: 1.65,
+  },
+  messageLine: {
+    lineHeight: 1.7,
+    margin: "2px 0",
+  },
+
   overlay: { position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", display: "flex", justifyContent: "center", alignItems: "center", zIndex: 1000, padding: 16 },
   modal: { borderRadius: 24, width: "min(620px, 100%)", height: "min(450px, calc(100dvh - 32px))", display: "flex", overflow: "hidden", boxShadow: "0 30px 60px rgba(0,0,0,0.25)" },
   modalSide: { width: 170, padding: 24, display: "flex", flexDirection: "column", gap: 15, flexShrink: 0 },

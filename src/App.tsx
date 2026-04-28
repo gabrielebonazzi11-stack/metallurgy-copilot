@@ -631,11 +631,6 @@ export default function App() {
             <div style={s.homeWrapper}>
               <h1 style={s.welcomeText}>Benvenuto {user.name.split(" ")[0]}, come posso aiutarti?</h1>
               {renderInputBar("Chiedi a TechAI o carica un file testuale...")}
-              <div style={s.homeActions}>
-                <button style={{ ...s.inlineLoginBtn, background: theme.primary }} onClick={openLoginInsideApp}>
-                  {isLoggedIn ? "Gestisci login" : "Login"}
-                </button>
-              </div>
               <p style={s.fileHint}>Supporta file testuali: TXT, CSV, JSON, MD, XML, HTML, CSS, JS, TS, TSX.</p>
             </div>
           ) : (
@@ -669,14 +664,16 @@ export default function App() {
           <div style={s.overlay}>
             <div style={s.loginModalWrap}>
               {renderLoginCard(false)}
-              {isLoggedIn && (
-                <button
-                  style={{ ...s.closeFloatingBtn, background: isDark ? "#111" : "#fff", color: theme.text, border: `1px solid ${theme.border}` }}
-                  onClick={() => setShowLoginPanel(false)}
-                >
-                  ×
-                </button>
-              )}
+              <button
+                style={{ ...s.closeFloatingBtn, background: isDark ? "#111" : "#fff", color: theme.text, border: `1px solid ${theme.border}` }}
+                onClick={() => {
+                  setShowLoginPanel(false);
+                  setLoginError("");
+                }}
+                title="Torna indietro"
+              >
+                ×
+              </button>
             </div>
           </div>
         )}
@@ -697,7 +694,15 @@ export default function App() {
               </div>
 
               <div style={s.modalMain}>
-                <h2 style={{ fontSize: "18px", marginBottom: "20px" }}>{activeTab}</h2>
+                <div style={s.modalHeader}>
+                  <h2 style={{ fontSize: "18px", margin: 0 }}>{activeTab}</h2>
+                  <button
+                    style={{ ...s.backBtn, color: theme.text, border: `1px solid ${theme.border}` }}
+                    onClick={() => setShowSettings(false)}
+                  >
+                    ← Indietro
+                  </button>
+                </div>
 
                 {activeTab === "Account" && (
                   <div>
@@ -930,8 +935,6 @@ const s: any = {
   textarea: { flex: 1, minWidth: 0, maxHeight: 140, background: "none", border: "none", outline: "none", textAlign: "center", fontSize: 16, resize: "none", padding: "10px 0", overflowY: "auto" },
   sendBtn: { width: 34, height: 34, background: "none", border: "none", cursor: "pointer", fontSize: 20, marginLeft: 6, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", opacity: 0.9 },
   fileHint: { fontSize: 12, opacity: 0.58, marginTop: 12 },
-  homeActions: { display: "flex", justifyContent: "center", marginTop: 14 },
-  inlineLoginBtn: { border: "none", color: "white", borderRadius: 999, padding: "10px 18px", fontWeight: 800, cursor: "pointer" },
 
   chatView: { width: "100%", maxWidth: 900, flex: 1, minHeight: 0, display: "flex", flexDirection: "column", padding: "14px 22px", overflow: "hidden" },
   msgList: { flex: 1, minHeight: 0, overflowY: "auto", overflowX: "hidden", display: "flex", flexDirection: "column", gap: 18, padding: "10px 0" },
@@ -965,6 +968,8 @@ const s: any = {
   modal: { borderRadius: 24, width: "min(620px, 100%)", height: "min(450px, calc(100dvh - 32px))", display: "flex", overflow: "hidden", boxShadow: "0 30px 60px rgba(0,0,0,0.25)" },
   modalSide: { width: 170, padding: 24, display: "flex", flexDirection: "column", gap: 15, flexShrink: 0 },
   modalMain: { flex: 1, minWidth: 0, padding: 32, display: "flex", flexDirection: "column", overflowY: "auto" },
+  modalHeader: { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 20 },
+  backBtn: { background: "transparent", borderRadius: 12, padding: "9px 12px", cursor: "pointer", fontWeight: 800, fontSize: 13 },
   tab: { cursor: "pointer", fontSize: 14 },
   label: { fontSize: 11, fontWeight: 800, color: "#94a3b8", textTransform: "uppercase", marginBottom: 8, display: "block" },
   input: { width: "100%", padding: 12, borderRadius: 12, marginBottom: 20, outline: "none", fontSize: 14 },

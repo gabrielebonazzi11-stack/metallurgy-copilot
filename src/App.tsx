@@ -145,8 +145,35 @@ export default function App() {
   }, [theme, interest, user, chats, activeChatId, sidebarOpen, isLoggedIn]);
 
   useEffect(() => {
+    const existingScript = document.getElementById("mathjax-script");
+
+    if (!existingScript) {
+      (window as any).MathJax = {
+        tex: {
+          inlineMath: [["\(", "\)"], ["$", "$"]],
+          displayMath: [["\[", "\]"], ["$$", "$$"]],
+        },
+        svg: { fontCache: "global" },
+      };
+
+      const script = document.createElement("script");
+      script.id = "mathjax-script";
+      script.src = "https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js";
+      script.async = true;
+      document.head.appendChild(script);
+    }
+  }, []);
+
+  useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [currentMessages, loading, fileLoading]);
+
+    setTimeout(() => {
+      const mathJax = (window as any).MathJax;
+      if (mathJax?.typesetPromise) {
+        mathJax.typesetPromise().catch(() => console.warn("MathJax non è riuscito a renderizzare una formula."));
+      }
+    }, 80);
+  }, [currentMessages, loading, fileLoading, checklistResults]);
 
   const createChatObject = (title = "Nuova chat"): ChatSession => ({
     id: crypto.randomUUID(),
@@ -488,7 +515,7 @@ export default function App() {
               role: "system",
               content:
                 `Sei TechAI. Utente: ${user.name}. Focus: ${interest}. ` +
-                "Rispondi in modo chiaro, tecnico e ordinato. Se l'utente carica un file, analizza il contenuto testuale presente in chat.",
+                "Rispondi in modo chiaro, tecnico e ordinato. Quando scrivi formule, calcoli o passaggi matematici usa LaTeX leggibile: frazioni con \frac{}, moltiplicazioni con \cdot, radici con \sqrt{}, potenze con ^{}. Per formule importanti usa blocchi \[ ... \]. Evita formule brutte scritte con / e * quando puoi. Se l'utente carica un file, analizza il contenuto testuale presente in chat.",
             },
             ...updatedMessages.map(m => ({
               role: m.role === "utente" ? "user" : "assistant",
@@ -1413,6 +1440,13 @@ const s: any = {
   messageLine: {
     lineHeight: 1.7,
     margin: "2px 0",
+  },
+  mathExampleBox: {
+    borderRadius: 16,
+    padding: 14,
+    margin: "10px 0",
+    fontSize: 15,
+    lineHeight: 1.7,
   },
 
   overlay: { position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", display: "flex", justifyContent: "center", alignItems: "center", zIndex: 1000, padding: 16 },

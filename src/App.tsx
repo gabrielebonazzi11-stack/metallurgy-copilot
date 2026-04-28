@@ -159,6 +159,18 @@ export default function App() {
     setQuery("");
   };
 
+  const handleGuestAccess = () => {
+    setUser({
+      id: "guest-user",
+      name: "Ospite",
+      email: "",
+      phone: "",
+      plan: "Free",
+    });
+    setIsAuthenticated(true);
+    setAuthError("");
+  };
+
   const renderAuthScreen = () => (
     <div style={{ ...s.authPage, backgroundColor: theme.bg, color: theme.text }}>
       <div style={{ ...s.authCard, backgroundColor: theme.surface, border: `1px solid ${theme.border || theme.surface}` }}>
@@ -196,6 +208,15 @@ export default function App() {
 
         <button style={s.authSecondaryBtn} onClick={() => setAuthError("Login Google predisposto: verrà collegato con Supabase Auth.")}>Continua con Google</button>
         <button style={s.authSecondaryBtn} onClick={() => setAuthError("Login telefono predisposto: richiede provider SMS configurato in Supabase.")}>Continua con telefono</button>
+
+        <button style={{ ...s.guestBtn, border: `1px solid ${theme.border || "rgba(120,120,120,0.25)"}` }} onClick={handleGuestAccess}>
+          <span style={s.guestIcon}>👤</span>
+          <span style={s.guestTextWrap}>
+            <strong>Continua come ospite</strong>
+            <span>Usa TechAI senza account. Le chat non verranno salvate.</span>
+          </span>
+          <span style={s.guestArrow}>›</span>
+        </button>
 
         <button style={{ ...s.authSwitchBtn, color: theme.primary }} onClick={() => { setAuthError(""); setAuthMode(authMode === "login" ? "register" : "login"); }}>
           {authMode === "login" ? "Non hai un account? Registrati" : "Hai già un account? Accedi"}
@@ -707,15 +728,19 @@ export default function App() {
 }
 
 const s: any = {
-  authPage: { minHeight: "100dvh", width: "100vw", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 },
-  authCard: { width: "min(430px, 100%)", borderRadius: 26, padding: 30, boxShadow: "0 24px 60px rgba(0,0,0,0.12)", display: "flex", flexDirection: "column", gap: 10 },
-  authLogo: { fontSize: 24, fontWeight: 900, letterSpacing: "-1px", marginBottom: 8 },
-  authTitle: { fontSize: 25, margin: "4px 0", letterSpacing: "-0.8px" },
-  authSubtitle: { fontSize: 13, opacity: 0.68, lineHeight: 1.5, margin: "0 0 14px" },
+  authPage: { minHeight: "100dvh", width: "100vw", display: "flex", alignItems: "center", justifyContent: "center", padding: "24px", background: "linear-gradient(135deg, rgba(59,130,246,0.10), rgba(255,255,255,0.96))", overflowY: "auto" },
+  authCard: { width: "100%", maxWidth: 460, margin: "auto", borderRadius: 28, padding: "34px 32px", boxShadow: "0 28px 70px rgba(15,23,42,0.14)", display: "flex", flexDirection: "column", gap: 10, alignSelf: "center" },
+  authLogo: { fontSize: 25, fontWeight: 900, letterSpacing: "-1px", marginBottom: 8, textAlign: "center" },
+  authTitle: { fontSize: 26, margin: "4px 0", letterSpacing: "-0.8px", textAlign: "center" },
+  authSubtitle: { fontSize: 13, opacity: 0.68, lineHeight: 1.5, margin: "0 0 18px", textAlign: "center" },
   authInput: { width: "100%", padding: "13px 14px", borderRadius: 13, border: "1px solid rgba(120,120,120,0.25)", outline: "none", fontSize: 14, marginBottom: 10, background: "rgba(255,255,255,0.78)" },
   authPrimaryBtn: { width: "100%", padding: 14, border: "none", borderRadius: 14, color: "white", fontWeight: 800, cursor: "pointer", marginTop: 4 },
   authSecondaryBtn: { width: "100%", padding: 12, border: "1px solid rgba(120,120,120,0.25)", borderRadius: 13, background: "rgba(255,255,255,0.65)", cursor: "pointer", fontWeight: 700 },
-  authSwitchBtn: { border: "none", background: "transparent", cursor: "pointer", fontWeight: 800, marginTop: 8 },
+  authSwitchBtn: { border: "none", background: "transparent", cursor: "pointer", fontWeight: 800, marginTop: 8, textAlign: "center" },
+  guestBtn: { width: "100%", marginTop: 10, padding: "13px 14px", borderRadius: 16, background: "rgba(255,255,255,0.62)", cursor: "pointer", display: "flex", alignItems: "center", gap: 12, textAlign: "left" },
+  guestIcon: { width: 34, height: 34, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(59,130,246,0.10)", flexShrink: 0 },
+  guestTextWrap: { flex: 1, display: "flex", flexDirection: "column", gap: 3, fontSize: 13 },
+  guestArrow: { fontSize: 26, opacity: 0.55, lineHeight: 1 },
   authDivider: { textAlign: "center", fontSize: 12, opacity: 0.55, margin: "6px 0" },
   authError: { fontSize: 12, color: "#dc2626", background: "rgba(220,38,38,0.08)", padding: 10, borderRadius: 10, marginBottom: 4 },
   app: { display: "flex", height: "100dvh", width: "100vw", overflow: "hidden", minWidth: 0 },

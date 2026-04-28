@@ -33,7 +33,7 @@ const defaultUser: UserProfile = {
   email: "mario.rossi@tech.it",
 };
 
-const STORAGE_KEY = "techai_ultimate_v5_slide_sidebar";
+const STORAGE_KEY = "techai_ultimate_v6_login_sidebar";
 
 export default function App() {
   const [query, setQuery] = useState("");
@@ -43,12 +43,19 @@ export default function App() {
   const [loading, setLoading] = useState(false);
   const [fileLoading, setFileLoading] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [showLoginPanel, setShowLoginPanel] = useState(false);
   const [activeTab, setActiveTab] = useState("Aspetto");
   const [sidebarOpen, setSidebarOpen] = useState(true);
 
   const [user, setUser] = useState<UserProfile>(defaultUser);
   const [theme, setTheme] = useState(THEMES[0]);
   const [interest, setInterest] = useState("Ingegneria Meccanica");
+
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [loginEmail, setLoginEmail] = useState(defaultUser.email);
+  const [loginPassword, setLoginPassword] = useState("");
+  const [loginError, setLoginError] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
 
   const apiKey = import.meta.env.VITE_GROQ_API_KEY;
   const chatEndRef = useRef<HTMLDivElement>(null);
@@ -64,12 +71,16 @@ export default function App() {
 
     try {
       const p = JSON.parse(saved);
+      const savedUser = p.user || defaultUser;
+
       setTheme(THEMES.find(t => t.name === p.themeName) || THEMES[0]);
       setInterest(p.interest || "Ingegneria Meccanica");
-      setUser(p.user || defaultUser);
+      setUser(savedUser);
+      setLoginEmail(savedUser.email || defaultUser.email);
       setChats(p.chats || []);
       setActiveChatId(p.activeChatId || null);
       setSidebarOpen(p.sidebarOpen ?? true);
+      setIsLoggedIn(p.isLoggedIn ?? false);
     } catch {
       console.warn("Impossibile leggere il salvataggio locale.");
     }
@@ -85,9 +96,10 @@ export default function App() {
         chats,
         activeChatId,
         sidebarOpen,
+        isLoggedIn,
       })
     );
-  }, [theme, interest, user, chats, activeChatId, sidebarOpen]);
+  }, [theme, interest, user, chats, activeChatId, sidebarOpen, isLoggedIn]);
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -145,6 +157,38 @@ export default function App() {
     );
   };
 
+  const handleLogin = () => {
+    const cleanedEmail = loginEmail.trim();
+    const cleanedPassword = loginPassword.trim();
+
+    if (!cleanedEmail || !cleanedPassword) {
+      setLoginError("Inserisci email e password per accedere.");
+      return;
+    }
+
+    if (!cleanedEmail.includes("@")) {
+      setLoginError("Inserisci un indirizzo email valido.");
+      return;
+    }
+
+    setUser(prev => ({ ...prev, email: cleanedEmail }));
+    setIsLoggedIn(true);
+    setShowLoginPanel(false);
+    setLoginError("");
+    setLoginPassword("");
+  };
+
+  const handleLogout = () => {
+    setIsLoggedIn(false);
+    setShowLoginPanel(true);
+  };
+
+  const openLoginInsideApp = () => {
+    setShowLoginPanel(true);
+    setShowSettings(false);
+    setLoginError("");
+  };
+
   const isSupportedTextFile = (file: File) => {
     const name = file.name.toLowerCase();
     const type = file.type;
@@ -197,15 +241,10 @@ export default function App() {
       addMessageToChat(chatId, {
         role: "utente",
         text:
-          `📎 File caricato: ${file.name}
-` +
-          `Tipo: ${file.type || "sconosciuto"}
-` +
-          `Dimensione: ${(file.size / 1024).toFixed(1)} KB
-
-` +
-          `CONTENUTO DEL FILE:
-${cleanedText || "Il file risulta vuoto."}`,
+          `📎 File caricato: ${file.name}\n` +
+          `Tipo: ${file.type || "sconosciuto"}\n` +
+          `Dimensione: ${(file.size / 1024).toFixed(1)} KB\n\n` +
+          `CONTENUTO DEL FILE:\n${cleanedText || "Il file risulta vuoto."}`,
       });
 
       setQuery(`Analizza il file "${file.name}" e fammi un riassunto chiaro dei punti principali.`);
@@ -222,6 +261,12 @@ ${cleanedText || "Il file risulta vuoto."}`,
 
   const callAI = async () => {
     if (!query.trim() || loading) return;
+
+    if (!isLoggedIn) {
+      setShowLoginPanel(true);
+      setLoginError("Effettua il login prima di usare TechAI.");
+      return;
+    }
 
     const text = query;
     const chatId = ensureActiveChat(text.slice(0, 32) + "...");
@@ -281,6 +326,7 @@ ${cleanedText || "Il file risulta vuoto."}`,
         chats,
         activeChatId,
         sidebarOpen,
+        isLoggedIn,
       })
     );
     setShowSettings(false);
@@ -329,8 +375,7 @@ ${cleanedText || "Il file risulta vuoto."}`,
         );
       }
 
-      return part.split("
-").map((line, i) => {
+      return part.split("\n").map((line, i) => {
         const trimmed = line.trim();
         const key = `line-${partIndex}-${i}`;
 
@@ -370,7 +415,7 @@ ${cleanedText || "Il file risulta vuoto."}`,
         style={{ ...s.fileBtn, color: theme.primary }}
         onClick={() => fileInputRef.current?.click()}
         title="Carica file testuale"
-        disabled={fileLoading}
+        disabled={fileLoading || !isLoggedIn}
       >
         {fileLoading ? (
           "…"
@@ -394,11 +439,14 @@ ${cleanedText || "Il file risulta vuoto."}`,
         style={{ ...s.textarea, color: theme.text }}
         rows={1}
         value={query}
-        placeholder={placeholder}
+        placeholder={isLoggedIn ? placeholder : "Effettua il login per iniziare a usare TechAI..."}
         onChange={e => {
           setQuery(e.target.value);
           e.target.style.height = "auto";
           e.target.style.height = Math.min(e.target.scrollHeight, 140) + "px";
+        }}
+        onFocus={() => {
+          if (!isLoggedIn) setShowLoginPanel(true);
         }}
         onKeyDown={e => e.key === "Enter" && !e.shiftKey && (e.preventDefault(), callAI())}
       />
@@ -413,8 +461,83 @@ ${cleanedText || "Il file risulta vuoto."}`,
     </div>
   );
 
+  const renderLoginCard = (compact = false) => (
+    <div
+      style={{
+        ...s.loginCard,
+        background: isDark ? "rgba(17,17,17,0.96)" : "rgba(255,255,255,0.96)",
+        color: theme.text,
+        border: `1px solid ${theme.border}`,
+        width: compact ? "100%" : "min(430px, calc(100vw - 32px))",
+      }}
+    >
+      <div style={{ ...s.loginLogo, background: theme.primary }}>T</div>
+      <h1 style={s.loginTitle}>Accedi a TechAI</h1>
+      <p style={s.loginSubtitle}>Inserisci email e password per entrare nel programma.</p>
+
+      <label style={s.loginLabel}>Email</label>
+      <div style={{ ...s.loginInputWrap, background: theme.surface, border: `1px solid ${theme.border}` }}>
+        <span style={{ ...s.loginInputIcon, color: theme.primary }}>@</span>
+        <input
+          style={{ ...s.loginInput, color: theme.text }}
+          value={loginEmail}
+          onChange={e => setLoginEmail(e.target.value)}
+          placeholder="nome@email.it"
+          type="email"
+          autoComplete="email"
+        />
+      </div>
+
+      <label style={s.loginLabel}>Password</label>
+      <div style={{ ...s.loginInputWrap, background: theme.surface, border: `1px solid ${theme.border}` }}>
+        <span style={{ ...s.loginInputIcon, color: theme.primary }}>⌕</span>
+        <input
+          style={{ ...s.loginInput, color: theme.text }}
+          value={loginPassword}
+          onChange={e => setLoginPassword(e.target.value)}
+          placeholder="Inserisci password"
+          type={showPassword ? "text" : "password"}
+          autoComplete="current-password"
+          onKeyDown={e => e.key === "Enter" && handleLogin()}
+        />
+        <button
+          style={{ ...s.passwordToggle, color: theme.primary }}
+          onClick={() => setShowPassword(prev => !prev)}
+          type="button"
+        >
+          {showPassword ? "Nascondi" : "Mostra"}
+        </button>
+      </div>
+
+      {loginError && <div style={s.loginError}>{loginError}</div>}
+
+      <button style={{ ...s.loginBtn, background: theme.primary }} onClick={handleLogin}>
+        Login
+      </button>
+
+      <button
+        style={{ ...s.ghostLoginBtn, color: theme.text, border: `1px solid ${theme.border}` }}
+        onClick={() => {
+          setLoginEmail(defaultUser.email);
+          setLoginPassword("demo123");
+          setLoginError("");
+        }}
+      >
+        Compila dati demo
+      </button>
+
+      <p style={s.loginNote}>Nota: questo login è solo grafico/front-end. Per un login reale serve un backend di autenticazione.</p>
+    </div>
+  );
+
   return (
     <div style={{ ...s.app, backgroundColor: theme.bg, color: theme.text }}>
+      {!isLoggedIn && !showLoginPanel && (
+        <div style={{ ...s.loginScreen, background: `linear-gradient(135deg, ${theme.bg}, ${theme.surface})` }}>
+          {renderLoginCard(false)}
+        </div>
+      )}
+
       <aside
         style={{
           ...s.sidebar,
@@ -422,6 +545,8 @@ ${cleanedText || "Il file risulta vuoto."}`,
           minWidth: sidebarOpen ? 280 : 74,
           backgroundColor: isDark ? "#050505" : theme.bg,
           borderRight: `1px solid ${theme.border || theme.surface}`,
+          filter: !isLoggedIn ? "blur(1px)" : "none",
+          pointerEvents: !isLoggedIn ? "none" : "auto",
         }}
       >
         <div style={{ ...s.sidebarTop, justifyContent: sidebarOpen ? "space-between" : "center" }}>
@@ -444,13 +569,14 @@ ${cleanedText || "Il file risulta vuoto."}`,
             onClick={() => setSidebarOpen(prev => !prev)}
             title={sidebarOpen ? "Chiudi barra laterale" : "Apri barra laterale"}
           >
-            {sidebarOpen ? "☰" : "☰"}
+            ☰
           </button>
         </div>
 
         <div style={{ ...s.iconNav, alignItems: sidebarOpen ? "stretch" : "center" }}>
           {iconBtn("＋", "Nuova", createNewChat)}
           {iconBtn("≡", "Chat", () => setSidebarOpen(true), sidebarOpen)}
+          {iconBtn("🔐", isLoggedIn ? "Account" : "Login", openLoginInsideApp)}
           {iconBtn("⚙", "Impostazioni", () => { setActiveTab("Aspetto"); setShowSettings(true); })}
         </div>
 
@@ -493,7 +619,7 @@ ${cleanedText || "Il file risulta vuoto."}`,
           {sidebarOpen && (
             <div style={s.accountText}>
               <div style={{ fontWeight: 700, fontSize: "13px" }}>{user.name}</div>
-              <div style={{ fontSize: "11px", opacity: 0.7 }}>Piano Pro</div>
+              <div style={{ fontSize: "11px", opacity: 0.7 }}>{isLoggedIn ? "Online · Piano Pro" : "Non connesso"}</div>
             </div>
           )}
         </div>
@@ -505,6 +631,11 @@ ${cleanedText || "Il file risulta vuoto."}`,
             <div style={s.homeWrapper}>
               <h1 style={s.welcomeText}>Benvenuto {user.name.split(" ")[0]}, come posso aiutarti?</h1>
               {renderInputBar("Chiedi a TechAI o carica un file testuale...")}
+              <div style={s.homeActions}>
+                <button style={{ ...s.inlineLoginBtn, background: theme.primary }} onClick={openLoginInsideApp}>
+                  {isLoggedIn ? "Gestisci login" : "Login"}
+                </button>
+              </div>
               <p style={s.fileHint}>Supporta file testuali: TXT, CSV, JSON, MD, XML, HTML, CSS, JS, TS, TSX.</p>
             </div>
           ) : (
@@ -534,6 +665,22 @@ ${cleanedText || "Il file risulta vuoto."}`,
           )}
         </section>
 
+        {showLoginPanel && (
+          <div style={s.overlay}>
+            <div style={s.loginModalWrap}>
+              {renderLoginCard(false)}
+              {isLoggedIn && (
+                <button
+                  style={{ ...s.closeFloatingBtn, background: isDark ? "#111" : "#fff", color: theme.text, border: `1px solid ${theme.border}` }}
+                  onClick={() => setShowLoginPanel(false)}
+                >
+                  ×
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+
         {showSettings && (
           <div style={s.overlay}>
             <div style={{ ...s.modal, background: isDark ? "#111111" : "white", color: theme.text, border: `1px solid ${theme.border}` }}>
@@ -555,12 +702,21 @@ ${cleanedText || "Il file risulta vuoto."}`,
                 {activeTab === "Account" && (
                   <div>
                     <label style={s.label}>Nome Visualizzato</label>
-                    <input style={s.input} value={user.name} onChange={e => setUser({ ...user, name: e.target.value })} />
+                    <input style={{ ...s.input, background: isDark ? "#050505" : "#ffffff", color: theme.text, border: `1px solid ${theme.border}` }} value={user.name} onChange={e => setUser({ ...user, name: e.target.value })} />
 
                     <label style={s.label}>Email</label>
-                    <input style={s.input} value={user.email} onChange={e => setUser({ ...user, email: e.target.value })} />
+                    <input style={{ ...s.input, background: isDark ? "#050505" : "#ffffff", color: theme.text, border: `1px solid ${theme.border}` }} value={user.email} onChange={e => setUser({ ...user, email: e.target.value })} />
 
-                    <div style={s.badge}>Stato Account: Abbonamento Attivo ✅</div>
+                    <div style={s.accountButtonRow}>
+                      <button style={{ ...s.miniPrimaryBtn, background: theme.primary }} onClick={openLoginInsideApp}>
+                        Apri login
+                      </button>
+                      <button style={{ ...s.miniDangerBtn }} onClick={handleLogout}>
+                        Logout
+                      </button>
+                    </div>
+
+                    <div style={s.badge}>Stato Account: {isLoggedIn ? "Accesso effettuato ✅" : "Non connesso"}</div>
                   </div>
                 )}
 
@@ -606,7 +762,7 @@ ${cleanedText || "Il file risulta vuoto."}`,
                 {activeTab === "AI Focus" && (
                   <div>
                     <label style={s.label}>Ambito Tecnico Principale</label>
-                    <input style={s.input} value={interest} onChange={e => setInterest(e.target.value)} />
+                    <input style={{ ...s.input, background: isDark ? "#050505" : "#ffffff", color: theme.text, border: `1px solid ${theme.border}` }} value={interest} onChange={e => setInterest(e.target.value)} />
                   </div>
                 )}
 
@@ -619,9 +775,9 @@ ${cleanedText || "Il file risulta vuoto."}`,
 
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap');
-        * { font-family: 'Inter', sans-serif !important; box-sizing: border-box; transition: background 0.2s, color 0.2s, width 0.25s ease, min-width 0.25s ease; }
+        * { font-family: 'Inter', sans-serif !important; box-sizing: border-box; transition: background 0.2s, color 0.2s, width 0.25s ease, min-width 0.25s ease, border 0.2s; }
         html, body, #root { width: 100%; height: 100%; margin: 0; overflow: hidden; }
-        textarea::placeholder { opacity: 0.55; }
+        input::placeholder, textarea::placeholder { opacity: 0.55; }
         button:disabled { opacity: 0.45; cursor: not-allowed; }
         ::-webkit-scrollbar { width: 5px; }
         ::-webkit-scrollbar-thumb { background: rgba(120,120,120,0.35); border-radius: 10px; }
@@ -632,6 +788,106 @@ ${cleanedText || "Il file risulta vuoto."}`,
 
 const s: any = {
   app: { display: "flex", height: "100dvh", width: "100vw", overflow: "hidden", minWidth: 0 },
+
+  loginScreen: {
+    position: "fixed",
+    inset: 0,
+    zIndex: 2000,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 16,
+  },
+  loginModalWrap: { position: "relative" },
+  loginCard: {
+    borderRadius: 30,
+    padding: 28,
+    boxShadow: "0 30px 80px rgba(0,0,0,0.28)",
+    backdropFilter: "blur(18px)",
+  },
+  loginLogo: {
+    width: 46,
+    height: 46,
+    borderRadius: 16,
+    color: "white",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    fontWeight: 900,
+    marginBottom: 18,
+  },
+  loginTitle: { margin: 0, fontSize: 28, fontWeight: 850, letterSpacing: "-0.8px" },
+  loginSubtitle: { margin: "8px 0 24px", fontSize: 14, opacity: 0.68, lineHeight: 1.45 },
+  loginLabel: { display: "block", fontSize: 11, fontWeight: 850, textTransform: "uppercase", opacity: 0.62, margin: "14px 0 8px" },
+  loginInputWrap: {
+    minHeight: 54,
+    borderRadius: 18,
+    display: "flex",
+    alignItems: "center",
+    gap: 10,
+    padding: "0 14px",
+    boxShadow: "0 8px 22px rgba(0,0,0,0.035)",
+  },
+  loginInputIcon: { width: 22, textAlign: "center", fontWeight: 900, opacity: 0.88 },
+  loginInput: {
+    flex: 1,
+    minWidth: 0,
+    border: "none",
+    outline: "none",
+    background: "transparent",
+    fontSize: 15,
+    padding: "14px 0",
+  },
+  passwordToggle: {
+    border: "none",
+    background: "transparent",
+    cursor: "pointer",
+    fontSize: 12,
+    fontWeight: 800,
+    padding: "8px 0 8px 8px",
+  },
+  loginError: {
+    marginTop: 12,
+    padding: "10px 12px",
+    borderRadius: 12,
+    color: "#b91c1c",
+    background: "#fee2e2",
+    fontSize: 13,
+    fontWeight: 700,
+  },
+  loginBtn: {
+    width: "100%",
+    minHeight: 52,
+    border: "none",
+    borderRadius: 18,
+    color: "white",
+    fontWeight: 850,
+    fontSize: 15,
+    marginTop: 18,
+    cursor: "pointer",
+    boxShadow: "0 14px 30px rgba(0,0,0,0.14)",
+  },
+  ghostLoginBtn: {
+    width: "100%",
+    minHeight: 44,
+    borderRadius: 16,
+    background: "transparent",
+    fontWeight: 800,
+    marginTop: 10,
+    cursor: "pointer",
+  },
+  loginNote: { fontSize: 11, opacity: 0.55, lineHeight: 1.45, margin: "14px 0 0", textAlign: "center" },
+  closeFloatingBtn: {
+    position: "absolute",
+    top: -12,
+    right: -12,
+    width: 38,
+    height: 38,
+    borderRadius: "50%",
+    cursor: "pointer",
+    fontSize: 22,
+    fontWeight: 700,
+  },
 
   sidebar: {
     height: "100dvh",
@@ -674,6 +930,8 @@ const s: any = {
   textarea: { flex: 1, minWidth: 0, maxHeight: 140, background: "none", border: "none", outline: "none", textAlign: "center", fontSize: 16, resize: "none", padding: "10px 0", overflowY: "auto" },
   sendBtn: { width: 34, height: 34, background: "none", border: "none", cursor: "pointer", fontSize: 20, marginLeft: 6, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", opacity: 0.9 },
   fileHint: { fontSize: 12, opacity: 0.58, marginTop: 12 },
+  homeActions: { display: "flex", justifyContent: "center", marginTop: 14 },
+  inlineLoginBtn: { border: "none", color: "white", borderRadius: 999, padding: "10px 18px", fontWeight: 800, cursor: "pointer" },
 
   chatView: { width: "100%", maxWidth: 900, flex: 1, minHeight: 0, display: "flex", flexDirection: "column", padding: "14px 22px", overflow: "hidden" },
   msgList: { flex: 1, minHeight: 0, overflowY: "auto", overflowX: "hidden", display: "flex", flexDirection: "column", gap: 18, padding: "10px 0" },
@@ -709,9 +967,12 @@ const s: any = {
   modalMain: { flex: 1, minWidth: 0, padding: 32, display: "flex", flexDirection: "column", overflowY: "auto" },
   tab: { cursor: "pointer", fontSize: 14 },
   label: { fontSize: 11, fontWeight: 800, color: "#94a3b8", textTransform: "uppercase", marginBottom: 8, display: "block" },
-  input: { width: "100%", padding: 12, borderRadius: 12, border: "1px solid #e2e8f0", marginBottom: 20, outline: "none", fontSize: 14 },
-  badge: { fontSize: 12, color: "#10b981", fontWeight: 700, background: "#f0fdf4", padding: 10, borderRadius: 10, textAlign: "center" },
+  input: { width: "100%", padding: 12, borderRadius: 12, marginBottom: 20, outline: "none", fontSize: 14 },
+  badge: { fontSize: 12, color: "#10b981", fontWeight: 700, background: "#f0fdf4", padding: 10, borderRadius: 10, textAlign: "center", marginTop: 14 },
   themeGrid: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(135px, 1fr))", gap: 10 },
   themeOption: { padding: 12, borderRadius: 14, cursor: "pointer", display: "flex", alignItems: "center", gap: 12, fontSize: 13, fontWeight: 700 },
   saveBtn: { marginTop: "auto", padding: 14, border: "none", borderRadius: 14, color: "white", fontWeight: 700, cursor: "pointer" },
+  accountButtonRow: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginTop: 4, marginBottom: 4 },
+  miniPrimaryBtn: { border: "none", color: "white", padding: 12, borderRadius: 12, cursor: "pointer", fontWeight: 800 },
+  miniDangerBtn: { border: "none", color: "#991b1b", background: "#fee2e2", padding: 12, borderRadius: 12, cursor: "pointer", fontWeight: 800 },
 };

@@ -577,7 +577,7 @@ const s: any = {
   label: { fontSize: "11px", fontWeight: 800, color: "#94a3b8", textTransform: "uppercase", marginBottom: "8px", display: "block" },
   input: { width: "100%", padding: "12px", borderRadius: "12px", border: "1px solid #e2e8f0", marginBottom: "20px", outline: "none", fontSize: "14px" },
   badge: { fontSize: "12px", color: "#10b981", fontWeight: 700, background: "#f0fdf4", padding: "10px", borderRadius: "10px", textAlign: "center" },
-  themeGrid: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))", gap: "10px" }
+  themeGrid: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))", gap: "10px" },
   themeOption: { padding: "12px", borderRadius: "12px", cursor: "pointer", display: "flex", alignItems: "center", gap: "12px", fontSize: "13px" },
   saveBtn: { marginTop: "auto", padding: "15px", border: "none", borderRadius: "15px", color: "white", fontWeight: 700, cursor: "pointer" },
 };

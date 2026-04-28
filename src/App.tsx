@@ -95,6 +95,31 @@ interface QuickCalcResult {
   notes: string[];
 }
 
+interface DrawingForm {
+  partName: string;
+  partType: string;
+  material: string;
+  manufacturing: string;
+  mainFeatures: string;
+  functionalSurfaces: string;
+  holesThreads: string;
+  fits: string;
+  tolerances: string;
+  roughness: string;
+  assemblyFunction: string;
+  productionQuantity: string;
+}
+
+type DrawingStatus = "✅ Necessaria" | "🟦 Consigliata" | "⚠️ Da verificare" | "❌ Mancante" | "ℹ️ Informativa";
+
+interface DrawingResult {
+  category: string;
+  status: DrawingStatus;
+  item: string;
+  reason: string;
+  suggestion: string;
+}
+
 const defaultUser: UserProfile = {
   name: "Mario Rossi",
   email: "mario.rossi@tech.it",
@@ -179,6 +204,7 @@ export default function App() {
   const [showChecklist, setShowChecklist] = useState(false);
   const [showQuickCalc, setShowQuickCalc] = useState(false);
   const [showMaterials, setShowMaterials] = useState(false);
+  const [showDrawingGenerator, setShowDrawingGenerator] = useState(false);
   const [activeTab, setActiveTab] = useState("Aspetto");
   const [sidebarOpen, setSidebarOpen] = useState(true);
 
@@ -217,6 +243,21 @@ export default function App() {
   });
   const [quickCalcResult, setQuickCalcResult] = useState<QuickCalcResult | null>(null);
   const [materialSearch, setMaterialSearch] = useState("");
+  const [drawingForm, setDrawingForm] = useState<DrawingForm>({
+    partName: "",
+    partType: "",
+    material: "",
+    manufacturing: "",
+    mainFeatures: "",
+    functionalSurfaces: "",
+    holesThreads: "",
+    fits: "",
+    tolerances: "",
+    roughness: "",
+    assemblyFunction: "",
+    productionQuantity: "",
+  });
+  const [drawingResults, setDrawingResults] = useState<DrawingResult[]>([]);
   const [customMaterials, setCustomMaterials] = useState<MaterialInfo[]>([]);
   const [showAddMaterial, setShowAddMaterial] = useState(false);
   const [newMaterial, setNewMaterial] = useState<MaterialInfo>({
@@ -432,6 +473,7 @@ export default function App() {
     setShowChecklist(false);
     setShowQuickCalc(false);
     setShowMaterials(false);
+    setShowDrawingGenerator(false);
     setLoginError("");
   };
 
@@ -441,6 +483,124 @@ export default function App() {
 
   const updateQuickCalcField = (field: keyof QuickCalcForm, value: string) => {
     setQuickCalcForm(prev => ({ ...prev, [field]: value }));
+  };
+
+  const updateDrawingField = (field: keyof DrawingForm, value: string) => {
+    setDrawingForm(prev => ({ ...prev, [field]: value }));
+  };
+
+  const runDrawingGenerator = () => {
+    const f = drawingForm;
+    const text = `${f.partName} ${f.partType} ${f.material} ${f.manufacturing} ${f.mainFeatures} ${f.functionalSurfaces} ${f.holesThreads} ${f.fits} ${f.tolerances} ${f.roughness} ${f.assemblyFunction}`.toLowerCase();
+    const partType = f.partType.toLowerCase();
+    const features = f.mainFeatures.toLowerCase();
+    const holes = f.holesThreads.toLowerCase();
+    const fits = f.fits.toLowerCase();
+    const tolerances = f.tolerances.toLowerCase();
+    const roughness = f.roughness.toLowerCase();
+    const manufacturing = f.manufacturing.toLowerCase();
+
+    const hasHoles = holes.includes("foro") || holes.includes("m") || holes.includes("filett") || text.includes("lamatura") || text.includes("svasatura");
+    const hasShaft = partType.includes("albero") || partType.includes("perno") || text.includes("sede cuscinetto") || text.includes("linguetta");
+    const hasPlate = partType.includes("piastra") || partType.includes("staffa") || partType.includes("flangia");
+    const hasWeld = manufacturing.includes("sald") || text.includes("sald");
+    const hasBearing = text.includes("cuscinetto");
+    const hasThread = holes.includes("m") || holes.includes("filett");
+    const hasSlot = text.includes("asola") || text.includes("cava") || text.includes("linguetta");
+
+    const results: DrawingResult[] = [];
+
+    results.push({
+      category: "Viste",
+      status: "✅ Necessaria",
+      item: "Vista principale/frontale",
+      reason: "Serve per rappresentare la forma più riconoscibile e la maggior parte delle quote principali del pezzo.",
+      suggestion: "Scegli come vista frontale quella che mostra meglio funzione, fori principali, ingombri e simmetrie.",
+    });
+
+    results.push({
+      category: "Viste",
+      status: hasShaft ? "✅ Necessaria" : "🟦 Consigliata",
+      item: hasShaft ? "Vista longitudinale dell'albero/perno" : "Vista laterale o superiore",
+      reason: hasShaft ? "Per alberi e perni è essenziale mostrare diametri, spallamenti, gole, smussi e lunghezze." : "Una seconda vista evita ambiguità su spessori, profondità e posizione dei dettagli.",
+      suggestion: hasShaft ? "Quota diametri e lunghezze in sequenza, aggiungendo assi tratto-punto e dettagli su gole/cave." : "Aggiungi una vista laterale/superiore se la geometria non è completamente definita dalla vista frontale.",
+    });
+
+    results.push({
+      category: "Sezioni",
+      status: hasHoles || hasBearing || hasSlot ? "🟦 Consigliata" : "ℹ️ Informativa",
+      item: hasHoles || hasBearing || hasSlot ? "Sezione A-A" : "Sezione non obbligatoria salvo geometrie interne",
+      reason: hasHoles || hasBearing || hasSlot ? "Fori, sedi, cave, lamature o geometrie interne sono più chiare in sezione." : "Se il pezzo è pieno e semplice, la sezione può non essere necessaria.",
+      suggestion: hasBearing ? "Usa una sezione passante per la sede cuscinetto e quota diametro, profondità, smusso e rugosità." : hasHoles ? "Usa una sezione passante per fori ciechi, filetti, lamature o svasature." : "Valuta una sezione solo se ci sono dettagli nascosti importanti.",
+    });
+
+    results.push({
+      category: "Quote funzionali",
+      status: f.functionalSurfaces.trim() ? "⚠️ Da verificare" : "❌ Mancante",
+      item: "Superfici funzionali e quote critiche",
+      reason: f.functionalSurfaces.trim() ? `Superfici indicate: ${f.functionalSurfaces}.` : "Non sono state indicate superfici funzionali: rischio di quotare solo gli ingombri.",
+      suggestion: f.functionalSurfaces.trim() ? "Assicurati che ogni superficie funzionale abbia quota, tolleranza e rugosità adeguata." : "Indica sedi, appoggi, superfici di scorrimento, battute, fori di centraggio e riferimenti di montaggio.",
+    });
+
+    results.push({
+      category: "Fori e filetti",
+      status: hasHoles ? "⚠️ Da verificare" : "ℹ️ Informativa",
+      item: hasThread ? "Filetti e maschiature" : "Fori, lamature e svasature",
+      reason: hasHoles ? `Dettagli indicati: ${f.holesThreads}.` : "Non sono stati indicati fori o filetti.",
+      suggestion: hasThread ? "Per ogni filetto indica M, passo se non standard, profondità utile, eventuale preforo e tolleranza se richiesta." : hasHoles ? "Per ogni foro indica diametro, profondità, posizione, eventuale tolleranza H7/H13, lamatura o svasatura." : "Nessuna azione se il pezzo non contiene fori.",
+    });
+
+    results.push({
+      category: "Tolleranze",
+      status: tolerances || fits ? "⚠️ Da verificare" : "❌ Mancante",
+      item: "Tolleranze dimensionali/geometriche",
+      reason: tolerances || fits ? `Tolleranze/accoppiamenti indicati: ${f.tolerances || f.fits}.` : "Non risultano tolleranze specifiche: rischio tavola non producibile o non controllabile.",
+      suggestion: hasBearing ? "Per sedi cuscinetto valuta tolleranze tipo H7, h6, k6, m6 secondo montaggio. Aggiungi concentricità/coassialità se necessaria." : hasSlot ? "Per cave e asole valuta larghezza tollerata, posizione e rugosità se sono funzionali." : "Aggiungi tolleranze sulle quote funzionali; lascia le quote non critiche alla tolleranza generale del cartiglio.",
+    });
+
+    results.push({
+      category: "Rugosità",
+      status: roughness ? "⚠️ Da verificare" : "❌ Mancante",
+      item: "Rugosità generale e specifica",
+      reason: roughness ? `Rugosità indicata: ${f.roughness}.` : "Non è stata indicata rugosità generale o specifica.",
+      suggestion: hasBearing ? "Per sede cuscinetto consiglia Ra 1.6 o migliore secondo applicazione; per superfici generiche Ra 3.2/6.3." : text.includes("scorr") ? "Per superfici di scorrimento valuta Ra 0.8–1.6; per superfici non funzionali usa rugosità generale." : "Inserisci rugosità generale nel cartiglio e rugosità specifiche sulle superfici funzionali.",
+    });
+
+    results.push({
+      category: "Quote ridondanti",
+      status: "⚠️ Da verificare",
+      item: "Controllo quote sovrabbondanti",
+      reason: "La checklist non vede la tavola grafica, ma segnala il rischio tipico di quote duplicate o chiuse in catena.",
+      suggestion: "Evita catene di quote chiuse. Usa quote funzionali da riferimenti/datum e lascia le quote derivate non quotate.",
+    });
+
+    results.push({
+      category: "Cartiglio e note",
+      status: f.material.trim() && f.manufacturing.trim() ? "⚠️ Da verificare" : "❌ Mancante",
+      item: "Note generali di tavola",
+      reason: f.material.trim() && f.manufacturing.trim() ? "Materiale e lavorazione sono presenti, ma vanno riportati in modo coerente in tavola." : "Mancano informazioni base per il cartiglio o le note di lavorazione.",
+      suggestion: `Metti in cartiglio/materiale: ${f.material || "materiale da definire"}. Note consigliate: sbavare gli spigoli, smussi non quotati, trattamento superficiale, tolleranze generali ISO 2768 se applicabile.`,
+    });
+
+    results.push({
+      category: "Produzione",
+      status: manufacturing ? "⚠️ Da verificare" : "❌ Mancante",
+      item: "Metodo produttivo e quantità",
+      reason: manufacturing ? `Lavorazione indicata: ${f.manufacturing}. Quantità: ${f.productionQuantity || "non indicata"}.` : "Metodo produttivo non indicato.",
+      suggestion: hasWeld ? "Per pezzi saldati aggiungi simboli di saldatura, preparazioni lembi, controlli e distensione se richiesta." : manufacturing.includes("rett") ? "Se è prevista rettifica, quota tolleranze e rugosità coerenti sulle superfici rettificate." : "Specifica se il pezzo è tornito, fresato, tagliato laser, piegato, saldato, fuso o stampato.",
+    });
+
+    if (hasPlate) {
+      results.push({
+        category: "Riferimenti",
+        status: "🟦 Consigliata",
+        item: "Datum su superficie di appoggio",
+        reason: "Per piastre, staffe e flange conviene definire una superficie base per posizione fori e controlli geometrici.",
+        suggestion: "Imposta datum A sulla superficie di appoggio principale; datum B/C su lati o fori di riferimento.",
+      });
+    }
+
+    setDrawingResults(results);
   };
 
   const normalizeMaterialKey = (value: string) => value.toLowerCase().replaceAll(" ", "").replaceAll("-", "");
@@ -1185,6 +1345,7 @@ export default function App() {
             {iconBtn("✓", "Checklist", () => setShowChecklist(true))}
             {iconBtn("∑", "Verifica", () => setShowQuickCalc(true))}
             {iconBtn("▦", "Materiali", () => setShowMaterials(true))}
+            {iconBtn("▣", "Tavole", () => setShowDrawingGenerator(true))}
           </div>
         </div>
 
@@ -1285,6 +1446,88 @@ export default function App() {
               >
                 ×
               </button>
+            </div>
+          </div>
+        )}
+
+        {showDrawingGenerator && (
+          <div style={s.overlay}>
+            <div style={{ ...s.checklistModal, background: isDark ? "#111111" : "white", color: theme.text, border: `1px solid ${theme.border}` }}>
+              <div style={s.modalHeader}>
+                <div>
+                  <h2 style={{ fontSize: "20px", margin: 0 }}>Generatore tavole tecniche controllate</h2>
+                  <p style={s.checklistSubtitle}>Suggerisce viste, sezioni, quote, tolleranze, rugosità e note di cartiglio.</p>
+                </div>
+                <button style={{ ...s.backBtn, color: theme.text, border: `1px solid ${theme.border}` }} onClick={() => setShowDrawingGenerator(false)}>← Indietro</button>
+              </div>
+
+              <div style={s.drawingLayout}>
+                <div style={s.checklistFormArea}>
+                  <div style={s.checklistGrid}>
+                    <div>
+                      <label style={s.label}>Nome pezzo</label>
+                      <input style={{ ...s.input, background: isDark ? "#050505" : "#ffffff", color: theme.text, border: `1px solid ${theme.border}` }} value={drawingForm.partName} onChange={e => updateDrawingField("partName", e.target.value)} placeholder="Es. Albero intermedio" />
+                    </div>
+                    <div>
+                      <label style={s.label}>Tipo pezzo</label>
+                      <input style={{ ...s.input, background: isDark ? "#050505" : "#ffffff", color: theme.text, border: `1px solid ${theme.border}` }} value={drawingForm.partType} onChange={e => updateDrawingField("partType", e.target.value)} placeholder="Albero, perno, staffa, flangia..." />
+                    </div>
+                    <div>
+                      <label style={s.label}>Materiale</label>
+                      <input style={{ ...s.input, background: isDark ? "#050505" : "#ffffff", color: theme.text, border: `1px solid ${theme.border}` }} value={drawingForm.material} onChange={e => updateDrawingField("material", e.target.value)} placeholder="C45, S235, 6082 T6..." />
+                    </div>
+                    <div>
+                      <label style={s.label}>Quantità / lotto</label>
+                      <input style={{ ...s.input, background: isDark ? "#050505" : "#ffffff", color: theme.text, border: `1px solid ${theme.border}` }} value={drawingForm.productionQuantity} onChange={e => updateDrawingField("productionQuantity", e.target.value)} placeholder="1 pezzo, 100 pezzi..." />
+                    </div>
+                  </div>
+
+                  <label style={s.label}>Lavorazione prevista</label>
+                  <input style={{ ...s.input, background: isDark ? "#050505" : "#ffffff", color: theme.text, border: `1px solid ${theme.border}` }} value={drawingForm.manufacturing} onChange={e => updateDrawingField("manufacturing", e.target.value)} placeholder="Tornitura, fresatura, saldatura, piega, rettifica..." />
+
+                  <label style={s.label}>Geometrie principali</label>
+                  <textarea style={{ ...s.checklistTextarea, background: isDark ? "#050505" : "#ffffff", color: theme.text, border: `1px solid ${theme.border}` }} value={drawingForm.mainFeatures} onChange={e => updateDrawingField("mainFeatures", e.target.value)} placeholder="Fori, cave, asole, spallamenti, lamature, sedi cuscinetto..." />
+
+                  <label style={s.label}>Funzione del pezzo nell'assieme</label>
+                  <textarea style={{ ...s.checklistTextarea, background: isDark ? "#050505" : "#ffffff", color: theme.text, border: `1px solid ${theme.border}` }} value={drawingForm.assemblyFunction} onChange={e => updateDrawingField("assemblyFunction", e.target.value)} placeholder="Cosa fa il pezzo? Appoggia, centra, scorre, trasmette coppia, supporta carichi..." />
+
+                  <label style={s.label}>Superfici funzionali</label>
+                  <input style={{ ...s.input, background: isDark ? "#050505" : "#ffffff", color: theme.text, border: `1px solid ${theme.border}` }} value={drawingForm.functionalSurfaces} onChange={e => updateDrawingField("functionalSurfaces", e.target.value)} placeholder="Sede cuscinetto, piano appoggio, superficie scorrimento..." />
+
+                  <label style={s.label}>Fori / filetti / lamature</label>
+                  <input style={{ ...s.input, background: isDark ? "#050505" : "#ffffff", color: theme.text, border: `1px solid ${theme.border}` }} value={drawingForm.holesThreads} onChange={e => updateDrawingField("holesThreads", e.target.value)} placeholder="Foro Ø10 H7, M8 prof. 15, lamatura Ø14..." />
+
+                  <label style={s.label}>Accoppiamenti</label>
+                  <input style={{ ...s.input, background: isDark ? "#050505" : "#ffffff", color: theme.text, border: `1px solid ${theme.border}` }} value={drawingForm.fits} onChange={e => updateDrawingField("fits", e.target.value)} placeholder="Ø20 h6, Ø35 H7, sede cuscinetto..." />
+
+                  <label style={s.label}>Tolleranze già previste</label>
+                  <input style={{ ...s.input, background: isDark ? "#050505" : "#ffffff", color: theme.text, border: `1px solid ${theme.border}` }} value={drawingForm.tolerances} onChange={e => updateDrawingField("tolerances", e.target.value)} placeholder="ISO 2768-mK, planarità, posizione fori..." />
+
+                  <label style={s.label}>Rugosità già previste</label>
+                  <input style={{ ...s.input, background: isDark ? "#050505" : "#ffffff", color: theme.text, border: `1px solid ${theme.border}` }} value={drawingForm.roughness} onChange={e => updateDrawingField("roughness", e.target.value)} placeholder="Ra 3.2 generale, Ra 1.6 sede..." />
+
+                  <button style={{ ...s.checkBtn, background: theme.primary }} onClick={runDrawingGenerator}>Genera controllo tavola</button>
+                </div>
+
+                <div style={s.checklistResultsArea}>
+                  {drawingResults.length === 0 ? (
+                    <div style={{ ...s.emptyChecklist, border: `1px dashed ${theme.border}` }}>
+                      Inserisci i dati del pezzo e premi “Genera controllo tavola”.
+                    </div>
+                  ) : (
+                    drawingResults.map((item, index) => (
+                      <div key={index} style={{ ...s.resultCard, background: isDark ? "#050505" : "#f8fafc", border: `1px solid ${theme.border}` }}>
+                        <div style={s.resultTop}>
+                          <strong>{item.category}: {item.item}</strong>
+                          <span style={s.resultStatus}>{item.status}</span>
+                        </div>
+                        <p style={s.resultDetail}>{item.reason}</p>
+                        <p style={{ ...s.resultSuggestion, borderLeft: `3px solid ${theme.primary}` }}>{item.suggestion}</p>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
             </div>
           </div>
         )}
@@ -1996,6 +2239,7 @@ const s: any = {
   checklistSubtitle: { margin: "6px 0 0", fontSize: 13, opacity: 0.62 },
   checklistLayout: { flex: 1, minHeight: 0, display: "grid", gridTemplateColumns: "minmax(340px, 0.9fr) minmax(360px, 1.1fr)", gap: 22, overflow: "hidden" },
   quickCalcLayout: { flex: 1, minHeight: 0, display: "grid", gridTemplateColumns: "minmax(340px, 0.85fr) minmax(400px, 1.15fr)", gap: 22, overflow: "hidden" },
+  drawingLayout: { flex: 1, minHeight: 0, display: "grid", gridTemplateColumns: "minmax(380px, 0.95fr) minmax(430px, 1.05fr)", gap: 22, overflow: "hidden" },
   checklistFormArea: { overflowY: "auto", paddingRight: 6 },
   checklistResultsArea: { overflowY: "auto", display: "flex", flexDirection: "column", gap: 12, paddingRight: 6 },
   checklistGrid: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 },

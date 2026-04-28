@@ -187,27 +187,31 @@ export default function App() {
     <div style={{ ...s.authPage, backgroundColor: theme.bg, color: theme.text }}>
       <div style={{ ...s.authCard, backgroundColor: theme.surface, border: `1px solid ${theme.border || theme.surface}` }}>
         <div style={s.authLogo}>TECH<span style={{ color: theme.primary }}>AI</span></div>
-        <h1 style={s.authTitle}>{authMode === "login" ? "Accedi al tuo account" : "Crea account"}</h1>
-        <p style={s.authSubtitle}>Area privata predisposta per salvare chat, file e impostazioni utente.</p>
+
+        <h1 style={s.authTitle}>{authMode === "login" ? "Accedi" : "Crea account"}</h1>
+        <p style={s.authSubtitle}>
+          {authMode === "login"
+            ? "Accedi per salvare chat, file e impostazioni."
+            : "Crea un account per usare l'area privata."}
+        </p>
 
         {authMode === "register" && (
-          <>
-            <label style={s.label}>Nome visualizzato</label>
-            <input style={s.authInput} value={authName} onChange={e => setAuthName(e.target.value)} placeholder="Mario Rossi" />
-          </>
+          <input
+            style={s.authInput}
+            value={authName}
+            onChange={e => setAuthName(e.target.value)}
+            placeholder="Nome visualizzato"
+          />
         )}
 
-        <label style={s.label}>Email</label>
-        <input style={s.authInput} value={authEmail} onChange={e => setAuthEmail(e.target.value)} placeholder="nome@email.com" type="email" />
+        <input
+          style={s.authInput}
+          value={authEmail}
+          onChange={e => setAuthEmail(e.target.value)}
+          placeholder="Email"
+          type="email"
+        />
 
-        {authMode === "register" && (
-          <>
-            <label style={s.label}>Telefono opzionale</label>
-            <input style={s.authInput} value={authPhone} onChange={e => setAuthPhone(e.target.value)} placeholder="+39..." type="tel" />
-          </>
-        )}
-
-        <label style={s.label}>Password</label>
         <input
           style={s.authInput}
           value={authPassword}
@@ -218,41 +222,39 @@ export default function App() {
         />
 
         {authMode === "register" && (
-          <>
-            <label style={s.label}>Conferma password</label>
-            <input
-              style={s.authInput}
-              value={authConfirmPassword}
-              onChange={e => setAuthConfirmPassword(e.target.value)}
-              placeholder="Conferma password"
-              type="password"
-              onKeyDown={e => e.key === "Enter" && handleAuthSubmit()}
-            />
-          </>
+          <input
+            style={s.authInput}
+            value={authConfirmPassword}
+            onChange={e => setAuthConfirmPassword(e.target.value)}
+            placeholder="Conferma password"
+            type="password"
+            onKeyDown={e => e.key === "Enter" && handleAuthSubmit()}
+          />
         )}
 
         {authError && <div style={s.authError}>{authError}</div>}
 
         <button style={{ ...s.authPrimaryBtn, backgroundColor: theme.primary }} onClick={handleAuthSubmit}>
-          {authMode === "login" ? "Accedi" : "Registrati"}
+          {authMode === "login" ? "Accedi con email" : "Registrati con email"}
         </button>
-
-        <div style={s.authDivider}>oppure</div>
 
         <button style={s.authSecondaryBtn} onClick={() => setAuthError("Login Google predisposto: verrà collegato con Supabase Auth.")}>Continua con Google</button>
-        <button style={s.authSecondaryBtn} onClick={() => setAuthError("Login telefono predisposto: richiede provider SMS configurato in Supabase.")}>Continua con telefono</button>
+        <button style={s.authSecondaryBtn} onClick={() => setAuthError("Login telefono predisposto: richiede configurazione SMS in Supabase.")}>Continua con cellulare</button>
 
-        <button style={{ ...s.guestBtn, border: `1px solid ${theme.border || "rgba(120,120,120,0.25)"}` }} onClick={handleGuestAccess}>
-          <span style={s.guestIcon}>👤</span>
-          <span style={s.guestTextWrap}>
-            <strong>Continua come ospite</strong>
-            <span>Usa TechAI senza account. Le chat non verranno salvate.</span>
-          </span>
-          <span style={s.guestArrow}>›</span>
+        <button style={s.guestBtn} onClick={handleGuestAccess}>
+          Continua come ospite
         </button>
 
-        <button style={{ ...s.authSwitchBtn, color: theme.primary }} onClick={() => { setAuthError(""); setAuthPassword(""); setAuthConfirmPassword(""); setAuthMode(authMode === "login" ? "register" : "login"); }}>
-          {authMode === "login" ? "Non hai un account? Registrati" : "Hai già un account? Accedi"}
+        <button
+          style={{ ...s.authSwitchBtn, color: theme.primary }}
+          onClick={() => {
+            setAuthError("");
+            setAuthPassword("");
+            setAuthConfirmPassword("");
+            setAuthMode(authMode === "login" ? "register" : "login");
+          }}
+        >
+          {authMode === "login" ? "Crea account" : "Hai già un account? Accedi"}
         </button>
       </div>
     </div>
@@ -761,19 +763,16 @@ export default function App() {
 }
 
 const s: any = {
-  authPage: { position: "fixed", inset: 0, width: "100vw", height: "100dvh", display: "grid", placeItems: "center", padding: "24px", background: "linear-gradient(135deg, rgba(59,130,246,0.08), rgba(255,255,255,0.98))", overflowY: "auto", fontFamily: "Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" },
-  authCard: { width: "100%", maxWidth: 460, margin: "0 auto", borderRadius: 28, padding: "34px 32px", boxShadow: "0 28px 70px rgba(15,23,42,0.14)", display: "flex", flexDirection: "column", gap: 10, fontFamily: "Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" },
-  authLogo: { fontSize: 27, fontWeight: 900, letterSpacing: "-1px", marginBottom: 8, textAlign: "center", fontFamily: "Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" },
-  authTitle: { fontSize: 27, margin: "4px 0", letterSpacing: "-0.8px", textAlign: "center", fontWeight: 800, fontFamily: "Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" },
-  authSubtitle: { fontSize: 13, opacity: 0.68, lineHeight: 1.5, margin: "0 0 18px", textAlign: "center", fontFamily: "Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" },
-  authInput: { width: "100%", maxWidth: 320, margin: "0 auto 10px", padding: "12px 14px", borderRadius: 13, border: "1px solid rgba(120,120,120,0.25)", outline: "none", fontSize: 14, background: "rgba(255,255,255,0.85)", display: "block" },
-  authPrimaryBtn: { width: "100%", maxWidth: 320, margin: "10px auto 0", padding: 13, border: "none", borderRadius: 14, color: "white", fontWeight: 800, cursor: "pointer", display: "block" },
-  authSecondaryBtn: { width: "100%", maxWidth: 320, margin: "0 auto", padding: 11, border: "1px solid rgba(120,120,120,0.25)", borderRadius: 13, background: "rgba(255,255,255,0.7)", cursor: "pointer", fontWeight: 700, display: "block" },
-  authSwitchBtn: { border: "none", background: "transparent", cursor: "pointer", fontWeight: 800, marginTop: 8, textAlign: "center" },
-  guestBtn: { width: "100%", marginTop: 10, padding: "13px 14px", borderRadius: 16, background: "rgba(255,255,255,0.62)", cursor: "pointer", display: "flex", alignItems: "center", gap: 12, textAlign: "left" },
-  guestIcon: { width: 34, height: 34, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(59,130,246,0.10)", flexShrink: 0 },
-  guestTextWrap: { flex: 1, display: "flex", flexDirection: "column", gap: 3, fontSize: 13 },
-  guestArrow: { fontSize: 26, opacity: 0.55, lineHeight: 1 },
+  authPage: { position: "fixed", inset: 0, width: "100vw", height: "100dvh", display: "flex", alignItems: "center", justifyContent: "center", padding: 20, overflowY: "auto" },
+  authCard: { width: "100%", maxWidth: 380, borderRadius: 24, padding: 28, boxShadow: "0 24px 60px rgba(15,23,42,0.12)", display: "flex", flexDirection: "column", gap: 10 },
+  authLogo: { fontSize: 24, fontWeight: 900, textAlign: "center", marginBottom: 6, letterSpacing: "-1px" },
+  authTitle: { fontSize: 24, fontWeight: 800, textAlign: "center", margin: "0 0 4px" },
+  authSubtitle: { fontSize: 13, opacity: 0.65, textAlign: "center", margin: "0 0 14px", lineHeight: 1.4 },
+  authInput: { width: "100%", height: 44, padding: "0 13px", borderRadius: 12, border: "1px solid rgba(120,120,120,0.28)", outline: "none", fontSize: 14, background: "rgba(255,255,255,0.88)" },
+  authPrimaryBtn: { width: "100%", height: 46, border: "none", borderRadius: 13, color: "white", fontWeight: 800, cursor: "pointer", marginTop: 4 },
+  authSecondaryBtn: { width: "100%", height: 43, border: "1px solid rgba(120,120,120,0.25)", borderRadius: 12, background: "rgba(255,255,255,0.75)", cursor: "pointer", fontWeight: 700 },
+  authSwitchBtn: { border: "none", background: "transparent", cursor: "pointer", fontWeight: 800, marginTop: 4, textAlign: "center" },
+  guestBtn: { width: "100%", height: 44, border: "1px solid rgba(120,120,120,0.25)", borderRadius: 12, background: "rgba(255,255,255,0.45)", cursor: "pointer", fontWeight: 800 },
   authDivider: { textAlign: "center", fontSize: 12, opacity: 0.55, margin: "6px 0" },
   authError: { fontSize: 12, color: "#dc2626", background: "rgba(220,38,38,0.08)", padding: 10, borderRadius: 10, marginBottom: 4 },
   app: { display: "flex", height: "100dvh", width: "100vw", overflow: "hidden", minWidth: 0 },

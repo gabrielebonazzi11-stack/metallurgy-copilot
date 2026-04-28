@@ -28,6 +28,11 @@ interface UserProfile {
   email: string;
 }
 
+interface SavedLogin {
+  email: string;
+  lastAccess: string;
+}
+
 const defaultUser: UserProfile = {
   name: "Mario Rossi",
   email: "mario.rossi@tech.it",
@@ -56,6 +61,7 @@ export default function App() {
   const [loginPassword, setLoginPassword] = useState("");
   const [loginError, setLoginError] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [savedLogins, setSavedLogins] = useState<SavedLogin[]>([]);
 
   const apiKey = import.meta.env.VITE_GROQ_API_KEY;
   const chatEndRef = useRef<HTMLDivElement>(null);
@@ -81,6 +87,7 @@ export default function App() {
       setActiveChatId(p.activeChatId || null);
       setSidebarOpen(p.sidebarOpen ?? true);
       setIsLoggedIn(p.isLoggedIn ?? false);
+      setSavedLogins(p.savedLogins || []);
     } catch {
       console.warn("Impossibile leggere il salvataggio locale.");
     }
@@ -97,6 +104,7 @@ export default function App() {
         activeChatId,
         sidebarOpen,
         isLoggedIn,
+        savedLogins,
       })
     );
   }, [theme, interest, user, chats, activeChatId, sidebarOpen, isLoggedIn]);
@@ -172,6 +180,10 @@ export default function App() {
     }
 
     setUser(prev => ({ ...prev, email: cleanedEmail }));
+    setSavedLogins(prev => {
+      const withoutDuplicate = prev.filter(item => item.email !== cleanedEmail);
+      return [{ email: cleanedEmail, lastAccess: new Date().toISOString() }, ...withoutDuplicate].slice(0, 5);
+    });
     setIsLoggedIn(true);
     setShowLoginPanel(false);
     setLoginError("");
@@ -181,6 +193,32 @@ export default function App() {
   const handleLogout = () => {
     setIsLoggedIn(false);
     setShowLoginPanel(true);
+  };
+
+  const handleGuestLogin = () => {
+    setUser({ name: "Ospite", email: "ospite@techai.local" });
+    setIsLoggedIn(true);
+    setShowLoginPanel(false);
+    setLoginError("");
+    setLoginPassword("");
+  };
+
+  const handleProviderLogin = (provider: "Google" | "telefono") => {
+    const providerEmail = provider === "Google" ? "google.user@techai.local" : "telefono@techai.local";
+    setUser({ name: provider === "Google" ? "Utente Google" : "Utente Telefono", email: providerEmail });
+    setSavedLogins(prev => {
+      const withoutDuplicate = prev.filter(item => item.email !== providerEmail);
+      return [{ email: providerEmail, lastAccess: new Date().toISOString() }, ...withoutDuplicate].slice(0, 5);
+    });
+    setIsLoggedIn(true);
+    setShowLoginPanel(false);
+    setLoginError("");
+  };
+
+  const useSavedLogin = (email: string) => {
+    setLoginEmail(email);
+    setLoginPassword("demo123");
+    setLoginError("");
   };
 
   const openLoginInsideApp = () => {
@@ -327,6 +365,7 @@ export default function App() {
         activeChatId,
         sidebarOpen,
         isLoggedIn,
+        savedLogins,
       })
     );
     setShowSettings(false);
@@ -464,44 +503,61 @@ export default function App() {
   const renderLoginCard = (compact = false) => (
     <div
       style={{
-        ...s.loginCard,
-        background: isDark ? "rgba(17,17,17,0.96)" : "rgba(255,255,255,0.96)",
+        ...s.loginCardModern,
+        background: isDark ? "rgba(17,17,17,0.94)" : "rgba(255,255,255,0.72)",
         color: theme.text,
-        border: `1px solid ${theme.border}`,
-        width: compact ? "100%" : "min(430px, calc(100vw - 32px))",
+        border: `1px solid ${isDark ? "rgba(255,255,255,0.08)" : "rgba(255,255,255,0.75)"}`,
+        width: compact ? "100%" : "min(560px, calc(100vw - 32px))",
       }}
     >
-      <div style={{ ...s.loginLogo, background: theme.primary }}>T</div>
-      <h1 style={s.loginTitle}>Accedi a TechAI</h1>
-      <p style={s.loginSubtitle}>Inserisci email e password per entrare nel programma.</p>
-
-      <label style={s.loginLabel}>Email</label>
-      <div style={{ ...s.loginInputWrap, background: theme.surface, border: `1px solid ${theme.border}` }}>
-        <span style={{ ...s.loginInputIcon, color: theme.primary }}>@</span>
-        <input
-          style={{ ...s.loginInput, color: theme.text }}
-          value={loginEmail}
-          onChange={e => setLoginEmail(e.target.value)}
-          placeholder="nome@email.it"
-          type="email"
-          autoComplete="email"
-        />
+      <div style={s.loginBrand}>
+        TECH<span style={{ color: theme.primary }}>AI</span>
       </div>
 
-      <label style={s.loginLabel}>Password</label>
-      <div style={{ ...s.loginInputWrap, background: theme.surface, border: `1px solid ${theme.border}` }}>
-        <span style={{ ...s.loginInputIcon, color: theme.primary }}>⌕</span>
+      <h1 style={s.loginHeadline}>Accedi al tuo account</h1>
+      <p style={s.loginDescription}>Area privata predisposta per salvare chat, file e impostazioni utente.</p>
+
+      {savedLogins.length > 0 && (
+        <div style={s.savedLoginArea}>
+          <div style={s.savedLoginTitle}>Account salvati</div>
+          <div style={s.savedLoginList}>
+            {savedLogins.map(item => (
+              <button
+                key={item.email}
+                style={{ ...s.savedLoginPill, border: `1px solid ${theme.border}`, color: theme.text }}
+                onClick={() => useSavedLogin(item.email)}
+                type="button"
+              >
+                {item.email}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <label style={s.cleanLoginLabel}>Email</label>
+      <input
+        style={{ ...s.cleanLoginInput, color: theme.text, border: `1px solid ${theme.border}` }}
+        value={loginEmail}
+        onChange={e => setLoginEmail(e.target.value)}
+        placeholder="nome@email.com"
+        type="email"
+        autoComplete="email"
+      />
+
+      <label style={s.cleanLoginLabel}>Password</label>
+      <div style={{ ...s.cleanPasswordWrap, border: `1px solid ${theme.border}` }}>
         <input
-          style={{ ...s.loginInput, color: theme.text }}
+          style={{ ...s.cleanPasswordInput, color: theme.text }}
           value={loginPassword}
           onChange={e => setLoginPassword(e.target.value)}
-          placeholder="Inserisci password"
+          placeholder="Minimo 6 caratteri"
           type={showPassword ? "text" : "password"}
           autoComplete="current-password"
           onKeyDown={e => e.key === "Enter" && handleLogin()}
         />
         <button
-          style={{ ...s.passwordToggle, color: theme.primary }}
+          style={{ ...s.cleanPasswordToggle, color: theme.primary }}
           onClick={() => setShowPassword(prev => !prev)}
           type="button"
         >
@@ -511,22 +567,48 @@ export default function App() {
 
       {loginError && <div style={s.loginError}>{loginError}</div>}
 
-      <button style={{ ...s.loginBtn, background: theme.primary }} onClick={handleLogin}>
-        Login
+      <button style={{ ...s.mainLoginBtn, background: theme.primary }} onClick={handleLogin}>
+        Accedi
+      </button>
+
+      <div style={s.loginDivider}>oppure</div>
+
+      <button
+        style={{ ...s.providerBtn, color: theme.text, border: `1px solid ${theme.border}` }}
+        onClick={() => handleProviderLogin("Google")}
+        type="button"
+      >
+        Continua con Google
       </button>
 
       <button
-        style={{ ...s.ghostLoginBtn, color: theme.text, border: `1px solid ${theme.border}` }}
-        onClick={() => {
-          setLoginEmail(defaultUser.email);
-          setLoginPassword("demo123");
-          setLoginError("");
-        }}
+        style={{ ...s.providerBtn, color: theme.text, border: `1px solid ${theme.border}` }}
+        onClick={() => handleProviderLogin("telefono")}
+        type="button"
       >
-        Compila dati demo
+        Continua con telefono
       </button>
 
-      <p style={s.loginNote}>Nota: questo login è solo grafico/front-end. Per un login reale serve un backend di autenticazione.</p>
+      <button
+        style={{ ...s.guestBtn, color: theme.text, border: `1px solid ${theme.border}` }}
+        onClick={handleGuestLogin}
+        type="button"
+      >
+        <span style={s.guestIcon}>♟</span>
+        <span style={s.guestTextWrap}>
+          <strong>Continua come ospite</strong>
+          <small>Usa TechAI senza account. Le chat non verranno salvate come profilo.</small>
+        </span>
+        <span style={s.guestArrow}>›</span>
+      </button>
+
+      <button
+        style={{ ...s.registerBtn, color: theme.primary }}
+        onClick={() => setLoginError("Registrazione grafica: per un account reale serve collegare un backend/database.")}
+        type="button"
+      >
+        Non hai un account? Registrati
+      </button>
     </div>
   );
 
@@ -892,6 +974,138 @@ const s: any = {
     cursor: "pointer",
     fontSize: 22,
     fontWeight: 700,
+  },
+
+  loginCardModern: {
+    borderRadius: 28,
+    padding: "34px 44px",
+    boxShadow: "0 30px 90px rgba(0,0,0,0.22)",
+    backdropFilter: "blur(24px)",
+    WebkitBackdropFilter: "blur(24px)",
+  },
+  loginBrand: {
+    textAlign: "center",
+    fontSize: 25,
+    fontWeight: 950,
+    letterSpacing: "-1px",
+    marginBottom: 20,
+  },
+  loginHeadline: {
+    textAlign: "center",
+    margin: 0,
+    fontSize: 28,
+    fontWeight: 850,
+    letterSpacing: "-0.8px",
+  },
+  loginDescription: {
+    textAlign: "center",
+    margin: "14px 0 24px",
+    fontSize: 14,
+    opacity: 0.72,
+    lineHeight: 1.45,
+  },
+  savedLoginArea: { marginBottom: 18 },
+  savedLoginTitle: { fontSize: 11, fontWeight: 900, textTransform: "uppercase", opacity: 0.58, marginBottom: 8 },
+  savedLoginList: { display: "flex", gap: 8, flexWrap: "wrap" },
+  savedLoginPill: {
+    background: "rgba(255,255,255,0.35)",
+    borderRadius: 999,
+    padding: "8px 11px",
+    cursor: "pointer",
+    fontSize: 12,
+    fontWeight: 800,
+  },
+  cleanLoginLabel: {
+    display: "block",
+    fontSize: 12,
+    fontWeight: 900,
+    textTransform: "uppercase",
+    opacity: 0.7,
+    margin: "18px 0 8px",
+  },
+  cleanLoginInput: {
+    width: "100%",
+    minHeight: 54,
+    borderRadius: 16,
+    background: "rgba(255,255,255,0.28)",
+    outline: "none",
+    padding: "0 16px",
+    fontSize: 15,
+    fontWeight: 600,
+  },
+  cleanPasswordWrap: {
+    width: "100%",
+    minHeight: 54,
+    borderRadius: 16,
+    background: "rgba(255,255,255,0.28)",
+    display: "flex",
+    alignItems: "center",
+    padding: "0 8px 0 16px",
+  },
+  cleanPasswordInput: {
+    flex: 1,
+    minWidth: 0,
+    border: "none",
+    outline: "none",
+    background: "transparent",
+    fontSize: 15,
+    fontWeight: 600,
+  },
+  cleanPasswordToggle: {
+    border: "none",
+    background: "transparent",
+    cursor: "pointer",
+    fontSize: 12,
+    fontWeight: 850,
+    padding: "10px",
+  },
+  mainLoginBtn: {
+    width: "100%",
+    minHeight: 54,
+    border: "none",
+    borderRadius: 16,
+    color: "white",
+    fontWeight: 900,
+    fontSize: 15,
+    marginTop: 24,
+    cursor: "pointer",
+    boxShadow: "0 14px 30px rgba(37,99,235,0.28)",
+  },
+  loginDivider: { textAlign: "center", fontSize: 12, opacity: 0.62, margin: "15px 0" },
+  providerBtn: {
+    width: "100%",
+    minHeight: 48,
+    borderRadius: 16,
+    background: "rgba(255,255,255,0.22)",
+    cursor: "pointer",
+    fontWeight: 850,
+    fontSize: 14,
+    marginBottom: 10,
+  },
+  guestBtn: {
+    width: "100%",
+    minHeight: 64,
+    borderRadius: 18,
+    background: "rgba(255,255,255,0.22)",
+    cursor: "pointer",
+    display: "flex",
+    alignItems: "center",
+    gap: 12,
+    padding: "10px 14px",
+    textAlign: "left",
+    marginTop: 4,
+  },
+  guestIcon: { width: 28, fontSize: 22, textAlign: "center" },
+  guestTextWrap: { display: "flex", flexDirection: "column", gap: 3, flex: 1, minWidth: 0 },
+  guestArrow: { fontSize: 30, opacity: 0.58 },
+  registerBtn: {
+    width: "100%",
+    border: "none",
+    background: "transparent",
+    cursor: "pointer",
+    fontWeight: 900,
+    fontSize: 15,
+    marginTop: 20,
   },
 
   sidebar: {

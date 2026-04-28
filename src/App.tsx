@@ -1051,9 +1051,25 @@ export default function App() {
           {iconBtn("＋", "Nuova", createNewChat)}
           {iconBtn("≡", "Chat", () => setSidebarOpen(true), sidebarOpen)}
           {iconBtn("🔐", isLoggedIn ? "Account" : "Login", openLoginInsideApp)}
-          {iconBtn("✓", "Checklist", () => setShowChecklist(true))}
-          {iconBtn("∑", "Verifica", () => setShowQuickCalc(true))}
-          {iconBtn("▦", "Materiali", () => setShowMaterials(true))}
+
+          <div
+            style={{
+              ...s.toolsGroup,
+              background: isDark ? "rgba(255,255,255,0.035)" : "rgba(59,130,246,0.045)",
+              border: `1px solid ${theme.border || theme.surface}`,
+            }}
+          >
+            {sidebarOpen && (
+              <div style={{ ...s.toolsTitle, color: theme.primary }}>
+                Strumenti tecnici
+              </div>
+            )}
+
+            {iconBtn("✓", "Checklist", () => setShowChecklist(true))}
+            {iconBtn("∑", "Verifica", () => setShowQuickCalc(true))}
+            {iconBtn("▦", "Materiali", () => setShowMaterials(true))}
+          </div>
+
           {iconBtn("⚙", "Impostazioni", () => { setActiveTab("Aspetto"); setShowSettings(true); })}
         </div>
 
@@ -1716,6 +1732,8 @@ const s: any = {
   collapseBtn: { width: 44, height: 44, borderRadius: 14, cursor: "pointer", fontSize: 22, lineHeight: 1, display: "flex", alignItems: "center", justifyContent: "center" },
 
   iconNav: { display: "flex", flexDirection: "column", gap: 10, flexShrink: 0 },
+  toolsGroup: { display: "flex", flexDirection: "column", gap: 6, borderRadius: 18, padding: 8, margin: "2px 0" },
+  toolsTitle: { fontSize: 11, textTransform: "uppercase", fontWeight: 950, letterSpacing: "0.5px", opacity: 0.9, padding: "4px 8px 2px" },
   iconBtn: { minHeight: 44, borderRadius: 14, cursor: "pointer", display: "flex", alignItems: "center", gap: 10, fontSize: 14, fontWeight: 700, background: "transparent", textAlign: "left", flexShrink: 0 },
   icon: { width: 22, height: 22, display: "inline-flex", justifyContent: "center", alignItems: "center", fontSize: 15, fontWeight: 600, opacity: 0.88, letterSpacing: "-1px", flexShrink: 0 },
   iconLabel: { whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" },

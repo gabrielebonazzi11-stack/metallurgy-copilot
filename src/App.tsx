@@ -322,7 +322,7 @@ ${cleanedText || "Il file risulta vuoto."}`,
         title="Carica file testuale"
         disabled={fileLoading}
       >
-        {fileLoading ? "⏳" : "📎"}
+        {fileLoading ? "…" : "⌁"}
       </button>
 
       <textarea
@@ -343,7 +343,7 @@ ${cleanedText || "Il file risulta vuoto."}`,
         onClick={callAI}
         disabled={loading || fileLoading}
       >
-        🚀
+        ➤
       </button>
     </div>
   );
@@ -384,8 +384,8 @@ ${cleanedText || "Il file risulta vuoto."}`,
         </div>
 
         <div style={{ ...s.iconNav, alignItems: sidebarOpen ? "stretch" : "center" }}>
-          {iconBtn("✎", "Nuova", createNewChat)}
-          {iconBtn("⌕", "Chat", () => setSidebarOpen(true), sidebarOpen)}
+          {iconBtn("＋", "Nuova", createNewChat)}
+          {iconBtn("≡", "Chat", () => setSidebarOpen(true), sidebarOpen)}
           {iconBtn("⚙", "Impostazioni", () => { setActiveTab("Aspetto"); setShowSettings(true); })}
         </div>
 
@@ -586,7 +586,7 @@ const s: any = {
 
   iconNav: { display: "flex", flexDirection: "column", gap: 10, flexShrink: 0 },
   iconBtn: { minHeight: 44, borderRadius: 14, cursor: "pointer", display: "flex", alignItems: "center", gap: 10, fontSize: 14, fontWeight: 700, background: "transparent", textAlign: "left", flexShrink: 0 },
-  icon: { width: 22, height: 22, display: "inline-flex", justifyContent: "center", alignItems: "center", fontSize: 17, fontWeight: 700, opacity: 0.9, flexShrink: 0 },
+  icon: { width: 22, height: 22, display: "inline-flex", justifyContent: "center", alignItems: "center", fontSize: 15, fontWeight: 600, opacity: 0.88, letterSpacing: "-1px", flexShrink: 0 },
   iconLabel: { whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" },
 
   chatHistory: { flex: 1, minHeight: 0, overflowY: "auto", overflowX: "hidden", display: "flex", flexDirection: "column", gap: 6, paddingRight: 2 },
@@ -604,10 +604,10 @@ const s: any = {
   homeWrapper: { width: "100%", maxWidth: 720, textAlign: "center", padding: "0 22px" },
   welcomeText: { fontSize: "clamp(25px, 4vw, 38px)", fontWeight: 600, marginBottom: 30, letterSpacing: "-1px" },
 
-  searchBar: { display: "flex", alignItems: "center", borderRadius: 28, padding: "6px 16px", width: "100%", minHeight: 56, boxShadow: "0 8px 24px rgba(0,0,0,0.04)", flexShrink: 0 },
-  fileBtn: { background: "none", border: "none", cursor: "pointer", fontSize: 22, marginRight: 6, flexShrink: 0 },
+  searchBar: { display: "flex", alignItems: "center", borderRadius: 28, padding: "6px 16px", width: "100%", minHeight: 56, boxShadow: "0 8px 24px rgba(0,0,0,0.04)", backdropFilter: "blur(10px)", flexShrink: 0 },
+  fileBtn: { width: 34, height: 34, background: "none", border: "none", cursor: "pointer", fontSize: 22, marginRight: 6, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", opacity: 0.85 },
   textarea: { flex: 1, minWidth: 0, maxHeight: 140, background: "none", border: "none", outline: "none", textAlign: "center", fontSize: 16, resize: "none", padding: "10px 0", overflowY: "auto" },
-  sendBtn: { background: "none", border: "none", cursor: "pointer", fontSize: 22, marginLeft: 6, flexShrink: 0 },
+  sendBtn: { width: 34, height: 34, background: "none", border: "none", cursor: "pointer", fontSize: 20, marginLeft: 6, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", opacity: 0.9 },
   fileHint: { fontSize: 12, opacity: 0.58, marginTop: 12 },
 
   chatView: { width: "100%", maxWidth: 900, flex: 1, minHeight: 0, display: "flex", flexDirection: "column", padding: "14px 22px", overflow: "hidden" },
@@ -630,4 +630,5 @@ const s: any = {
   themeOption: { padding: 12, borderRadius: 14, cursor: "pointer", display: "flex", alignItems: "center", gap: 12, fontSize: 13, fontWeight: 700 },
   saveBtn: { marginTop: "auto", padding: 14, border: "none", borderRadius: 14, color: "white", fontWeight: 700, cursor: "pointer" },
 };
+
 

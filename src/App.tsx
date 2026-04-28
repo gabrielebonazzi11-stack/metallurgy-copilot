@@ -69,6 +69,7 @@ export default function App() {
   const [authMode, setAuthMode] = useState<"login" | "register">("login");
   const [authEmail, setAuthEmail] = useState("");
   const [authPassword, setAuthPassword] = useState("");
+  const [authConfirmPassword, setAuthConfirmPassword] = useState("");
   const [authName, setAuthName] = useState("");
   const [authPhone, setAuthPhone] = useState("");
   const [authError, setAuthError] = useState("");
@@ -130,8 +131,18 @@ export default function App() {
       return;
     }
 
-    if (authPassword.length < 6) {
+    if (!authPassword.trim()) {
+      setAuthError("Inserisci la password.");
+      return;
+    }
+
+    if (authMode === "register" && authPassword.length < 6) {
       setAuthError("La password deve avere almeno 6 caratteri.");
+      return;
+    }
+
+    if (authMode === "register" && authPassword !== authConfirmPassword) {
+      setAuthError("Le password non coincidono.");
       return;
     }
 
@@ -150,6 +161,7 @@ export default function App() {
     });
     setIsAuthenticated(true);
     setAuthPassword("");
+    setAuthConfirmPassword("");
   };
 
   const handleLogout = () => {
@@ -196,7 +208,28 @@ export default function App() {
         )}
 
         <label style={s.label}>Password</label>
-        <input style={s.authInput} value={authPassword} onChange={e => setAuthPassword(e.target.value)} placeholder="Minimo 6 caratteri" type="password" onKeyDown={e => e.key === "Enter" && handleAuthSubmit()} />
+        <input
+          style={s.authInput}
+          value={authPassword}
+          onChange={e => setAuthPassword(e.target.value)}
+          placeholder={authMode === "register" ? "Inserisci password" : "Password"}
+          type="password"
+          onKeyDown={e => e.key === "Enter" && handleAuthSubmit()}
+        />
+
+        {authMode === "register" && (
+          <>
+            <label style={s.label}>Conferma password</label>
+            <input
+              style={s.authInput}
+              value={authConfirmPassword}
+              onChange={e => setAuthConfirmPassword(e.target.value)}
+              placeholder="Conferma password"
+              type="password"
+              onKeyDown={e => e.key === "Enter" && handleAuthSubmit()}
+            />
+          </>
+        )}
 
         {authError && <div style={s.authError}>{authError}</div>}
 
@@ -218,7 +251,7 @@ export default function App() {
           <span style={s.guestArrow}>›</span>
         </button>
 
-        <button style={{ ...s.authSwitchBtn, color: theme.primary }} onClick={() => { setAuthError(""); setAuthMode(authMode === "login" ? "register" : "login"); }}>
+        <button style={{ ...s.authSwitchBtn, color: theme.primary }} onClick={() => { setAuthError(""); setAuthPassword(""); setAuthConfirmPassword(""); setAuthMode(authMode === "login" ? "register" : "login"); }}>
           {authMode === "login" ? "Non hai un account? Registrati" : "Hai già un account? Accedi"}
         </button>
       </div>
@@ -728,14 +761,14 @@ export default function App() {
 }
 
 const s: any = {
-  authPage: { minHeight: "100dvh", width: "100vw", display: "flex", alignItems: "center", justifyContent: "center", padding: "24px", background: "linear-gradient(135deg, rgba(59,130,246,0.10), rgba(255,255,255,0.96))", overflowY: "auto" },
-  authCard: { width: "100%", maxWidth: 460, margin: "auto", borderRadius: 28, padding: "34px 32px", boxShadow: "0 28px 70px rgba(15,23,42,0.14)", display: "flex", flexDirection: "column", gap: 10, alignSelf: "center" },
-  authLogo: { fontSize: 25, fontWeight: 900, letterSpacing: "-1px", marginBottom: 8, textAlign: "center" },
-  authTitle: { fontSize: 26, margin: "4px 0", letterSpacing: "-0.8px", textAlign: "center" },
-  authSubtitle: { fontSize: 13, opacity: 0.68, lineHeight: 1.5, margin: "0 0 18px", textAlign: "center" },
-  authInput: { width: "100%", padding: "13px 14px", borderRadius: 13, border: "1px solid rgba(120,120,120,0.25)", outline: "none", fontSize: 14, marginBottom: 10, background: "rgba(255,255,255,0.78)" },
-  authPrimaryBtn: { width: "100%", padding: 14, border: "none", borderRadius: 14, color: "white", fontWeight: 800, cursor: "pointer", marginTop: 4 },
-  authSecondaryBtn: { width: "100%", padding: 12, border: "1px solid rgba(120,120,120,0.25)", borderRadius: 13, background: "rgba(255,255,255,0.65)", cursor: "pointer", fontWeight: 700 },
+  authPage: { position: "fixed", inset: 0, width: "100vw", height: "100dvh", display: "grid", placeItems: "center", padding: "24px", background: "linear-gradient(135deg, rgba(59,130,246,0.08), rgba(255,255,255,0.98))", overflowY: "auto", fontFamily: "Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" },
+  authCard: { width: "100%", maxWidth: 460, margin: "0 auto", borderRadius: 28, padding: "34px 32px", boxShadow: "0 28px 70px rgba(15,23,42,0.14)", display: "flex", flexDirection: "column", gap: 10, fontFamily: "Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" },
+  authLogo: { fontSize: 27, fontWeight: 900, letterSpacing: "-1px", marginBottom: 8, textAlign: "center", fontFamily: "Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" },
+  authTitle: { fontSize: 27, margin: "4px 0", letterSpacing: "-0.8px", textAlign: "center", fontWeight: 800, fontFamily: "Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" },
+  authSubtitle: { fontSize: 13, opacity: 0.68, lineHeight: 1.5, margin: "0 0 18px", textAlign: "center", fontFamily: "Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" },
+  authInput: { width: "100%", maxWidth: 320, margin: "0 auto 10px", padding: "12px 14px", borderRadius: 13, border: "1px solid rgba(120,120,120,0.25)", outline: "none", fontSize: 14, background: "rgba(255,255,255,0.85)", display: "block" }
+  authPrimaryBtn: { width: "100%", maxWidth: 320, margin: "10px auto 0", padding: 13, border: "none", borderRadius: 14, color: "white", fontWeight: 800, cursor: "pointer", display: "block" },
+  authSecondaryBtn: { width: "100%", maxWidth: 320, margin: "0 auto", padding: 11, border: "1px solid rgba(120,120,120,0.25)", borderRadius: 13, background: "rgba(255,255,255,0.7)", cursor: "pointer", fontWeight: 700, display: "block" },
   authSwitchBtn: { border: "none", background: "transparent", cursor: "pointer", fontWeight: 800, marginTop: 8, textAlign: "center" },
   guestBtn: { width: "100%", marginTop: 10, padding: "13px 14px", borderRadius: 16, background: "rgba(255,255,255,0.62)", cursor: "pointer", display: "flex", alignItems: "center", gap: 12, textAlign: "left" },
   guestIcon: { width: 34, height: 34, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(59,130,246,0.10)", flexShrink: 0 },

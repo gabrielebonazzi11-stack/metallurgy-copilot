@@ -322,7 +322,7 @@ ${cleanedText || "Il file risulta vuoto."}`,
         title="Carica file testuale"
         disabled={fileLoading}
       >
-        {fileLoading ? "…" : "⌁"}
+        {fileLoading ? "…" : "📎"}
       </button>
 
       <textarea
@@ -595,7 +595,7 @@ const s: any = {
   historyTitle: { overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis", flex: 1 },
   deleteBtn: { border: "none", background: "transparent", cursor: "pointer", fontSize: 18, opacity: 0.55 },
 
-  sidebarAccount: { display: "flex", alignItems: "center", gap: 10, minHeight: 48, padding: "7px", cursor: "pointer", borderRadius: 14, flexShrink: 0 },
+  sidebarAccount: { display: "flex", alignItems: "center", gap: 10, minHeight: 48, padding: "7px", cursor: "pointer", borderRadius: 14, marginTop: "auto", flexShrink: 0 },
   avatar: { width: 38, height: 38, borderRadius: "50%", color: "white", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: 14, flexShrink: 0 },
   accountText: { display: "flex", flexDirection: "column", minWidth: 0 },
 
@@ -630,5 +630,3 @@ const s: any = {
   themeOption: { padding: 12, borderRadius: 14, cursor: "pointer", display: "flex", alignItems: "center", gap: 12, fontSize: 13, fontWeight: 700 },
   saveBtn: { marginTop: "auto", padding: 14, border: "none", borderRadius: 14, color: "white", fontWeight: 700, cursor: "pointer" },
 };
-
-

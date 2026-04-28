@@ -899,11 +899,6 @@ export default function App() {
 
   // 🧾 FILE TESTO (fallback)
   return await file.text();
-};
-      );
-    }
-
-    return await file.text();
   };
 
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {

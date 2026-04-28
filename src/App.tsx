@@ -844,9 +844,63 @@ export default function App() {
   };
 
   const readTextFile = async (file: File) => {
-    if (!isSupportedTextFile(file)) {
-      throw new Error(
-        "Formato non leggibile senza librerie. Questa versione supporta solo file testuali: TXT, CSV, JSON, MD, XML, HTML, CSS, JS, TS, TSX e simili."
+  const readTextFile = async (file: File) => {
+  const name = file.name.toLowerCase();
+
+  // 📄 PDF
+  if (name.endsWith(".pdf")) {
+    const pdfjsLib = await import("pdfjs-dist");
+    const pdfWorker = await import("pdfjs-dist/build/pdf.worker.min?url");
+
+    pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorker.default;
+
+    const arrayBuffer = await file.arrayBuffer();
+    const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+
+    let text = "";
+
+    for (let i = 1; i <= pdf.numPages; i++) {
+      const page = await pdf.getPage(i);
+      const content = await page.getTextContent();
+
+      text += content.items.map((item: any) => item.str).join(" ") + "\n";
+    }
+
+    return text;
+  }
+
+  // 🖼️ IMMAGINI (preview base)
+  if (file.type.startsWith("image/")) {
+    return `[Immagine caricata: ${file.name}]`;
+  }
+
+  // 📄 DOCX
+  if (name.endsWith(".docx")) {
+    const mammoth = await import("mammoth");
+    const arrayBuffer = await file.arrayBuffer();
+    const result = await mammoth.extractRawText({ arrayBuffer });
+    return result.value;
+  }
+
+  // 📊 EXCEL
+  if (name.endsWith(".xlsx")) {
+    const XLSX = await import("xlsx");
+    const data = await file.arrayBuffer();
+    const workbook = XLSX.read(data);
+
+    let text = "";
+
+    workbook.SheetNames.forEach(sheet => {
+      const sheetData = XLSX.utils.sheet_to_csv(workbook.Sheets[sheet]);
+      text += `\n--- ${sheet} ---\n${sheetData}`;
+    });
+
+    return text;
+  }
+
+  // 🧾 FILE TESTO (fallback)
+  return await file.text();
+};
       );
     }
 

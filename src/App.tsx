@@ -2,10 +2,10 @@ import React, { useState, useRef, useEffect } from "react";
 
 const THEMES = [
   { name: "Industrial Blue", primary: "#3b82f6", bg: "#f8fafc", surface: "#eff6ff", text: "#1e293b", border: "#dbeafe" },
-  { name: "Slate Grey", primary: "#475569", bg: "#f1f5f9", surface: "#e2e8f0", text: "#1e293b", border: "#cbd5e1" },
+  { name: "Slate Grey", primary: "#475569", bg: "#e5e7eb", surface: "#cbd5e1", text: "#1e293b", border: "#94a3b8" },
   { name: "Forest Green", primary: "#22c55e", bg: "#f0fdf4", surface: "#dcfce7", text: "#14532d", border: "#bbf7d0" },
   { name: "Deep Burgundy", primary: "#dc2626", bg: "#fef2f2", surface: "#fee2e2", text: "#7f1d1d", border: "#fecaca" },
-  { name: "Sandstone", primary: "#a8a29e", bg: "#fafaf9", surface: "#f5f5f4", text: "#44403c", border: "#e7e5e4" },
+  { name: "Sandstone", primary: "#a8a29e", bg: "#f5f5f4", surface: "#e7e5e4", text: "#44403c", border: "#d6d3d1" },
   { name: "Dark Black", primary: "#60a5fa", bg: "#050505", surface: "#111111", text: "#f8fafc", border: "#262626" },
 ];
 

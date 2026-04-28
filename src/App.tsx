@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
+import { MATERIALS_DB, MaterialInfo } from "./data/materials";
 
 const THEMES = [
   { name: "Industrial Blue", primary: "#3b82f6", bg: "#f8fafc", surface: "#eff6ff", text: "#1e293b", border: "#dbeafe" },

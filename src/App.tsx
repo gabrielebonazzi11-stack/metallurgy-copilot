@@ -1,21 +1,46 @@
 import React, { useState, useRef, useEffect } from "react";
 
+const THEMES = [
+  { name: "Industrial Blue", primary: "#3b82f6", bg: "#f0f7ff" },
+  { name: "Slate Grey", primary: "#475569", bg: "#f8fafc" },
+  { name: "Forest Green", primary: "#15803d", bg: "#f0fdf4" },
+  { name: "Deep Burgundy", primary: "#991b1b", bg: "#fef2f2" },
+  { name: "Sandstone", primary: "#a8a29e", bg: "#fafaf9" },
+];
+
 interface Message { role: "utente" | "AI"; text: string; }
 
 export default function App() {
   const [query, setQuery] = useState("");
   const [chat, setChat] = useState<Message[]>([]);
   const [loading, setLoading] = useState(false);
-  const [view, setView] = useState("advisor");
+  const [activeTab, setActiveTab] = useState("Aspetto");
   
-  // STATI PER PERSONALIZZAZIONE
+  // STATI PERSISTENTI
   const [showSettings, setShowSettings] = useState(false);
-  const [accentColor, setAccentColor] = useState("#3b82f6");
-  const [interest, setInterest] = useState("Ingegneria Meccanica e Metallurgia");
-  const [personality, setPersonality] = useState("Professionale e Tecnico");
+  const [theme, setTheme] = useState(THEMES[0]);
+  const [interest, setInterest] = useState("Ingegneria Meccanica");
+  const [personality, setPersonality] = useState("Professionale");
 
   const apiKey = import.meta.env.VITE_GROQ_API_KEY;
   const chatEndRef = useRef<HTMLDivElement>(null);
+
+  // Carica impostazioni al boot
+  useEffect(() => {
+    const saved = localStorage.getItem("techai_prefs");
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      setTheme(parsed.theme);
+      setInterest(parsed.interest);
+      setPersonality(parsed.personality);
+    }
+  }, []);
+
+  // Salva ogni volta che cambiano
+  const savePrefs = () => {
+    localStorage.setItem("techai_prefs", JSON.stringify({ theme, interest, personality }));
+    setShowSettings(false);
+  };
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -38,11 +63,9 @@ export default function App() {
           messages: [
             { 
               role: "system", 
-              content: `Sei TechAI. 
-              AMBITO: ${interest}. 
-              PERSONALITÀ: ${personality}.
-              MATEMATICA: Usa <div class="math-frac"><span>N</span><span class="bottom">D</span></div> per le frazioni.
-              TABELLE: HTML con bordi.` 
+              content: `Sei TechAI. Ambito: ${interest}. Stile: ${personality}. 
+              Se salutato o vago, rispondi cordiale e breve. Se specifico, sii tecnico.
+              Matematica: <div class="math-frac"><span>N</span><span class="bottom">D</span></div>. Tabelle: HTML.` 
             },
             { role: "user", content: text }
           ],
@@ -57,98 +80,95 @@ export default function App() {
 
   return (
     <div style={s.app}>
-      {/* SIDEBAR */}
       <aside style={s.sidebar}>
-        <div style={s.logo}>TECH<span style={{color: accentColor}}>AI</span></div>
+        <div style={s.logo}>TECH<span style={{color: theme.primary}}>AI</span></div>
         <nav style={s.nav}>
-          <button style={{...(view === "advisor" ? s.navBtnAct : s.navBtn), backgroundColor: view === "advisor" ? `${accentColor}20` : 'transparent', color: view === "advisor" ? accentColor : '#444746'}} onClick={() => setView("advisor")}>🧠 Advisor</button>
+          <button style={{...s.navBtn, backgroundColor: theme.bg, color: theme.primary, fontWeight: 700}}>🧠 Advisor</button>
           <button style={s.navBtn} onClick={() => setChat([])}>🔄 Nuova chat</button>
         </nav>
-        
-        {/* ICONA IMPOSTAZIONI IN BASSO */}
-        <div style={s.settingsTrigger} onClick={() => setShowSettings(!showSettings)}>
-          ⚙️ Impostazioni
-        </div>
+        <div style={s.settingsTrigger} onClick={() => setShowSettings(true)}>⚙️ Impostazioni</div>
       </aside>
 
       <main style={s.main}>
-        <section style={{...s.content, justifyContent: isChatEmpty ? 'center' : 'space-between'}}>
+        <section style={{...s.content, justifyContent: isChatEmpty ? 'center' : 'flex-start'}}>
+          {isChatEmpty && <h1 style={s.welcomeText}>Benvenuto, come posso aiutarti?</h1>}
           
-          {isChatEmpty ? (
-            <div style={s.homeCenter}>
-              <h1 style={s.welcomeText}>Benvenuto, come posso aiutarti oggi?</h1>
-              <div style={s.searchBarWrapper}>
-                <div style={s.searchBar}>
-                  <textarea 
-                    style={s.textarea} rows={1} value={query} 
-                    placeholder="Chiedi a TechAI..."
-                    onChange={e => { setQuery(e.target.value); e.target.style.height = 'auto'; e.target.style.height = e.target.scrollHeight + 'px'; }}
-                    onKeyDown={e => e.key === "Enter" && !e.shiftKey && (e.preventDefault(), callAI())}
-                  />
-                  <button style={s.sendBtn} onClick={callAI}>🚀</button>
-                </div>
-              </div>
-            </div>
-          ) : (
-            <div style={s.chatContainer}>
+          <div style={s.chatWrapper}>
+            {!isChatEmpty && (
               <div style={s.msgList}>
                 {chat.map((m, i) => (
                   <div key={i} style={m.role === "utente" ? s.uRow : s.aRow}>
-                    <div style={m.role === "utente" ? s.uBox : s.aBox} 
+                    <div style={m.role === "utente" ? {...s.uBox, backgroundColor: theme.bg} : s.aBox} 
                          dangerouslySetInnerHTML={{ __html: m.text.replace(/\n/g, '<br/>') }} />
                   </div>
                 ))}
-                {loading && <div style={{...s.loader, color: accentColor}}>✨ TechAi sta analizzando...</div>}
+                {loading && <div style={{...s.loader, color: theme.primary}}>✨ Elaborazione...</div>}
                 <div ref={chatEndRef} />
               </div>
-              <div style={s.bottomInputWrapper}>
-                <div style={s.searchBar}>
-                  <textarea 
-                    style={s.textarea} rows={1} value={query} 
-                    placeholder="Scrivi qui..."
-                    onChange={e => { setQuery(e.target.value); e.target.style.height = 'auto'; e.target.style.height = e.target.scrollHeight + 'px'; }}
-                    onKeyDown={e => e.key === "Enter" && !e.shiftKey && (e.preventDefault(), callAI())}
-                  />
-                  <button style={s.sendBtn} onClick={callAI}>🚀</button>
-                </div>
+            )}
+
+            <div style={isChatEmpty ? s.inputHome : s.inputChat}>
+              <div style={s.searchBar}>
+                <textarea 
+                  style={s.textarea} rows={1} value={query} placeholder="Chiedi a TechAI..."
+                  onChange={e => { setQuery(e.target.value); e.target.style.height='auto'; e.target.style.height=e.target.scrollHeight+'px'; }}
+                  onKeyDown={e => e.key === "Enter" && !e.shiftKey && (e.preventDefault(), callAI())}
+                />
+                <button style={s.sendBtn} onClick={callAI}>🚀</button>
               </div>
             </div>
-          )}
+          </div>
         </section>
 
-        {/* MODALE IMPOSTAZIONI */}
+        {/* MODALE IMPOSTAZIONI COMPLETO */}
         {showSettings && (
           <div style={s.modalOverlay}>
             <div style={s.modal}>
-              <h2 style={{marginBottom: '20px'}}>Personalizzazione</h2>
-              <label style={s.label}>Colore Interfaccia</label>
-              <input type="color" value={accentColor} onChange={(e) => setAccentColor(e.target.value)} style={s.colorPicker} />
-              
-              <label style={s.label}>Ambito di Interesse</label>
-              <input style={s.input} value={interest} onChange={(e) => setInterest(e.target.value)} placeholder="Es: Meccanica, Software..." />
-
-              <label style={s.label}>Modo di fare dell'AI</label>
-              <select style={s.input} value={personality} onChange={(e) => setPersonality(e.target.value)}>
-                <option>Professionale e Tecnico</option>
-                <option>Amichevole e Creativo</option>
-                <option>Sintetico e Diretto</option>
-              </select>
-
-              <button style={{...s.primaryBtn, backgroundColor: accentColor}} onClick={() => setShowSettings(false)}>Salva e Chiudi</button>
+              <div style={s.modalSidebar}>
+                {["Aspetto", "Personalità", "Account"].map(tab => (
+                  <div key={tab} style={{...s.tabBtn, color: activeTab === tab ? theme.primary : '#64748b', fontWeight: activeTab === tab ? 700 : 400}} onClick={() => setActiveTab(tab)}>{tab}</div>
+                ))}
+              </div>
+              <div style={s.modalContent}>
+                {activeTab === "Aspetto" && (
+                  <>
+                    <label style={s.label}>Seleziona Tema Sobrio</label>
+                    <div style={s.themeGrid}>
+                      {THEMES.map(t => (
+                        <div key={t.name} onClick={() => setTheme(t)} style={{...s.themeOption, border: theme.name === t.name ? `2px solid ${t.primary}` : '2px solid transparent'}}>
+                          <div style={{background: t.primary, width: '20px', height: '20px', borderRadius: '50%'}}></div>
+                          {t.name}
+                        </div>
+                      ))}
+                    </div>
+                  </>
+                )}
+                {activeTab === "Personalità" && (
+                  <>
+                    <label style={s.label}>Ambito Tecnico</label>
+                    <input style={s.input} value={interest} onChange={e => setInterest(e.target.value)} />
+                    <label style={s.label}>Modo di fare</label>
+                    <select style={s.input} value={personality} onChange={e => setPersonality(e.target.value)}>
+                      <option>Professionale</option><option>Sintetico</option><option>Creativo</option>
+                    </select>
+                  </>
+                )}
+                <button style={{...s.primaryBtn, backgroundColor: theme.primary}} onClick={savePrefs}>Applica e Salva</button>
+              </div>
             </div>
           </div>
         )}
       </main>
 
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
-        * { font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important; }
-        table { width: 100%; border-collapse: collapse; margin: 15px 0; background: white; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden; }
-        th { background: #f8fafc; color: #64748b; padding: 12px; text-align: left; font-size: 12px; text-transform: uppercase; border-bottom: 1px solid #e2e8f0; }
-        td { padding: 12px; border-bottom: 1px solid #f1f5f9; font-size: 14px; color: #1e293b; }
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap');
+        * { font-family: 'Inter', -apple-system, sans-serif !important; }
         .math-frac { display: inline-block; vertical-align: middle; text-align: center; font-family: "Times New Roman", serif; font-size: 18px; margin: 0 4px; }
-        .math-frac span { display: block; padding: 0 4px; }
-        .math-frac span.bottom { border-top: 1.5px solid #1e293b; padding-top: 1px; }
+        .math-frac span { display: block; border-top: 1.5px solid #1e293b; padding-top: 1px; }
+        .math-frac span:first-child { border: none; }
+        table { width: 100%; border-collapse: collapse; margin: 10px 0; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden; }
+        th { background: #f8fafc; padding: 10px; font-size: 12px; color: #64748b; text-align: left; }
+        td { padding: 10px; border-top: 1px solid #f1f5f9; font-size: 14px; }
       `}</style>
     </div>
   );
@@ -156,32 +176,34 @@ export default function App() {
 
 const s: any = {
   app: { display: 'flex', height: '100vh', backgroundColor: '#ffffff' },
-  sidebar: { width: '240px', backgroundColor: '#f0f4f9', padding: '20px', display: 'flex', flexDirection: 'column', borderRight: '1px solid #e2e8f0', position: 'relative' },
-  logo: { fontSize: '22px', fontWeight: 800, marginBottom: '30px', letterSpacing: '-1px' },
-  nav: { display: 'flex', flexDirection: 'column', gap: '4px', flex: 1 },
-  navBtn: { padding: '10px 15px', border: 'none', background: 'none', textAlign: 'left', cursor: 'pointer', fontWeight: 500, borderRadius: '12px', fontSize: '14px' },
-  navBtnAct: { padding: '10px 15px', borderRadius: '12px', border: 'none', textAlign: 'left', fontWeight: 600, fontSize: '14px' },
-  settingsTrigger: { padding: '12px', cursor: 'pointer', fontSize: '14px', color: '#444746', fontWeight: 500, borderTop: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', gap: '8px' },
+  sidebar: { width: '240px', backgroundColor: '#f9fafb', padding: '20px', display: 'flex', flexDirection: 'column', borderRight: '1px solid #e5e7eb' },
+  logo: { fontSize: '20px', fontWeight: 800, marginBottom: '30px' },
+  nav: { flex: 1, display: 'flex', flexDirection: 'column', gap: '5px' },
+  navBtn: { padding: '10px 15px', border: 'none', background: 'none', textAlign: 'left', cursor: 'pointer', borderRadius: '12px', fontSize: '14px' },
+  settingsTrigger: { padding: '15px', borderTop: '1px solid #e5e7eb', cursor: 'pointer', fontSize: '14px', color: '#6b7280' },
   main: { flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' },
-  content: { flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' },
-  homeCenter: { display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%' },
-  welcomeText: { fontSize: '32px', fontWeight: 600, color: '#1e293b', marginBottom: '30px', textAlign: 'center' },
-  searchBarWrapper: { width: '100%', maxWidth: '650px', padding: '0 20px' },
-  bottomInputWrapper: { padding: '20px', width: '100%', maxWidth: '800px', margin: '0 auto' },
-  searchBar: { display: 'flex', alignItems: 'center', background: '#f0f4f9', padding: '5px 20px', borderRadius: '28px', minHeight: '50px' },
-  textarea: { flex: 1, border: 'none', outline: 'none', resize: 'none', fontSize: '16px', background: 'transparent', textAlign: 'center', padding: '12px 0' },
-  sendBtn: { background: 'none', border: 'none', cursor: 'pointer', fontSize: '18px' },
-  chatContainer: { flex: 1, display: 'flex', flexDirection: 'column', width: '100%', maxWidth: '800px', margin: '0 auto', overflow: 'hidden' },
-  msgList: { flex: 1, overflowY: 'auto', padding: '20px', display: 'flex', flexDirection: 'column', gap: '24px' },
+  content: { flex: 1, display: 'flex', flexDirection: 'column', overflowY: 'auto' },
+  welcomeText: { fontSize: '32px', fontWeight: 600, textAlign: 'center', marginBottom: '40px', color: '#111827' },
+  chatWrapper: { maxWidth: '800px', width: '100%', margin: '0 auto', display: 'flex', flexDirection: 'column', flex: 1 },
+  msgList: { flex: 1, padding: '20px', display: 'flex', flexDirection: 'column', gap: '25px' },
   uRow: { display: 'flex', justifyContent: 'flex-end' },
   aRow: { display: 'flex', justifyContent: 'flex-start' },
-  uBox: { backgroundColor: '#f0f4f9', color: '#1e293b', padding: '12px 20px', borderRadius: '18px', maxWidth: '80%', fontSize: '15px' },
-  aBox: { color: '#1e293b', padding: '12px 0', maxWidth: '100%', fontSize: '16px', lineHeight: '1.6' },
-  modalOverlay: { position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.4)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000 },
-  modal: { backgroundColor: 'white', padding: '30px', borderRadius: '20px', width: '90%', maxWidth: '400px', boxShadow: '0 10px 40px rgba(0,0,0,0.2)' },
-  label: { display: 'block', fontSize: '12px', fontWeight: 700, color: '#64748b', marginBottom: '8px', marginTop: '15px', textTransform: 'uppercase' },
-  input: { width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid #e2e8f0', fontSize: '14px', outline: 'none' },
-  colorPicker: { width: '100%', height: '40px', border: 'none', cursor: 'pointer', background: 'none' },
-  primaryBtn: { width: '100%', padding: '12px', border: 'none', borderRadius: '10px', color: 'white', fontWeight: 600, marginTop: '20px', cursor: 'pointer' },
-  loader: { textAlign: 'center', fontSize: '14px', padding: '10px', fontWeight: 600 }
+  uBox: { padding: '12px 18px', borderRadius: '18px', maxWidth: '80%', fontSize: '15px', color: '#1e293b' },
+  aBox: { padding: '12px 0', fontSize: '16px', lineHeight: '1.6', color: '#111827' },
+  inputHome: { width: '100%', padding: '0 20px' },
+  inputChat: { padding: '20px', marginTop: 'auto' },
+  searchBar: { display: 'flex', alignItems: 'center', background: '#f3f4f6', borderRadius: '28px', padding: '5px 20px', minHeight: '54px' },
+  textarea: { flex: 1, border: 'none', background: 'transparent', outline: 'none', textAlign: 'center', fontSize: '16px', padding: '12px 0', resize: 'none' },
+  sendBtn: { background: 'none', border: 'none', cursor: 'pointer', fontSize: '18px' },
+  modalOverlay: { position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.3)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 100 },
+  modal: { backgroundColor: 'white', borderRadius: '24px', width: '600px', height: '400px', display: 'flex', overflow: 'hidden', boxShadow: '0 20px 50px rgba(0,0,0,0.1)' },
+  modalSidebar: { width: '180px', backgroundColor: '#f9fafb', padding: '20px', borderRight: '1px solid #e5e7eb' },
+  modalContent: { flex: 1, padding: '30px', display: 'flex', flexDirection: 'column' },
+  tabBtn: { padding: '10px 0', cursor: 'pointer', fontSize: '14px' },
+  label: { fontSize: '11px', fontWeight: 700, color: '#9ca3af', textTransform: 'uppercase', marginBottom: '10px' },
+  themeGrid: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '20px' },
+  themeOption: { padding: '10px', borderRadius: '10px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px', fontSize: '13px', backgroundColor: '#f9fafb' },
+  input: { padding: '10px', borderRadius: '8px', border: '1px solid #e5e7eb', marginBottom: '15px', fontSize: '14px' },
+  primaryBtn: { padding: '12px', border: 'none', borderRadius: '10px', color: 'white', fontWeight: 600, cursor: 'pointer', marginTop: 'auto' },
+  loader: { textAlign: 'center', padding: '10px', fontWeight: 600, fontSize: '14px' }
 };

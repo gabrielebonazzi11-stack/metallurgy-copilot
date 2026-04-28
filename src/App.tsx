@@ -306,6 +306,47 @@ ${cleanedText || "Il file risulta vuoto."}`,
     </button>
   );
 
+  const formatText = (text: string) => {
+    return text.split("
+").map((line, i) => {
+      const trimmed = line.trim();
+
+      if (!trimmed) {
+        return <div key={i} style={{ height: 8 }} />;
+      }
+
+      if (trimmed.startsWith("**") && trimmed.endsWith("**")) {
+        return (
+          <div
+            key={i}
+            style={{
+              ...s.messageTitle,
+              color: theme.primary,
+              borderBottom: `1px solid ${theme.border || theme.surface}`,
+            }}
+          >
+            {trimmed.replace(/\*\*/g, "")}
+          </div>
+        );
+      }
+
+      if (trimmed.startsWith("* ") || trimmed.startsWith("+ ") || trimmed.startsWith("- ")) {
+        return (
+          <div key={i} style={s.messageListItem}>
+            <span style={{ color: theme.primary, fontWeight: 900 }}>•</span>
+            <span>{trimmed.slice(2)}</span>
+          </div>
+        );
+      }
+
+      return (
+        <div key={i} style={s.messageLine}>
+          {line}
+        </div>
+      );
+    });
+  };
+
   const renderInputBar = (placeholder: string) => (
     <div style={{ ...s.searchBar, backgroundColor: theme.surface, border: `1px solid ${theme.border || theme.surface}` }}>
       <input
@@ -469,7 +510,7 @@ ${cleanedText || "Il file risulta vuoto."}`,
                           : { ...s.aBox, color: theme.text }
                       }
                     >
-                      {m.text}
+                      {formatText(m.text)}
                     </div>
                   </div>
                 ))}
@@ -632,6 +673,26 @@ const s: any = {
   uBox: { padding: "13px 18px", borderRadius: 20, maxWidth: "82%", fontSize: 15, whiteSpace: "pre-wrap", overflowWrap: "anywhere" },
   aBox: { padding: "10px 0", lineHeight: 1.7, fontSize: 16, whiteSpace: "pre-wrap", maxWidth: "92%", overflowWrap: "anywhere" },
   bottomInput: { padding: "10px 0 8px", flexShrink: 0 },
+
+  messageTitle: {
+    fontSize: 18,
+    fontWeight: 800,
+    marginTop: 18,
+    marginBottom: 10,
+    paddingBottom: 6,
+    letterSpacing: "-0.3px",
+  },
+  messageListItem: {
+    display: "flex",
+    alignItems: "flex-start",
+    gap: 8,
+    margin: "4px 0",
+    lineHeight: 1.65,
+  },
+  messageLine: {
+    lineHeight: 1.7,
+    margin: "2px 0",
+  },
 
   overlay: { position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", display: "flex", justifyContent: "center", alignItems: "center", zIndex: 1000, padding: 16 },
   modal: { borderRadius: 24, width: "min(620px, 100%)", height: "min(450px, calc(100dvh - 32px))", display: "flex", overflow: "hidden", boxShadow: "0 30px 60px rgba(0,0,0,0.25)" },

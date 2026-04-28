@@ -6,7 +6,7 @@ const THEMES = [
   { name: "Forest Green", primary: "#22c55e", bg: "#f0fdf4", surface: "#dcfce7", text: "#14532d", border: "#bbf7d0" },
   { name: "Deep Burgundy", primary: "#dc2626", bg: "#fef2f2", surface: "#fee2e2", text: "#7f1d1d", border: "#fecaca" },
   { name: "Sandstone", primary: "#a8a29e", bg: "#fafaf9", surface: "#f5f5f4", text: "#44403c", border: "#e7e5e4" },
-  { name: "Dark Black", primary: "#111111", bg: "#050505", surface: "#111111", text: "#f8fafc", border: "#262626" },
+  { name: "Dark Black", primary: "#60a5fa", bg: "#050505", surface: "#111111", text: "#f8fafc", border: "#262626" },
 ];
 
 type Role = "utente" | "AI";
@@ -384,9 +384,9 @@ ${cleanedText || "Il file risulta vuoto."}`,
         </div>
 
         <div style={{ ...s.iconNav, alignItems: sidebarOpen ? "stretch" : "center" }}>
-          {iconBtn("＋", "Nuova", createNewChat)}
-          {iconBtn("💬", "Chat", () => setSidebarOpen(true), sidebarOpen)}
-          {iconBtn("⚙️", "Impostazioni", () => { setActiveTab("Aspetto"); setShowSettings(true); })}
+          {iconBtn("✎", "Nuova", createNewChat)}
+          {iconBtn("⌕", "Chat", () => setSidebarOpen(true), sidebarOpen)}
+          {iconBtn("⚙", "Impostazioni", () => { setActiveTab("Aspetto"); setShowSettings(true); })}
         </div>
 
         {sidebarOpen && (
@@ -509,10 +509,29 @@ ${cleanedText || "Il file risulta vuoto."}`,
                           ...s.themeOption,
                           background: theme.name === t.name ? theme.surface : "transparent",
                           color: theme.text,
-                          border: theme.name === t.name ? `1px solid ${t.primary}` : `1px solid ${theme.border || "transparent"}`,
+                          border:
+                            theme.name === "Dark Black"
+                              ? theme.name === t.name
+                                ? "1px solid #5b5b5b"
+                                : "1px solid #2f2f2f"
+                              : theme.name === t.name
+                                ? `1px solid ${t.primary}`
+                                : `1px solid ${theme.border || "transparent"}`,
+                          boxShadow:
+                            theme.name === "Dark Black" && theme.name === t.name
+                              ? "0 0 0 1px rgba(255,255,255,0.06) inset"
+                              : "none",
                         }}
                       >
-                        <div style={{ width: 12, height: 12, borderRadius: "50%", background: t.primary }} />
+                        <div
+                          style={{
+                            width: 12,
+                            height: 12,
+                            borderRadius: "50%",
+                            background: t.name === "Dark Black" ? "#0b0b0b" : t.primary,
+                            border: t.name === "Dark Black" ? "1px solid #f8fafc" : "none",
+                          }}
+                        />
                         {t.name}
                       </div>
                     ))}
@@ -567,7 +586,7 @@ const s: any = {
 
   iconNav: { display: "flex", flexDirection: "column", gap: 10, flexShrink: 0 },
   iconBtn: { minHeight: 44, borderRadius: 14, cursor: "pointer", display: "flex", alignItems: "center", gap: 10, fontSize: 14, fontWeight: 700, background: "transparent", textAlign: "left", flexShrink: 0 },
-  icon: { width: 22, height: 22, display: "inline-flex", justifyContent: "center", alignItems: "center", fontSize: 18, flexShrink: 0 },
+  icon: { width: 22, height: 22, display: "inline-flex", justifyContent: "center", alignItems: "center", fontSize: 17, fontWeight: 700, opacity: 0.9, flexShrink: 0 },
   iconLabel: { whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" },
 
   chatHistory: { flex: 1, minHeight: 0, overflowY: "auto", overflowX: "hidden", display: "flex", flexDirection: "column", gap: 6, paddingRight: 2 },
@@ -608,6 +627,7 @@ const s: any = {
   input: { width: "100%", padding: 12, borderRadius: 12, border: "1px solid #e2e8f0", marginBottom: 20, outline: "none", fontSize: 14 },
   badge: { fontSize: 12, color: "#10b981", fontWeight: 700, background: "#f0fdf4", padding: 10, borderRadius: 10, textAlign: "center" },
   themeGrid: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(135px, 1fr))", gap: 10 },
-  themeOption: { padding: 12, borderRadius: 12, cursor: "pointer", display: "flex", alignItems: "center", gap: 12, fontSize: 13 },
+  themeOption: { padding: 12, borderRadius: 14, cursor: "pointer", display: "flex", alignItems: "center", gap: 12, fontSize: 13, fontWeight: 700 }
   saveBtn: { marginTop: "auto", padding: 14, border: "none", borderRadius: 14, color: "white", fontWeight: 700, cursor: "pointer" },
 };
+

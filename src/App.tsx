@@ -1,14 +1,4 @@
 import React, { useState, useRef, useEffect } from "react";
-import * as pdfjsLib from "pdfjs-dist";
-import mammoth from "mammoth";
-import * as XLSX from "xlsx";
-import Tesseract from "tesseract.js";
-
-// Worker PDF. In Vite funziona bene con import.meta.url.
-pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
-  "pdfjs-dist/build/pdf.worker.min.mjs",
-  import.meta.url
-).toString();
 
 const THEMES = [
   { name: "Industrial Blue", primary: "#3b82f6", bg: "#f8fafc", surface: "#eff6ff", text: "#1e293b" },
@@ -42,7 +32,7 @@ const defaultUser: UserProfile = {
   email: "mario.rossi@tech.it",
 };
 
-const STORAGE_KEY = "techai_ultimate_v3_files";
+const STORAGE_KEY = "techai_ultimate_v4_no_libs";
 
 export default function App() {
   const [query, setQuery] = useState("");
@@ -149,58 +139,11 @@ export default function App() {
     );
   };
 
-  const readTextFile = async (file: File) => {
-    return await file.text();
-  };
-
-  const readPdfFile = async (file: File) => {
-    const arrayBuffer = await file.arrayBuffer();
-    const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-    let fullText = "";
-
-    for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
-      const page = await pdf.getPage(pageNum);
-      const textContent = await page.getTextContent();
-      const pageText = textContent.items
-        .map((item: any) => item.str)
-        .join(" ");
-
-      fullText += `\n\n--- Pagina ${pageNum} ---\n${pageText}`;
-    }
-
-    return fullText.trim();
-  };
-
-  const readDocxFile = async (file: File) => {
-    const arrayBuffer = await file.arrayBuffer();
-    const result = await mammoth.extractRawText({ arrayBuffer });
-    return result.value;
-  };
-
-  const readExcelFile = async (file: File) => {
-    const arrayBuffer = await file.arrayBuffer();
-    const workbook = XLSX.read(arrayBuffer, { type: "array" });
-
-    let output = "";
-    workbook.SheetNames.forEach(sheetName => {
-      const sheet = workbook.Sheets[sheetName];
-      const csv = XLSX.utils.sheet_to_csv(sheet);
-      output += `\n\n--- Foglio: ${sheetName} ---\n${csv}`;
-    });
-
-    return output.trim();
-  };
-
-  const readImageFile = async (file: File) => {
-    const result = await Tesseract.recognize(file, "ita+eng");
-    return result.data.text;
-  };
-
-  const extractFileText = async (file: File) => {
+  const isSupportedTextFile = (file: File) => {
     const name = file.name.toLowerCase();
     const type = file.type;
 
-    if (
+    return (
       type.startsWith("text/") ||
       name.endsWith(".txt") ||
       name.endsWith(".md") ||
@@ -210,29 +153,28 @@ export default function App() {
       name.endsWith(".html") ||
       name.endsWith(".css") ||
       name.endsWith(".js") ||
+      name.endsWith(".jsx") ||
       name.endsWith(".ts") ||
-      name.endsWith(".tsx")
-    ) {
-      return await readTextFile(file);
+      name.endsWith(".tsx") ||
+      name.endsWith(".py") ||
+      name.endsWith(".java") ||
+      name.endsWith(".cpp") ||
+      name.endsWith(".c") ||
+      name.endsWith(".h") ||
+      name.endsWith(".sql") ||
+      name.endsWith(".yaml") ||
+      name.endsWith(".yml")
+    );
+  };
+
+  const readTextFile = async (file: File) => {
+    if (!isSupportedTextFile(file)) {
+      throw new Error(
+        "Formato non leggibile senza librerie. Questa versione supporta solo file testuali: TXT, CSV, JSON, MD, XML, HTML, CSS, JS, TS, TSX e simili."
+      );
     }
 
-    if (type === "application/pdf" || name.endsWith(".pdf")) {
-      return await readPdfFile(file);
-    }
-
-    if (name.endsWith(".docx")) {
-      return await readDocxFile(file);
-    }
-
-    if (name.endsWith(".xlsx") || name.endsWith(".xls")) {
-      return await readExcelFile(file);
-    }
-
-    if (type.startsWith("image/")) {
-      return await readImageFile(file);
-    }
-
-    throw new Error("Formato non supportato. Prova con TXT, PDF, DOCX, XLSX, CSV, JSON o immagine.");
+    return await file.text();
   };
 
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -243,16 +185,21 @@ export default function App() {
     setFileLoading(true);
 
     try {
-      const extractedText = await extractFileText(file);
+      const extractedText = await readTextFile(file);
       const cleanedText = extractedText.trim();
 
       const fileMessage: Message = {
         role: "utente",
         text:
-          `📎 File caricato: ${file.name}\n` +
-          `Tipo: ${file.type || "sconosciuto"}\n` +
-          `Dimensione: ${(file.size / 1024).toFixed(1)} KB\n\n` +
-          `TESTO ESTRATTO:\n${cleanedText || "Nessun testo rilevato nel file."}`,
+          `📎 File caricato: ${file.name}
+` +
+          `Tipo: ${file.type || "sconosciuto"}
+` +
+          `Dimensione: ${(file.size / 1024).toFixed(1)} KB
+
+` +
+          `CONTENUTO DEL FILE:
+${cleanedText || "Il file risulta vuoto."}`,
       };
 
       addMessageToChat(chatId, fileMessage);
@@ -263,7 +210,7 @@ export default function App() {
     } catch (error: any) {
       addMessageToChat(chatId, {
         role: "AI",
-        text: `Non sono riuscito a leggere il file. ${error?.message || "Errore sconosciuto."}`,
+        text: error?.message || "Non sono riuscito a leggere il file.",
       });
     } finally {
       setFileLoading(false);
@@ -298,7 +245,7 @@ export default function App() {
               role: "system",
               content:
                 `Sei TechAI. Utente: ${user.name}. Focus: ${interest}. ` +
-                "Quando l'utente carica un file, analizza il testo estratto e rispondi in modo chiaro, tecnico e ordinato.",
+                "Rispondi in modo chiaro, tecnico e ordinato. Se l'utente carica un file, analizza il contenuto testuale presente in chat.",
             },
             ...updatedMessages.map(m => ({
               role: m.role === "utente" ? "user" : "assistant",
@@ -341,7 +288,7 @@ export default function App() {
       <input
         ref={fileInputRef}
         type="file"
-        accept=".txt,.md,.csv,.json,.pdf,.docx,.xlsx,.xls,.png,.jpg,.jpeg,.webp,.xml,.html,.css,.js,.ts,.tsx"
+        accept=".txt,.md,.csv,.json,.xml,.html,.css,.js,.jsx,.ts,.tsx,.py,.java,.cpp,.c,.h,.sql,.yaml,.yml"
         style={{ display: "none" }}
         onChange={handleFileUpload}
       />
@@ -349,7 +296,7 @@ export default function App() {
       <button
         style={{ ...s.fileBtn, color: theme.primary }}
         onClick={() => fileInputRef.current?.click()}
-        title="Carica file"
+        title="Carica file testuale"
         disabled={fileLoading}
       >
         {fileLoading ? "⏳" : "📎"}
@@ -451,9 +398,9 @@ export default function App() {
               <h1 style={s.welcomeText}>
                 Benvenuto {user.name.split(" ")[0]}, come posso aiutarti?
               </h1>
-              {renderInputBar("Chiedi a TechAI o carica un file...")}
+              {renderInputBar("Chiedi a TechAI o carica un file testuale...")}
               <p style={s.fileHint}>
-                Supporta TXT, CSV, JSON, PDF, DOCX, Excel e immagini con OCR.
+                Versione senza librerie: supporta file testuali come TXT, CSV, JSON, MD, XML, HTML, CSS, JS, TS e TSX.
               </p>
             </div>
           ) : (
@@ -488,7 +435,7 @@ export default function App() {
                 <div ref={chatEndRef} />
               </div>
 
-              <div style={s.bottomInput}>{renderInputBar("Scrivi qui o carica un file...")}</div>
+              <div style={s.bottomInput}>{renderInputBar("Scrivi qui o carica un file testuale...")}</div>
             </div>
           )}
         </section>

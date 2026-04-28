@@ -1055,8 +1055,9 @@ export default function App() {
           <div
             style={{
               ...s.toolsGroup,
-              background: isDark ? "rgba(255,255,255,0.035)" : "rgba(59,130,246,0.045)",
+              backgroundColor: isDark ? "#111111" : theme.surface,
               border: `1px solid ${theme.border || theme.surface}`,
+              boxShadow: isDark ? "0 0 0 1px rgba(255,255,255,0.04) inset" : "0 8px 20px rgba(0,0,0,0.04)",
             }}
           >
             {sidebarOpen && (
@@ -1069,8 +1070,6 @@ export default function App() {
             {iconBtn("∑", "Verifica", () => setShowQuickCalc(true))}
             {iconBtn("▦", "Materiali", () => setShowMaterials(true))}
           </div>
-
-          {iconBtn("⚙", "Impostazioni", () => { setActiveTab("Aspetto"); setShowSettings(true); })}
         </div>
 
         {sidebarOpen && (
@@ -1102,6 +1101,9 @@ export default function App() {
             ))}
           </div>
         )}
+        <div style={s.sidebarBottomActions}>
+          {iconBtn("⚙", "Impostazioni", () => { setActiveTab("Aspetto"); setShowSettings(true); })}
+        </div>
 
         <div
           style={{ ...s.sidebarAccount, justifyContent: sidebarOpen ? "flex-start" : "center" }}
@@ -1732,8 +1734,24 @@ const s: any = {
   collapseBtn: { width: 44, height: 44, borderRadius: 14, cursor: "pointer", fontSize: 22, lineHeight: 1, display: "flex", alignItems: "center", justifyContent: "center" },
 
   iconNav: { display: "flex", flexDirection: "column", gap: 10, flexShrink: 0 },
-  toolsGroup: { display: "flex", flexDirection: "column", gap: 6, borderRadius: 18, padding: 8, margin: "2px 0" },
-  toolsTitle: { fontSize: 11, textTransform: "uppercase", fontWeight: 950, letterSpacing: "0.5px", opacity: 0.9, padding: "4px 8px 2px" },
+  toolsGroup: {
+    display: "flex",
+    flexDirection: "column",
+    gap: 6,
+    borderRadius: 18,
+    padding: 8,
+    margin: "8px 0",
+  },
+  toolsTitle: {
+    fontSize: 11,
+    textTransform: "uppercase",
+    fontWeight: 950,
+    letterSpacing: "0.6px",
+    opacity: 0.95,
+    padding: "5px 8px 7px",
+    borderBottom: "1px solid rgba(120,120,120,0.18)",
+    marginBottom: 3,
+  },
   iconBtn: { minHeight: 44, borderRadius: 14, cursor: "pointer", display: "flex", alignItems: "center", gap: 10, fontSize: 14, fontWeight: 700, background: "transparent", textAlign: "left", flexShrink: 0 },
   icon: { width: 22, height: 22, display: "inline-flex", justifyContent: "center", alignItems: "center", fontSize: 15, fontWeight: 600, opacity: 0.88, letterSpacing: "-1px", flexShrink: 0 },
   iconLabel: { whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" },
@@ -1744,7 +1762,8 @@ const s: any = {
   historyTitle: { overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis", flex: 1 },
   deleteBtn: { border: "none", background: "transparent", cursor: "pointer", fontSize: 18, opacity: 0.55 },
 
-  sidebarAccount: { display: "flex", alignItems: "center", gap: 10, minHeight: 48, padding: "7px", cursor: "pointer", borderRadius: 14, marginTop: "auto", flexShrink: 0 },
+  sidebarBottomActions: { marginTop: "auto", display: "flex", flexDirection: "column", gap: 8, flexShrink: 0 },
+  sidebarAccount: { display: "flex", alignItems: "center", gap: 10, minHeight: 48, padding: "7px", cursor: "pointer", borderRadius: 14, flexShrink: 0 },
   avatar: { width: 38, height: 38, borderRadius: "50%", color: "white", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: 14, flexShrink: 0 },
   accountText: { display: "flex", flexDirection: "column", minWidth: 0 },
 

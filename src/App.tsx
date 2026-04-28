@@ -766,7 +766,7 @@ const s: any = {
   authLogo: { fontSize: 27, fontWeight: 900, letterSpacing: "-1px", marginBottom: 8, textAlign: "center", fontFamily: "Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" },
   authTitle: { fontSize: 27, margin: "4px 0", letterSpacing: "-0.8px", textAlign: "center", fontWeight: 800, fontFamily: "Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" },
   authSubtitle: { fontSize: 13, opacity: 0.68, lineHeight: 1.5, margin: "0 0 18px", textAlign: "center", fontFamily: "Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" },
-  authInput: { width: "100%", maxWidth: 320, margin: "0 auto 10px", padding: "12px 14px", borderRadius: 13, border: "1px solid rgba(120,120,120,0.25)", outline: "none", fontSize: 14, background: "rgba(255,255,255,0.85)", display: "block" }
+  authInput: { width: "100%", maxWidth: 320, margin: "0 auto 10px", padding: "12px 14px", borderRadius: 13, border: "1px solid rgba(120,120,120,0.25)", outline: "none", fontSize: 14, background: "rgba(255,255,255,0.85)", display: "block" },
   authPrimaryBtn: { width: "100%", maxWidth: 320, margin: "10px auto 0", padding: 13, border: "none", borderRadius: 14, color: "white", fontWeight: 800, cursor: "pointer", display: "block" },
   authSecondaryBtn: { width: "100%", maxWidth: 320, margin: "0 auto", padding: 11, border: "1px solid rgba(120,120,120,0.25)", borderRadius: 13, background: "rgba(255,255,255,0.7)", cursor: "pointer", fontWeight: 700, display: "block" },
   authSwitchBtn: { border: "none", background: "transparent", cursor: "pointer", fontWeight: 800, marginTop: 8, textAlign: "center" },

@@ -217,6 +217,26 @@ export default function App() {
   });
   const [quickCalcResult, setQuickCalcResult] = useState<QuickCalcResult | null>(null);
   const [materialSearch, setMaterialSearch] = useState("");
+  const [customMaterials, setCustomMaterials] = useState<MaterialInfo[]>([]);
+  const [showAddMaterial, setShowAddMaterial] = useState(false);
+  const [newMaterial, setNewMaterial] = useState<MaterialInfo>({
+    key: "",
+    name: "",
+    en: "",
+    uni: "",
+    din: "",
+    aisi: "",
+    jis: "",
+    iso: "",
+    rm: 0,
+    re: 0,
+    hardness: "",
+    treatments: "",
+    weldability: "",
+    machinability: "",
+    uses: "",
+    notes: "Materiale aggiunto dall'utente. Verificare sempre i dati prima di usarlo in calcoli reali.",
+  });
 
   const apiKey = import.meta.env.VITE_GROQ_API_KEY;
   const chatEndRef = useRef<HTMLDivElement>(null);
@@ -225,6 +245,7 @@ export default function App() {
   const activeChat = chats.find(c => c.id === activeChatId);
   const currentMessages = activeChat?.messages || [];
   const isDark = theme.name === "Dark Black";
+  const allMaterials = [...MATERIALS_DB, ...customMaterials];
 
   useEffect(() => {
     const saved = localStorage.getItem(STORAGE_KEY);
@@ -243,6 +264,7 @@ export default function App() {
       setSidebarOpen(p.sidebarOpen ?? true);
       setIsLoggedIn(p.isLoggedIn ?? false);
       setSavedLogins(p.savedLogins || []);
+      setCustomMaterials(p.customMaterials || []);
     } catch {
       console.warn("Impossibile leggere il salvataggio locale.");
     }
@@ -260,9 +282,10 @@ export default function App() {
         sidebarOpen,
         isLoggedIn,
         savedLogins,
+        customMaterials,
       })
     );
-  }, [theme, interest, user, chats, activeChatId, sidebarOpen, isLoggedIn]);
+  }, [theme, interest, user, chats, activeChatId, sidebarOpen, isLoggedIn, savedLogins, customMaterials]);
 
   useEffect(() => {
     const existingScript = document.getElementById("mathjax-script");
@@ -424,7 +447,7 @@ export default function App() {
 
   const findMaterial = (value: string) => {
     const key = normalizeMaterialKey(value);
-    return MATERIALS_DB.find(m =>
+    return allMaterials.find(m =>
       normalizeMaterialKey(m.key) === key ||
       normalizeMaterialKey(m.name) === key ||
       normalizeMaterialKey(m.en) === key ||
@@ -432,6 +455,57 @@ export default function App() {
       normalizeMaterialKey(m.aisi) === key ||
       normalizeMaterialKey(m.jis) === key
     );
+  };
+
+  const updateNewMaterialField = (field: keyof MaterialInfo, value: string) => {
+    setNewMaterial(prev => ({
+      ...prev,
+      [field]: field === "rm" || field === "re" ? Number(value.replace(",", ".")) || 0 : value,
+    }));
+  };
+
+  const addCustomMaterial = () => {
+    const materialName = newMaterial.name.trim();
+
+    if (!materialName) {
+      alert("Inserisci almeno il nome del materiale.");
+      return;
+    }
+
+    const generatedKey = normalizeMaterialKey(newMaterial.key || materialName);
+    const exists = allMaterials.some(m => normalizeMaterialKey(m.key) === generatedKey || normalizeMaterialKey(m.name) === normalizeMaterialKey(materialName));
+
+    if (exists) {
+      alert("Questo materiale sembra già presente nella libreria.");
+      return;
+    }
+
+    const materialToSave: MaterialInfo = {
+      ...newMaterial,
+      key: generatedKey,
+      name: materialName,
+      en: newMaterial.en || "Non specificato",
+      uni: newMaterial.uni || "Non specificato",
+      din: newMaterial.din || "Non specificato",
+      aisi: newMaterial.aisi || "Non specificato",
+      jis: newMaterial.jis || "Non specificato",
+      iso: newMaterial.iso || "Non specificato",
+      hardness: newMaterial.hardness || "Non specificato",
+      treatments: newMaterial.treatments || "Non specificato",
+      weldability: newMaterial.weldability || "Non specificato",
+      machinability: newMaterial.machinability || "Non specificato",
+      uses: newMaterial.uses || "Non specificato",
+      notes: newMaterial.notes || "Materiale aggiunto dall'utente. Verificare sempre i dati prima di usarlo in calcoli reali.",
+    };
+
+    setCustomMaterials(prev => [...prev, materialToSave]);
+    setNewMaterial({ key: "", name: "", en: "", uni: "", din: "", aisi: "", jis: "", iso: "", rm: 0, re: 0, hardness: "", treatments: "", weldability: "", machinability: "", uses: "", notes: "Materiale aggiunto dall'utente. Verificare sempre i dati prima di usarlo in calcoli reali." });
+    setShowAddMaterial(false);
+    setMaterialSearch(materialName);
+  };
+
+  const deleteCustomMaterial = (key: string) => {
+    setCustomMaterials(prev => prev.filter(material => material.key !== key));
   };
 
   const getYoungModulus = (material?: MaterialInfo) => {
@@ -799,6 +873,7 @@ export default function App() {
         sidebarOpen,
         isLoggedIn,
         savedLogins,
+        customMaterials,
       })
     );
     setShowSettings(false);
@@ -1298,18 +1373,68 @@ export default function App() {
                 <button style={{ ...s.backBtn, color: theme.text, border: `1px solid ${theme.border}` }} onClick={() => setShowMaterials(false)}>← Indietro</button>
               </div>
 
-              <input style={{ ...s.materialSearch, background: isDark ? "#050505" : "#ffffff", color: theme.text, border: `1px solid ${theme.border}` }} value={materialSearch} onChange={e => setMaterialSearch(e.target.value)} placeholder="Cerca materiale, EN, DIN, AISI, JIS..." />
+              <div style={s.materialToolbar}>
+                <input style={{ ...s.materialSearch, background: isDark ? "#050505" : "#ffffff", color: theme.text, border: `1px solid ${theme.border}` }} value={materialSearch} onChange={e => setMaterialSearch(e.target.value)} placeholder="Cerca materiale, EN, DIN, AISI, JIS..." />
+                <button style={{ ...s.addMaterialBtn, background: theme.primary }} onClick={() => setShowAddMaterial(prev => !prev)}>
+                  {showAddMaterial ? "Chiudi" : "+ Aggiungi materiale"}
+                </button>
+              </div>
+
+              {showAddMaterial && (
+                <div style={{ ...s.addMaterialPanel, background: isDark ? "#050505" : "#f8fafc", border: `1px solid ${theme.border}` }}>
+                  <div style={s.addMaterialHeader}>
+                    <strong>Nuovo materiale personalizzato</strong>
+                    <span>Compila i dati che conosci. Gli altri resteranno “Non specificato”.</span>
+                  </div>
+
+                  <div style={s.addMaterialGrid}>
+                    <div><label style={s.label}>Nome materiale *</label><input style={{ ...s.input, background: isDark ? "#111" : "#fff", color: theme.text, border: `1px solid ${theme.border}` }} value={newMaterial.name} onChange={e => updateNewMaterialField("name", e.target.value)} placeholder="Es. AISI 316Ti" /></div>
+                    <div><label style={s.label}>Chiave interna</label><input style={{ ...s.input, background: isDark ? "#111" : "#fff", color: theme.text, border: `1px solid ${theme.border}` }} value={newMaterial.key} onChange={e => updateNewMaterialField("key", e.target.value)} placeholder="Es. aisi316ti" /></div>
+                    <div><label style={s.label}>EN</label><input style={{ ...s.input, background: isDark ? "#111" : "#fff", color: theme.text, border: `1px solid ${theme.border}` }} value={newMaterial.en} onChange={e => updateNewMaterialField("en", e.target.value)} placeholder="EN 1.xxxx" /></div>
+                    <div><label style={s.label}>UNI</label><input style={{ ...s.input, background: isDark ? "#111" : "#fff", color: theme.text, border: `1px solid ${theme.border}` }} value={newMaterial.uni} onChange={e => updateNewMaterialField("uni", e.target.value)} placeholder="Norma UNI" /></div>
+                    <div><label style={s.label}>DIN</label><input style={{ ...s.input, background: isDark ? "#111" : "#fff", color: theme.text, border: `1px solid ${theme.border}` }} value={newMaterial.din} onChange={e => updateNewMaterialField("din", e.target.value)} placeholder="DIN" /></div>
+                    <div><label style={s.label}>AISI/SAE</label><input style={{ ...s.input, background: isDark ? "#111" : "#fff", color: theme.text, border: `1px solid ${theme.border}` }} value={newMaterial.aisi} onChange={e => updateNewMaterialField("aisi", e.target.value)} placeholder="AISI / SAE" /></div>
+                    <div><label style={s.label}>JIS</label><input style={{ ...s.input, background: isDark ? "#111" : "#fff", color: theme.text, border: `1px solid ${theme.border}` }} value={newMaterial.jis} onChange={e => updateNewMaterialField("jis", e.target.value)} placeholder="JIS" /></div>
+                    <div><label style={s.label}>ISO / categoria</label><input style={{ ...s.input, background: isDark ? "#111" : "#fff", color: theme.text, border: `1px solid ${theme.border}` }} value={newMaterial.iso} onChange={e => updateNewMaterialField("iso", e.target.value)} placeholder="Acciaio, alluminio, polimero..." /></div>
+                    <div><label style={s.label}>Rm [MPa]</label><input style={{ ...s.input, background: isDark ? "#111" : "#fff", color: theme.text, border: `1px solid ${theme.border}` }} value={newMaterial.rm || ""} onChange={e => updateNewMaterialField("rm", e.target.value)} placeholder="Es. 650" /></div>
+                    <div><label style={s.label}>Re [MPa]</label><input style={{ ...s.input, background: isDark ? "#111" : "#fff", color: theme.text, border: `1px solid ${theme.border}` }} value={newMaterial.re || ""} onChange={e => updateNewMaterialField("re", e.target.value)} placeholder="Es. 370" /></div>
+                  </div>
+
+                  <label style={s.label}>Durezza</label>
+                  <input style={{ ...s.input, background: isDark ? "#111" : "#fff", color: theme.text, border: `1px solid ${theme.border}` }} value={newMaterial.hardness} onChange={e => updateNewMaterialField("hardness", e.target.value)} placeholder="Es. 170-220 HB" />
+
+                  <div style={s.addMaterialGrid}>
+                    <div><label style={s.label}>Trattamenti</label><input style={{ ...s.input, background: isDark ? "#111" : "#fff", color: theme.text, border: `1px solid ${theme.border}` }} value={newMaterial.treatments} onChange={e => updateNewMaterialField("treatments", e.target.value)} placeholder="Bonifica, tempra..." /></div>
+                    <div><label style={s.label}>Saldabilità</label><input style={{ ...s.input, background: isDark ? "#111" : "#fff", color: theme.text, border: `1px solid ${theme.border}` }} value={newMaterial.weldability} onChange={e => updateNewMaterialField("weldability", e.target.value)} placeholder="Buona, limitata..." /></div>
+                    <div><label style={s.label}>Lavorabilità</label><input style={{ ...s.input, background: isDark ? "#111" : "#fff", color: theme.text, border: `1px solid ${theme.border}` }} value={newMaterial.machinability} onChange={e => updateNewMaterialField("machinability", e.target.value)} placeholder="Buona, difficile..." /></div>
+                    <div><label style={s.label}>Impieghi</label><input style={{ ...s.input, background: isDark ? "#111" : "#fff", color: theme.text, border: `1px solid ${theme.border}` }} value={newMaterial.uses} onChange={e => updateNewMaterialField("uses", e.target.value)} placeholder="Alberi, staffe, piastre..." /></div>
+                  </div>
+
+                  <label style={s.label}>Note</label>
+                  <textarea style={{ ...s.addMaterialTextarea, background: isDark ? "#111" : "#fff", color: theme.text, border: `1px solid ${theme.border}` }} value={newMaterial.notes} onChange={e => updateNewMaterialField("notes", e.target.value)} />
+
+                  <button style={{ ...s.saveMaterialBtn, background: theme.primary }} onClick={addCustomMaterial}>Salva materiale</button>
+                </div>
+              )}
 
               <div style={s.materialGrid}>
-                {MATERIALS_DB.filter(m => {
+                {allMaterials.filter(m => {
                   const q = materialSearch.toLowerCase().trim();
                   if (!q) return true;
                   return `${m.name} ${m.en} ${m.uni} ${m.din} ${m.aisi} ${m.jis} ${m.iso} ${m.uses}`.toLowerCase().includes(q);
                 }).map(material => (
                   <div key={material.key} style={{ ...s.materialCard, background: isDark ? "#050505" : "#f8fafc", border: `1px solid ${theme.border}` }}>
                     <div style={s.materialHead}>
-                      <h3 style={{ margin: 0 }}>{material.name}</h3>
-                      <button style={{ ...s.smallUseBtn, background: theme.primary }} onClick={() => { setQuickCalcForm(prev => ({ ...prev, material: material.name })); setShowMaterials(false); setShowQuickCalc(true); }}>Usa in verifica</button>
+                      <div>
+                        <h3 style={{ margin: 0 }}>{material.name}</h3>
+                        {customMaterials.some(item => item.key === material.key) && <span style={s.customTag}>Personalizzato</span>}
+                      </div>
+                      <div style={s.materialActions}>
+                        <button style={{ ...s.smallUseBtn, background: theme.primary }} onClick={() => { setQuickCalcForm(prev => ({ ...prev, material: material.name })); setShowMaterials(false); setShowQuickCalc(true); }}>Usa in verifica</button>
+                        {customMaterials.some(item => item.key === material.key) && (
+                          <button style={s.smallDeleteMaterialBtn} onClick={() => deleteCustomMaterial(material.key)}>Elimina</button>
+                        )}
+                      </div>
                     </div>
                     <div style={s.materialCodes}>
                       <span>EN: {material.en}</span>
@@ -1888,11 +2013,21 @@ const s: any = {
   valueRow: { fontSize: 13, lineHeight: 1.45 },
   finalBox: { marginTop: 16, padding: "12px 14px", borderRadius: 14, background: "rgba(120,120,120,0.08)", fontWeight: 850 },
   bigOutcome: { fontWeight: 950, fontSize: 18 },
-  materialSearch: { width: "100%", padding: 14, borderRadius: 14, outline: "none", fontSize: 14, marginBottom: 18 },
+  materialToolbar: { display: "grid", gridTemplateColumns: "1fr auto", gap: 10, alignItems: "center", marginBottom: 18 },
+  materialSearch: { width: "100%", padding: 14, borderRadius: 14, outline: "none", fontSize: 14 },
+  addMaterialBtn: { border: "none", color: "white", borderRadius: 14, padding: "14px 16px", cursor: "pointer", fontWeight: 850, whiteSpace: "nowrap" },
+  addMaterialPanel: { borderRadius: 18, padding: 18, marginBottom: 18, overflowY: "auto", maxHeight: 390 },
+  addMaterialHeader: { display: "flex", flexDirection: "column", gap: 4, marginBottom: 14, fontSize: 13, opacity: 0.9 },
+  addMaterialGrid: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 12 },
+  addMaterialTextarea: { width: "100%", minHeight: 70, borderRadius: 12, padding: 12, outline: "none", resize: "vertical", marginBottom: 14 },
+  saveMaterialBtn: { width: "100%", border: "none", color: "white", borderRadius: 14, padding: 14, fontWeight: 850, cursor: "pointer" },
   materialGrid: { flex: 1, minHeight: 0, overflowY: "auto", display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(330px, 1fr))", gap: 14, paddingRight: 4 },
   materialCard: { borderRadius: 18, padding: 18, lineHeight: 1.45, fontSize: 13 },
   materialHead: { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 12 },
+  materialActions: { display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" },
   smallUseBtn: { border: "none", color: "white", borderRadius: 999, padding: "8px 12px", cursor: "pointer", fontWeight: 850, fontSize: 12, whiteSpace: "nowrap" },
+  smallDeleteMaterialBtn: { border: "none", color: "#991b1b", background: "#fee2e2", borderRadius: 999, padding: "8px 12px", cursor: "pointer", fontWeight: 850, fontSize: 12, whiteSpace: "nowrap" },
+  customTag: { display: "inline-flex", marginTop: 5, fontSize: 11, fontWeight: 850, opacity: 0.68 },
   materialCodes: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6, fontSize: 12, marginBottom: 12, opacity: 0.8 },
   materialProps: { padding: 10, borderRadius: 12, background: "rgba(120,120,120,0.08)", marginBottom: 10, lineHeight: 1.5 },
   accountButtonRow: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginTop: 4, marginBottom: 4 },

@@ -33,7 +33,7 @@ const defaultUser: UserProfile = {
   email: "mario.rossi@tech.it",
 };
 
-const STORAGE_KEY = "techai_ultimate_v4_no_libs";
+const STORAGE_KEY = "techai_ultimate_v5_slide_sidebar";
 
 export default function App() {
   const [query, setQuery] = useState("");
@@ -44,6 +44,7 @@ export default function App() {
   const [fileLoading, setFileLoading] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [activeTab, setActiveTab] = useState("Aspetto");
+  const [sidebarOpen, setSidebarOpen] = useState(true);
 
   const [user, setUser] = useState<UserProfile>(defaultUser);
   const [theme, setTheme] = useState(THEMES[0]);
@@ -55,6 +56,7 @@ export default function App() {
 
   const activeChat = chats.find(c => c.id === activeChatId);
   const currentMessages = activeChat?.messages || [];
+  const isDark = theme.name === "Dark Black";
 
   useEffect(() => {
     const saved = localStorage.getItem(STORAGE_KEY);
@@ -67,6 +69,7 @@ export default function App() {
       setUser(p.user || defaultUser);
       setChats(p.chats || []);
       setActiveChatId(p.activeChatId || null);
+      setSidebarOpen(p.sidebarOpen ?? true);
     } catch {
       console.warn("Impossibile leggere il salvataggio locale.");
     }
@@ -81,9 +84,10 @@ export default function App() {
         user,
         chats,
         activeChatId,
+        sidebarOpen,
       })
     );
-  }, [theme, interest, user, chats, activeChatId]);
+  }, [theme, interest, user, chats, activeChatId, sidebarOpen]);
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -101,6 +105,7 @@ export default function App() {
     setChats(prev => [newChat, ...prev]);
     setActiveChatId(newChat.id);
     setQuery("");
+    setSidebarOpen(true);
   };
 
   const ensureActiveChat = (title = "Nuova chat") => {
@@ -189,7 +194,7 @@ export default function App() {
       const extractedText = await readTextFile(file);
       const cleanedText = extractedText.trim();
 
-      const fileMessage: Message = {
+      addMessageToChat(chatId, {
         role: "utente",
         text:
           `📎 File caricato: ${file.name}
@@ -201,13 +206,9 @@ export default function App() {
 ` +
           `CONTENUTO DEL FILE:
 ${cleanedText || "Il file risulta vuoto."}`,
-      };
+      });
 
-      addMessageToChat(chatId, fileMessage);
-
-      setQuery(
-        `Analizza il file "${file.name}" e fammi un riassunto chiaro dei punti principali.`
-      );
+      setQuery(`Analizza il file "${file.name}" e fammi un riassunto chiaro dei punti principali.`);
     } catch (error: any) {
       addMessageToChat(chatId, {
         role: "AI",
@@ -279,13 +280,30 @@ ${cleanedText || "Il file risulta vuoto."}`,
         user,
         chats,
         activeChatId,
+        sidebarOpen,
       })
     );
     setShowSettings(false);
   };
 
+  const iconBtn = (icon: string, label: string, onClick: () => void, active = false) => (
+    <button
+      style={{
+        ...s.iconBtn,
+        backgroundColor: active ? theme.surface : "transparent",
+        color: active ? theme.primary : theme.text,
+        border: `1px solid ${active ? theme.border || theme.surface : "transparent"}`,
+      }}
+      onClick={onClick}
+      title={label}
+    >
+      <span style={s.icon}>{icon}</span>
+      {sidebarOpen && <span style={s.iconLabel}>{label}</span>}
+    </button>
+  );
+
   const renderInputBar = (placeholder: string) => (
-    <div style={{ ...s.searchBar, backgroundColor: theme.surface }}>
+    <div style={{ ...s.searchBar, backgroundColor: theme.surface, border: `1px solid ${theme.border || theme.surface}` }}>
       <input
         ref={fileInputRef}
         type="file"
@@ -311,11 +329,9 @@ ${cleanedText || "Il file risulta vuoto."}`,
         onChange={e => {
           setQuery(e.target.value);
           e.target.style.height = "auto";
-          e.target.style.height = e.target.scrollHeight + "px";
+          e.target.style.height = Math.min(e.target.scrollHeight, 140) + "px";
         }}
-        onKeyDown={e =>
-          e.key === "Enter" && !e.shiftKey && (e.preventDefault(), callAI())
-        }
+        onKeyDown={e => e.key === "Enter" && !e.shiftKey && (e.preventDefault(), callAI())}
       />
 
       <button
@@ -329,67 +345,93 @@ ${cleanedText || "Il file risulta vuoto."}`,
   );
 
   return (
-    <div key={theme.name} style={{ ...s.app, backgroundColor: theme.bg, color: theme.text }}>
-      <aside style={{ ...s.sidebar, backgroundColor: theme.bg, borderRight: `1px solid ${theme.border || theme.surface}` }}>
-        <div style={s.logo}>
-          TECH<span style={{ color: theme.primary }}>AI</span>
-        </div>
-
-        <button style={{ ...s.newChatBtn, backgroundColor: theme.primary }} onClick={createNewChat}>
-          ＋ Nuova chat
+    <div style={{ ...s.app, backgroundColor: theme.bg, color: theme.text }}>
+      {!sidebarOpen && (
+        <button
+          style={{ ...s.floatingMenu, backgroundColor: theme.surface, color: theme.text, border: `1px solid ${theme.border}` }}
+          onClick={() => setSidebarOpen(true)}
+          title="Apri menu"
+        >
+          ☰
         </button>
+      )}
 
-        <div style={s.chatHistory}>
-          {chats.length === 0 && (
-            <div style={{ fontSize: 12, opacity: 0.6 }}>Nessuna chat salvata</div>
-          )}
-
-          {chats.map(chat => (
-            <div
-              key={chat.id}
-              style={{
-                ...s.historyItem,
-                backgroundColor: chat.id === activeChatId ? theme.surface : "transparent",
-                color: chat.id === activeChatId ? theme.primary : theme.text,
-                border: `1px solid ${chat.id === activeChatId ? theme.border || theme.surface : "transparent"}`,
-              }}
-            >
-              <div style={s.historyTitle} onClick={() => setActiveChatId(chat.id)}>
-                💬 {chat.title}
+      <aside
+        style={{
+          ...s.sidebar,
+          width: sidebarOpen ? 280 : 74,
+          minWidth: sidebarOpen ? 280 : 74,
+          backgroundColor: isDark ? "#050505" : theme.bg,
+          borderRight: `1px solid ${theme.border || theme.surface}`,
+        }}
+      >
+        <div style={s.sidebarTop}>
+          <div style={s.logoWrap}>
+            <div style={{ ...s.logoMark, backgroundColor: theme.primary }}>T</div>
+            {sidebarOpen && (
+              <div style={s.logoText}>
+                TECH<span style={{ color: theme.primary }}>AI</span>
               </div>
+            )}
+          </div>
 
-              <button style={s.deleteBtn} onClick={() => deleteChat(chat.id)}>
-                ×
-              </button>
+          <button
+            style={{ ...s.collapseBtn, color: theme.text, border: `1px solid ${theme.border || theme.surface}` }}
+            onClick={() => setSidebarOpen(prev => !prev)}
+            title={sidebarOpen ? "Chiudi sidebar" : "Apri sidebar"}
+          >
+            {sidebarOpen ? "‹" : "›"}
+          </button>
+        </div>
+
+        <div style={s.iconNav}>
+          {iconBtn("＋", "Nuova", createNewChat)}
+          {iconBtn("💬", "Chat", () => setSidebarOpen(true), sidebarOpen)}
+          {iconBtn("⚙️", "Impostazioni", () => { setActiveTab("Aspetto"); setShowSettings(true); })}
+        </div>
+
+        {sidebarOpen && (
+          <div style={s.chatHistory}>
+            <div style={s.historyHeader}>Cronologia</div>
+
+            {chats.length === 0 && (
+              <div style={{ fontSize: 12, opacity: 0.6, padding: "8px" }}>Nessuna chat salvata</div>
+            )}
+
+            {chats.map(chat => (
+              <div
+                key={chat.id}
+                style={{
+                  ...s.historyItem,
+                  backgroundColor: chat.id === activeChatId ? theme.surface : "transparent",
+                  color: chat.id === activeChatId ? theme.primary : theme.text,
+                  border: `1px solid ${chat.id === activeChatId ? theme.border || theme.surface : "transparent"}`,
+                }}
+              >
+                <div style={s.historyTitle} onClick={() => setActiveChatId(chat.id)}>
+                  {chat.title}
+                </div>
+
+                <button style={s.deleteBtn} onClick={() => deleteChat(chat.id)} title="Elimina chat">
+                  ×
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <div
+          style={{ ...s.sidebarAccount, justifyContent: sidebarOpen ? "flex-start" : "center" }}
+          onClick={() => { setActiveTab("Account"); setShowSettings(true); }}
+        >
+          <div style={{ ...s.avatar, backgroundColor: theme.primary }}>{user.name.charAt(0)}</div>
+
+          {sidebarOpen && (
+            <div style={s.accountText}>
+              <div style={{ fontWeight: 700, fontSize: "13px" }}>{user.name}</div>
+              <div style={{ fontSize: "11px", opacity: 0.7 }}>Piano Pro</div>
             </div>
-          ))}
-        </div>
-
-        <div
-          style={s.sidebarAccount}
-          onClick={() => {
-            setActiveTab("Account");
-            setShowSettings(true);
-          }}
-        >
-          <div style={{ ...s.avatar, backgroundColor: theme.primary }}>
-            {user.name.charAt(0)}
-          </div>
-
-          <div style={s.accountText}>
-            <div style={{ fontWeight: 700, fontSize: "13px" }}>{user.name}</div>
-            <div style={{ fontSize: "11px", opacity: 0.7 }}>Piano Pro</div>
-          </div>
-        </div>
-
-        <div
-          style={{ ...s.settingsBtn, color: theme.text }}
-          onClick={() => {
-            setActiveTab("Aspetto");
-            setShowSettings(true);
-          }}
-        >
-          ⚙️ Impostazioni
+          )}
         </div>
       </aside>
 
@@ -397,13 +439,9 @@ ${cleanedText || "Il file risulta vuoto."}`,
         <section style={{ ...s.content, justifyContent: currentMessages.length === 0 ? "center" : "flex-start" }}>
           {currentMessages.length === 0 ? (
             <div style={s.homeWrapper}>
-              <h1 style={s.welcomeText}>
-                Benvenuto {user.name.split(" ")[0]}, come posso aiutarti?
-              </h1>
+              <h1 style={s.welcomeText}>Benvenuto {user.name.split(" ")[0]}, come posso aiutarti?</h1>
               {renderInputBar("Chiedi a TechAI o carica un file testuale...")}
-              <p style={s.fileHint}>
-                Versione senza librerie: supporta file testuali come TXT, CSV, JSON, MD, XML, HTML, CSS, JS, TS e TSX.
-              </p>
+              <p style={s.fileHint}>Supporta file testuali: TXT, CSV, JSON, MD, XML, HTML, CSS, JS, TS, TSX.</p>
             </div>
           ) : (
             <div style={s.chatView}>
@@ -413,8 +451,8 @@ ${cleanedText || "Il file risulta vuoto."}`,
                     <div
                       style={
                         m.role === "utente"
-                          ? { ...s.uBox, backgroundColor: theme.surface }
-                          : s.aBox
+                          ? { ...s.uBox, backgroundColor: theme.surface, border: `1px solid ${theme.border || theme.surface}` }
+                          : { ...s.aBox, color: theme.text }
                       }
                     >
                       {m.text}
@@ -422,18 +460,8 @@ ${cleanedText || "Il file risulta vuoto."}`,
                   </div>
                 ))}
 
-                {fileLoading && (
-                  <div style={{ color: theme.primary, textAlign: "center" }}>
-                    📎 Lettura file in corso...
-                  </div>
-                )}
-
-                {loading && (
-                  <div style={{ color: theme.primary, textAlign: "center" }}>
-                    ✨ TechAI sta elaborando...
-                  </div>
-                )}
-
+                {fileLoading && <div style={{ color: theme.primary, textAlign: "center" }}>📎 Lettura file in corso...</div>}
+                {loading && <div style={{ color: theme.primary, textAlign: "center" }}>✨ TechAI sta elaborando...</div>}
                 <div ref={chatEndRef} />
               </div>
 
@@ -444,17 +472,13 @@ ${cleanedText || "Il file risulta vuoto."}`,
 
         {showSettings && (
           <div style={s.overlay}>
-            <div style={s.modal}>
-              <div style={s.modalSide}>
+            <div style={{ ...s.modal, background: isDark ? "#111111" : "white", color: theme.text, border: `1px solid ${theme.border}` }}>
+              <div style={{ ...s.modalSide, background: isDark ? "#050505" : "#f8fafc", borderRight: `1px solid ${theme.border}` }}>
                 {["Account", "Aspetto", "AI Focus"].map(t => (
                   <div
                     key={t}
                     onClick={() => setActiveTab(t)}
-                    style={{
-                      ...s.tab,
-                      color: activeTab === t ? theme.primary : "",
-                      fontWeight: activeTab === t ? 800 : 400,
-                    }}
+                    style={{ ...s.tab, color: activeTab === t ? theme.primary : theme.text, fontWeight: activeTab === t ? 800 : 400 }}
                   >
                     {t}
                   </div>
@@ -465,20 +489,12 @@ ${cleanedText || "Il file risulta vuoto."}`,
                 <h2 style={{ fontSize: "18px", marginBottom: "20px" }}>{activeTab}</h2>
 
                 {activeTab === "Account" && (
-                  <div style={s.form}>
+                  <div>
                     <label style={s.label}>Nome Visualizzato</label>
-                    <input
-                      style={s.input}
-                      value={user.name}
-                      onChange={e => setUser({ ...user, name: e.target.value })}
-                    />
+                    <input style={s.input} value={user.name} onChange={e => setUser({ ...user, name: e.target.value })} />
 
                     <label style={s.label}>Email</label>
-                    <input
-                      style={s.input}
-                      value={user.email}
-                      onChange={e => setUser({ ...user, email: e.target.value })}
-                    />
+                    <input style={s.input} value={user.email} onChange={e => setUser({ ...user, email: e.target.value })} />
 
                     <div style={s.badge}>Stato Account: Abbonamento Attivo ✅</div>
                   </div>
@@ -493,7 +509,7 @@ ${cleanedText || "Il file risulta vuoto."}`,
                         style={{
                           ...s.themeOption,
                           background: theme.name === t.name ? theme.surface : "transparent",
-                          color: theme.name === "Dark Black" ? "#f8fafc" : "#1e293b",
+                          color: theme.text,
                           border: theme.name === t.name ? `1px solid ${t.primary}` : `1px solid ${theme.border || "transparent"}`,
                         }}
                       >
@@ -505,19 +521,13 @@ ${cleanedText || "Il file risulta vuoto."}`,
                 )}
 
                 {activeTab === "AI Focus" && (
-                  <div style={s.form}>
+                  <div>
                     <label style={s.label}>Ambito Tecnico Principale</label>
-                    <input
-                      style={s.input}
-                      value={interest}
-                      onChange={e => setInterest(e.target.value)}
-                    />
+                    <input style={s.input} value={interest} onChange={e => setInterest(e.target.value)} />
                   </div>
                 )}
 
-                <button style={{ ...s.saveBtn, background: theme.primary }} onClick={saveAll}>
-                  Salva modifiche
-                </button>
+                <button style={{ ...s.saveBtn, background: theme.primary }} onClick={saveAll}>Salva modifiche</button>
               </div>
             </div>
           </div>
@@ -526,15 +536,12 @@ ${cleanedText || "Il file risulta vuoto."}`,
 
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap');
-
-        * {
-          font-family: 'Inter', sans-serif !important;
-          box-sizing: border-box;
-          transition: background 0.2s, color 0.2s;
-        }
-
+        * { font-family: 'Inter', sans-serif !important; box-sizing: border-box; transition: background 0.2s, color 0.2s, width 0.25s ease, min-width 0.25s ease; }
+        html, body, #root { width: 100%; height: 100%; margin: 0; overflow: hidden; }
+        textarea::placeholder { opacity: 0.55; }
+        button:disabled { opacity: 0.45; cursor: not-allowed; }
         ::-webkit-scrollbar { width: 5px; }
-        ::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.1); border-radius: 10px; }
+        ::-webkit-scrollbar-thumb { background: rgba(120,120,120,0.35); border-radius: 10px; }
       `}</style>
     </div>
   );
@@ -542,43 +549,80 @@ ${cleanedText || "Il file risulta vuoto."}`,
 
 const s: any = {
   app: { display: "flex", height: "100dvh", width: "100vw", overflow: "hidden", minWidth: 0 },
-  sidebar: { width: "260px", minWidth: "230px", maxWidth: "260px", height: "100dvh", padding: "16px", display: "flex", flexDirection: "column", gap: "10px", overflow: "hidden" },
-  logo: { fontSize: "22px", fontWeight: 900, marginBottom: "20px", letterSpacing: "-1px" },
-  newChatBtn: { border: "none", borderRadius: "12px", padding: "12px", color: "white", fontWeight: 700, cursor: "pointer", marginBottom: "10px" },
-  chatHistory: { flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", gap: "6px" },
-  historyItem: { display: "flex", alignItems: "center", justifyContent: "space-between", borderRadius: "10px", padding: "8px 10px", fontSize: "13px", cursor: "pointer" },
+
+  floatingMenu: {
+    position: "fixed",
+    top: 14,
+    left: 14,
+    zIndex: 50,
+    width: 42,
+    height: 42,
+    borderRadius: 14,
+    cursor: "pointer",
+    fontSize: 20,
+  },
+
+  sidebar: {
+    height: "100dvh",
+    padding: "14px",
+    display: "flex",
+    flexDirection: "column",
+    gap: "12px",
+    overflow: "hidden",
+    flexShrink: 0,
+  },
+
+  sidebarTop: { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, minHeight: 42 },
+  logoWrap: { display: "flex", alignItems: "center", gap: 10, minWidth: 0 },
+  logoMark: { width: 34, height: 34, borderRadius: 12, color: "white", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 900 },
+  logoText: { fontSize: 21, fontWeight: 900, letterSpacing: "-1px", whiteSpace: "nowrap" },
+  collapseBtn: { width: 34, height: 34, borderRadius: 12, background: "transparent", cursor: "pointer", fontSize: 24, lineHeight: 1 },
+
+  iconNav: { display: "flex", flexDirection: "column", gap: 6 },
+  iconBtn: { minHeight: 42, borderRadius: 14, cursor: "pointer", display: "flex", alignItems: "center", gap: 10, padding: "0 12px", fontSize: 14, fontWeight: 700, background: "transparent", textAlign: "left" },
+  icon: { width: 22, display: "inline-flex", justifyContent: "center", fontSize: 18, flexShrink: 0 },
+  iconLabel: { whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" },
+
+  chatHistory: { flex: 1, minHeight: 0, overflowY: "auto", overflowX: "hidden", display: "flex", flexDirection: "column", gap: 6, paddingRight: 2 },
+  historyHeader: { fontSize: 11, textTransform: "uppercase", fontWeight: 800, opacity: 0.5, padding: "6px 8px" },
+  historyItem: { minHeight: 38, display: "flex", alignItems: "center", justifyContent: "space-between", borderRadius: 12, padding: "8px 10px", fontSize: 13, cursor: "pointer" },
   historyTitle: { overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis", flex: 1 },
-  deleteBtn: { border: "none", background: "transparent", cursor: "pointer", fontSize: "18px", opacity: 0.5 },
-  sidebarAccount: { display: "flex", alignItems: "center", gap: "10px", padding: "15px 10px", cursor: "pointer", borderRadius: "12px", marginBottom: "5px" },
-  avatar: { width: "32px", height: "32px", borderRadius: "50%", color: "white", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: "14px" },
-  accountText: { display: "flex", flexDirection: "column" },
-  settingsBtn: { padding: "15px 10px", cursor: "pointer", borderTop: "1px solid rgba(0,0,0,0.05)", fontSize: "13px", fontWeight: 600 },
+  deleteBtn: { border: "none", background: "transparent", cursor: "pointer", fontSize: 18, opacity: 0.55 },
+
+  sidebarAccount: { display: "flex", alignItems: "center", gap: 10, minHeight: 48, padding: "8px", cursor: "pointer", borderRadius: 14, flexShrink: 0 },
+  avatar: { width: 34, height: 34, borderRadius: "50%", color: "white", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: 14, flexShrink: 0 },
+  accountText: { display: "flex", flexDirection: "column", minWidth: 0 },
+
   main: { flex: 1, minWidth: 0, height: "100dvh", display: "flex", flexDirection: "column", position: "relative", overflow: "hidden" },
   content: { flex: 1, minHeight: 0, width: "100%", display: "flex", flexDirection: "column", alignItems: "center", overflow: "hidden" },
-  homeWrapper: { width: "100%", maxWidth: "650px", textAlign: "center", padding: "0 20px" },
-  welcomeText: { fontSize: "clamp(26px, 4vw, 36px)", fontWeight: 600, marginBottom: "32px", letterSpacing: "-1px" },
-  searchBar: { display: "flex", alignItems: "center", borderRadius: "32px", padding: "8px 20px", width: "100%", minHeight: "60px", boxShadow: "0 4px 20px rgba(0,0,0,0.03)" },
-  fileBtn: { background: "none", border: "none", cursor: "pointer", fontSize: "22px", marginRight: "8px" },
-  textarea: { flex: 1, background: "none", border: "none", outline: "none", textAlign: "center", fontSize: "17px", resize: "none", padding: "10px 0" },
-  sendBtn: { background: "none", border: "none", cursor: "pointer", fontSize: "22px", marginLeft: "8px" },
-  fileHint: { fontSize: "12px", opacity: 0.6, marginTop: "14px" },
-  chatView: { width: "100%", maxWidth: "850px", flex: 1, minHeight: 0, display: "flex", flexDirection: "column", padding: "16px 20px", overflow: "hidden" },
-  msgList: { flex: 1, minHeight: 0, overflowY: "auto", overflowX: "hidden", display: "flex", flexDirection: "column", gap: "18px", padding: "12px 0" },
+  homeWrapper: { width: "100%", maxWidth: 720, textAlign: "center", padding: "0 22px" },
+  welcomeText: { fontSize: "clamp(25px, 4vw, 38px)", fontWeight: 600, marginBottom: 30, letterSpacing: "-1px" },
+
+  searchBar: { display: "flex", alignItems: "center", borderRadius: 28, padding: "6px 16px", width: "100%", minHeight: 56, boxShadow: "0 8px 24px rgba(0,0,0,0.04)", flexShrink: 0 },
+  fileBtn: { background: "none", border: "none", cursor: "pointer", fontSize: 22, marginRight: 6, flexShrink: 0 },
+  textarea: { flex: 1, minWidth: 0, maxHeight: 140, background: "none", border: "none", outline: "none", textAlign: "center", fontSize: 16, resize: "none", padding: "10px 0", overflowY: "auto" },
+  sendBtn: { background: "none", border: "none", cursor: "pointer", fontSize: 22, marginLeft: 6, flexShrink: 0 },
+  fileHint: { fontSize: 12, opacity: 0.58, marginTop: 12 },
+
+  chatView: { width: "100%", maxWidth: 900, flex: 1, minHeight: 0, display: "flex", flexDirection: "column", padding: "14px 22px", overflow: "hidden" },
+  msgList: { flex: 1, minHeight: 0, overflowY: "auto", overflowX: "hidden", display: "flex", flexDirection: "column", gap: 18, padding: "10px 0" },
   uRow: { display: "flex", justifyContent: "flex-end" },
   aRow: { display: "flex", justifyContent: "flex-start" },
-  uBox: { padding: "14px 22px", borderRadius: "22px", maxWidth: "80%", fontSize: "15px", whiteSpace: "pre-wrap", overflowWrap: "anywhere" },
-  aBox: { padding: "12px 0", lineHeight: "1.7", fontSize: "16px", whiteSpace: "pre-wrap", maxWidth: "90%", overflowWrap: "anywhere" },
-  bottomInput: { padding: "12px 0 8px", flexShrink: 0 },
-  overlay: { position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", display: "flex", justifyContent: "center", alignItems: "center", zIndex: 1000 },
-  modal: { background: "white", borderRadius: "24px", width: "min(600px, calc(100vw - 32px))", height: "min(450px, calc(100dvh - 32px))", display: "flex", overflow: "hidden", color: "#1e293b", boxShadow: "0 30px 60px rgba(0,0,0,0.2)" },
-  modalSide: { width: "180px", background: "#f8fafc", padding: "30px", borderRight: "1px solid #e2e8f0", display: "flex", flexDirection: "column", gap: "15px" },
-  modalMain: { flex: 1, padding: "40px", display: "flex", flexDirection: "column" },
-  tab: { cursor: "pointer", fontSize: "14px" },
-  label: { fontSize: "11px", fontWeight: 800, color: "#94a3b8", textTransform: "uppercase", marginBottom: "8px", display: "block" },
-  input: { width: "100%", padding: "12px", borderRadius: "12px", border: "1px solid #e2e8f0", marginBottom: "20px", outline: "none", fontSize: "14px" },
-  badge: { fontSize: "12px", color: "#10b981", fontWeight: 700, background: "#f0fdf4", padding: "10px", borderRadius: "10px", textAlign: "center" },
-  themeGrid: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))", gap: "10px" },
-  themeOption: { padding: "12px", borderRadius: "12px", cursor: "pointer", display: "flex", alignItems: "center", gap: "12px", fontSize: "13px" },
-  saveBtn: { marginTop: "auto", padding: "15px", border: "none", borderRadius: "15px", color: "white", fontWeight: 700, cursor: "pointer" },
+  uBox: { padding: "13px 18px", borderRadius: 20, maxWidth: "82%", fontSize: 15, whiteSpace: "pre-wrap", overflowWrap: "anywhere" },
+  aBox: { padding: "10px 0", lineHeight: 1.7, fontSize: 16, whiteSpace: "pre-wrap", maxWidth: "92%", overflowWrap: "anywhere" },
+  bottomInput: { padding: "10px 0 8px", flexShrink: 0 },
+
+  overlay: { position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", display: "flex", justifyContent: "center", alignItems: "center", zIndex: 1000, padding: 16 },
+  modal: { borderRadius: 24, width: "min(620px, 100%)", height: "min(450px, calc(100dvh - 32px))", display: "flex", overflow: "hidden", boxShadow: "0 30px 60px rgba(0,0,0,0.25)" },
+  modalSide: { width: 170, padding: 24, display: "flex", flexDirection: "column", gap: 15, flexShrink: 0 },
+  modalMain: { flex: 1, minWidth: 0, padding: 32, display: "flex", flexDirection: "column", overflowY: "auto" },
+  tab: { cursor: "pointer", fontSize: 14 },
+  label: { fontSize: 11, fontWeight: 800, color: "#94a3b8", textTransform: "uppercase", marginBottom: 8, display: "block" },
+  input: { width: "100%", padding: 12, borderRadius: 12, border: "1px solid #e2e8f0", marginBottom: 20, outline: "none", fontSize: 14 },
+  badge: { fontSize: 12, color: "#10b981", fontWeight: 700, background: "#f0fdf4", padding: 10, borderRadius: 10, textAlign: "center" },
+  themeGrid: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(135px, 1fr))", gap: 10 },
+  themeOption: { padding: 12, borderRadius: 12, cursor: "pointer", display: "flex", alignItems: "center", gap: 12, fontSize: 13 },
+  saveBtn: { marginTop: "auto", padding: 14, border: "none", borderRadius: 14, color: "white", fontWeight: 700, cursor: "pointer" },
 };
+
 

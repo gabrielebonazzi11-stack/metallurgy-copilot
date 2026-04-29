@@ -121,6 +121,15 @@ interface DrawingUpload {
   previewUrl?: string;
 }
 
+interface DrawingIssue {
+  id: string;
+  label: string;
+  severity: "errore" | "attenzione" | "info";
+  x: number;
+  y: number;
+  detail: string;
+}
+
 const defaultUser: UserProfile = {
   name: "Mario Rossi",
   email: "mario.rossi@tech.it",
@@ -219,6 +228,7 @@ export default function App() {
     productionQuantity: "",
   });
   const [drawingResults, setDrawingResults] = useState<DrawingResult[]>([]);
+  const [drawingIssues, setDrawingIssues] = useState<DrawingIssue[]>([]);
   const [drawingReviewFile, setDrawingReviewFile] = useState<DrawingUpload | null>(null);
   const [drawingStepFile, setDrawingStepFile] = useState<DrawingUpload | null>(null);
 
@@ -341,6 +351,13 @@ export default function App() {
   const deleteChat = (id: string) => {
     setChats(prev => prev.filter(c => c.id !== id));
     if (activeChatId === id) setActiveChatId(null);
+  };
+
+  const clearAllChats = () => {
+    setChats([]);
+    setActiveChatId(null);
+    setQuery("");
+    setPendingFile(null);
   };
 
   const replaceMessagesInChat = (chatId: string, messages: Message[]) => {
@@ -874,6 +891,33 @@ export default function App() {
       results.push({ category: "Riferimenti", status: "🟦 Consigliata", item: "Datum su superficie di appoggio", reason: "Per piastre, staffe e flange conviene definire una superficie base per posizione fori e controlli geometrici.", suggestion: "Imposta datum A sulla superficie di appoggio principale; datum B/C su lati o fori di riferimento." });
     }
 
+    const issues: DrawingIssue[] = [];
+
+    if (!f.functionalSurfaces.trim()) {
+      issues.push({ id: "funzionali", label: "Superfici funzionali", severity: "errore", x: 24, y: 28, detail: "Mancano superfici funzionali: indica sedi, appoggi, scorrimenti, battute o riferimenti." });
+    }
+
+    if (!tolerances && !fits) {
+      issues.push({ id: "tolleranze", label: "Tolleranze", severity: "errore", x: 66, y: 35, detail: "Mancano tolleranze o accoppiamenti sulle quote importanti." });
+    }
+
+    if (!roughness) {
+      issues.push({ id: "rugosita", label: "Rugosità", severity: "attenzione", x: 44, y: 62, detail: "Manca rugosità generale o specifica sulle superfici funzionali." });
+    }
+
+    if (!f.material.trim() || !f.manufacturing.trim()) {
+      issues.push({ id: "cartiglio", label: "Cartiglio", severity: "attenzione", x: 78, y: 78, detail: "Controlla materiale, lavorazione, trattamento, scala, unità e note generali nel cartiglio." });
+    }
+
+    if (hasHoles && !text.includes("prof") && !text.includes("h7") && !text.includes("h13")) {
+      issues.push({ id: "fori", label: "Fori/filetti", severity: "attenzione", x: 58, y: 22, detail: "Fori e filetti vanno quotati con diametro, profondità, posizione, lamatura/svasatura e tolleranza se funzionali." });
+    }
+
+    if (issues.length === 0) {
+      issues.push({ id: "ok", label: "Controllo base OK", severity: "info", x: 50, y: 50, detail: "Non emergono mancanze principali dai dati inseriti. Rimane necessaria la verifica tecnica della tavola." });
+    }
+
+    setDrawingIssues(issues);
     setDrawingResults(results);
   };
 
@@ -1279,7 +1323,6 @@ export default function App() {
 
         <div style={{ ...s.iconNav, alignItems: sidebarOpen ? "stretch" : "center" }}>
           {iconBtn("＋", "Nuova", createNewChat)}
-          {iconBtn("≡", "Chat", () => setSidebarOpen(true), sidebarOpen)}
           <div style={{ ...s.toolsGroup, backgroundColor: isDark ? "#111111" : theme.surface, border: `1px solid ${theme.border || theme.surface}`, boxShadow: isDark ? "0 0 0 1px rgba(255,255,255,0.04) inset" : "0 8px 20px rgba(0,0,0,0.04)" }}>
             {sidebarOpen && <div style={{ ...s.toolsTitle, color: theme.primary }}>Strumenti tecnici</div>}
             {iconBtn("✓", "Checklist", () => setShowChecklist(true))}
@@ -1289,7 +1332,14 @@ export default function App() {
           </div>
         </div>
 
-        {sidebarOpen && <div style={s.chatHistory}><div style={s.historyHeader}>Cronologia</div>{chats.length === 0 && <div style={{ fontSize: 12, opacity: 0.6, padding: "8px" }}>Nessuna chat salvata</div>}{chats.map(chat => <div key={chat.id} style={{ ...s.historyItem, backgroundColor: chat.id === activeChatId ? theme.surface : "transparent", color: chat.id === activeChatId ? theme.primary : theme.text, border: `1px solid ${chat.id === activeChatId ? theme.border || theme.surface : "transparent"}` }}><div style={s.historyTitle} onClick={() => setActiveChatId(chat.id)}>{chat.title}</div><button style={s.deleteBtn} onClick={() => deleteChat(chat.id)} title="Elimina chat">×</button></div>)}</div>}
+        {sidebarOpen && <div style={s.chatHistory}>
+          <div style={s.historyHeaderRow}>
+            <div style={s.historyHeader}>Cronologia</div>
+            {chats.length > 0 && <button style={{ ...s.clearChatsBtn, color: theme.primary, border: `1px solid ${theme.border}` }} onClick={clearAllChats} title="Elimina tutte le chat" type="button">Svuota</button>}
+          </div>
+          {chats.length === 0 && <div style={{ fontSize: 12, opacity: 0.6, padding: "8px" }}>Nessuna chat salvata</div>}
+          {chats.map(chat => <div key={chat.id} style={{ ...s.historyItem, backgroundColor: chat.id === activeChatId ? theme.surface : "transparent", color: chat.id === activeChatId ? theme.primary : theme.text, border: `1px solid ${chat.id === activeChatId ? theme.border || theme.surface : "transparent"}` }}><div style={s.historyTitle} onClick={() => setActiveChatId(chat.id)}>{chat.title}</div><button style={{ ...s.deleteBtn, color: theme.text, border: `1px solid ${theme.border}` }} onClick={() => deleteChat(chat.id)} title="Elimina questa chat" type="button">×</button></div>)}
+        </div>}
         <div style={s.sidebarBottomActions}>{iconBtn("⚙", "Impostazioni", () => { setActiveTab("Aspetto"); setShowSettings(true); })}</div>
         
       </aside>
@@ -1373,7 +1423,59 @@ export default function App() {
                     )}
                   </div>
 
-                  <div style={s.checklistGrid}><div><label style={s.label}>Nome pezzo</label><input style={{ ...s.input, background: isDark ? "#050505" : "#ffffff", color: theme.text, border: `1px solid ${theme.border}` }} value={drawingForm.partName} onChange={e => updateDrawingField("partName", e.target.value)} placeholder="Es. Albero intermedio" /></div><div><label style={s.label}>Tipo pezzo</label><input style={{ ...s.input, background: isDark ? "#050505" : "#ffffff", color: theme.text, border: `1px solid ${theme.border}` }} value={drawingForm.partType} onChange={e => updateDrawingField("partType", e.target.value)} placeholder="Albero, perno, staffa..." /></div><div><label style={s.label}>Materiale</label><input style={{ ...s.input, background: isDark ? "#050505" : "#ffffff", color: theme.text, border: `1px solid ${theme.border}` }} value={drawingForm.material} onChange={e => updateDrawingField("material", e.target.value)} placeholder="C45, S235..." /></div><div><label style={s.label}>Quantità / lotto</label><input style={{ ...s.input, background: isDark ? "#050505" : "#ffffff", color: theme.text, border: `1px solid ${theme.border}` }} value={drawingForm.productionQuantity} onChange={e => updateDrawingField("productionQuantity", e.target.value)} placeholder="1 pezzo, 100 pezzi..." /></div></div><label style={s.label}>Lavorazione prevista</label><input style={{ ...s.input, background: isDark ? "#050505" : "#ffffff", color: theme.text, border: `1px solid ${theme.border}` }} value={drawingForm.manufacturing} onChange={e => updateDrawingField("manufacturing", e.target.value)} placeholder="Tornitura, fresatura..." /><label style={s.label}>Geometrie principali</label><textarea style={{ ...s.checklistTextarea, background: isDark ? "#050505" : "#ffffff", color: theme.text, border: `1px solid ${theme.border}` }} value={drawingForm.mainFeatures} onChange={e => updateDrawingField("mainFeatures", e.target.value)} placeholder="Fori, cave, asole..." /><label style={s.label}>Funzione del pezzo nell'assieme</label><textarea style={{ ...s.checklistTextarea, background: isDark ? "#050505" : "#ffffff", color: theme.text, border: `1px solid ${theme.border}` }} value={drawingForm.assemblyFunction} onChange={e => updateDrawingField("assemblyFunction", e.target.value)} placeholder="Cosa fa il pezzo?" />{(["functionalSurfaces", "holesThreads", "fits", "tolerances", "roughness"] as (keyof DrawingForm)[]).map(field => <div key={field}><label style={s.label}>{field === "functionalSurfaces" ? "Superfici funzionali" : field === "holesThreads" ? "Fori / filetti / lamature" : field === "fits" ? "Accoppiamenti" : field === "tolerances" ? "Tolleranze già previste" : "Rugosità già previste"}</label><input style={{ ...s.input, background: isDark ? "#050505" : "#ffffff", color: theme.text, border: `1px solid ${theme.border}` }} value={drawingForm[field]} onChange={e => updateDrawingField(field, e.target.value)} /></div>)}<button style={{ ...s.checkBtn, background: theme.primary }} onClick={runDrawingGenerator}>Genera controllo tavola</button></div><div style={s.checklistResultsArea}>{drawingResults.length === 0 ? <div style={{ ...s.emptyChecklist, border: `1px dashed ${theme.border}` }}>Inserisci i dati del pezzo e premi “Genera controllo tavola”.</div> : drawingResults.map((item, index) => <div key={index} style={{ ...s.resultCard, background: isDark ? "#050505" : "#f8fafc", border: `1px solid ${theme.border}` }}><div style={s.resultTop}><strong>{item.category}: {item.item}</strong><span style={s.resultStatus}>{item.status}</span></div><p style={s.resultDetail}>{item.reason}</p><p style={{ ...s.resultSuggestion, borderLeft: `3px solid ${theme.primary}` }}>{item.suggestion}</p></div>)}</div></div></div></div>}
+                  <div style={s.checklistGrid}><div><label style={s.label}>Nome pezzo</label><input style={{ ...s.input, background: isDark ? "#050505" : "#ffffff", color: theme.text, border: `1px solid ${theme.border}` }} value={drawingForm.partName} onChange={e => updateDrawingField("partName", e.target.value)} placeholder="Es. Albero intermedio" /></div><div><label style={s.label}>Tipo pezzo</label><input style={{ ...s.input, background: isDark ? "#050505" : "#ffffff", color: theme.text, border: `1px solid ${theme.border}` }} value={drawingForm.partType} onChange={e => updateDrawingField("partType", e.target.value)} placeholder="Albero, perno, staffa..." /></div><div><label style={s.label}>Materiale</label><input style={{ ...s.input, background: isDark ? "#050505" : "#ffffff", color: theme.text, border: `1px solid ${theme.border}` }} value={drawingForm.material} onChange={e => updateDrawingField("material", e.target.value)} placeholder="C45, S235..." /></div><div><label style={s.label}>Quantità / lotto</label><input style={{ ...s.input, background: isDark ? "#050505" : "#ffffff", color: theme.text, border: `1px solid ${theme.border}` }} value={drawingForm.productionQuantity} onChange={e => updateDrawingField("productionQuantity", e.target.value)} placeholder="1 pezzo, 100 pezzi..." /></div></div><label style={s.label}>Lavorazione prevista</label><input style={{ ...s.input, background: isDark ? "#050505" : "#ffffff", color: theme.text, border: `1px solid ${theme.border}` }} value={drawingForm.manufacturing} onChange={e => updateDrawingField("manufacturing", e.target.value)} placeholder="Tornitura, fresatura..." /><label style={s.label}>Geometrie principali</label><textarea style={{ ...s.checklistTextarea, background: isDark ? "#050505" : "#ffffff", color: theme.text, border: `1px solid ${theme.border}` }} value={drawingForm.mainFeatures} onChange={e => updateDrawingField("mainFeatures", e.target.value)} placeholder="Fori, cave, asole..." /><label style={s.label}>Funzione del pezzo nell'assieme</label><textarea style={{ ...s.checklistTextarea, background: isDark ? "#050505" : "#ffffff", color: theme.text, border: `1px solid ${theme.border}` }} value={drawingForm.assemblyFunction} onChange={e => updateDrawingField("assemblyFunction", e.target.value)} placeholder="Cosa fa il pezzo?" />{(["functionalSurfaces", "holesThreads", "fits", "tolerances", "roughness"] as (keyof DrawingForm)[]).map(field => <div key={field}><label style={s.label}>{field === "functionalSurfaces" ? "Superfici funzionali" : field === "holesThreads" ? "Fori / filetti / lamature" : field === "fits" ? "Accoppiamenti" : field === "tolerances" ? "Tolleranze già previste" : "Rugosità già previste"}</label><input style={{ ...s.input, background: isDark ? "#050505" : "#ffffff", color: theme.text, border: `1px solid ${theme.border}` }} value={drawingForm[field]} onChange={e => updateDrawingField(field, e.target.value)} /></div>)}<button style={{ ...s.checkBtn, background: theme.primary }} onClick={runDrawingGenerator}>Genera controllo tavola</button></div><div style={s.checklistResultsArea}>
+                  <div style={{ ...s.drawingPreviewPanel, background: isDark ? "#050505" : "#f8fafc", border: `1px solid ${theme.border}` }}>
+                    <div style={s.drawingPreviewTop}>
+                      <div>
+                        <strong>Anteprima controllo tavola</strong>
+                        <p style={{ margin: "4px 0 0", fontSize: 12, opacity: 0.65 }}>I marker indicano le zone da controllare nella tavola.</p>
+                      </div>
+                      <span style={{ ...s.previewBadge, background: drawingIssues.some(i => i.severity === "errore") ? "#dc2626" : drawingIssues.some(i => i.severity === "attenzione") ? "#f59e0b" : "#16a34a" }}>
+                        {drawingIssues.length || 0}
+                      </span>
+                    </div>
+
+                    <div style={{ ...s.drawingSheetMock, background: isDark ? "#0b0b0b" : "#ffffff", border: `1px solid ${theme.border}` }}>
+                      <div style={s.sheetViewLarge}>Vista principale</div>
+                      <div style={s.sheetViewSmallA}>Sezione A-A</div>
+                      <div style={s.sheetViewSmallB}>Dettaglio</div>
+                      <div style={s.sheetCartiglio}>Cartiglio</div>
+
+                      {drawingIssues.map(issue => (
+                        <div
+                          key={issue.id}
+                          title={issue.detail}
+                          style={{
+                            ...s.issueMarker,
+                            left: `${issue.x}%`,
+                            top: `${issue.y}%`,
+                            background: issue.severity === "errore" ? "#dc2626" : issue.severity === "attenzione" ? "#f59e0b" : "#16a34a",
+                          }}
+                        >
+                          !
+                        </div>
+                      ))}
+                    </div>
+
+                    <div style={s.issueList}>
+                      {drawingIssues.length === 0 ? (
+                        <div style={{ opacity: 0.65, fontSize: 13 }}>Esegui il controllo per vedere gli errori evidenziati.</div>
+                      ) : (
+                        drawingIssues.map(issue => (
+                          <div key={issue.id} style={s.issueRow}>
+                            <span style={{ ...s.issueDot, background: issue.severity === "errore" ? "#dc2626" : issue.severity === "attenzione" ? "#f59e0b" : "#16a34a" }} />
+                            <div>
+                              <strong>{issue.label}</strong>
+                              <p>{issue.detail}</p>
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+
+                  {drawingResults.length === 0 ? <div style={{ ...s.emptyChecklist, border: `1px dashed ${theme.border}` }}>Inserisci i dati del pezzo e premi “Genera controllo tavola”.</div> : drawingResults.map((item, index) => <div key={index} style={{ ...s.resultCard, background: isDark ? "#050505" : "#f8fafc", border: `1px solid ${theme.border}` }}><div style={s.resultTop}><strong>{item.category}: {item.item}</strong><span style={s.resultStatus}>{item.status}</span></div><p style={s.resultDetail}>{item.reason}</p><p style={{ ...s.resultSuggestion, borderLeft: `3px solid ${theme.primary}` }}>{item.suggestion}</p></div>)}
+                </div></div></div></div>}
 
         {showMaterials && <div style={s.overlay}><div style={{ ...s.checklistModal, background: isDark ? "#111111" : "white", color: theme.text, border: `1px solid ${theme.border}` }}><div style={s.modalHeader}><div><h2 style={{ fontSize: "20px", margin: 0 }}>Libreria materiali</h2><p style={s.checklistSubtitle}>Conversioni normative e proprietà meccaniche indicative.</p></div><button style={{ ...s.backBtn, color: theme.text, border: `1px solid ${theme.border}` }} onClick={() => setShowMaterials(false)}>← Indietro</button></div><div style={s.materialToolbar}><input style={{ ...s.materialSearch, background: isDark ? "#050505" : "#ffffff", color: theme.text, border: `1px solid ${theme.border}` }} value={materialSearch} onChange={e => setMaterialSearch(e.target.value)} placeholder="Cerca materiale, EN, DIN, AISI, JIS..." /><button style={{ ...s.addMaterialBtn, background: theme.primary }} onClick={() => setShowAddMaterial(prev => !prev)}>{showAddMaterial ? "Chiudi" : "+ Aggiungi materiale"}</button></div>{showAddMaterial && <div style={{ ...s.addMaterialPanel, background: isDark ? "#050505" : "#f8fafc", border: `1px solid ${theme.border}` }}><div style={s.addMaterialHeader}><strong>Nuovo materiale personalizzato</strong><span>Compila i dati che conosci. Gli altri resteranno “Non specificato”.</span></div><div style={s.addMaterialGrid}>{(["name", "key", "en", "uni", "din", "aisi", "jis", "iso", "rm", "re"] as (keyof MaterialInfo)[]).map(field => <div key={String(field)}><label style={s.label}>{String(field).toUpperCase()}</label><input style={{ ...s.input, background: isDark ? "#111" : "#fff", color: theme.text, border: `1px solid ${theme.border}` }} value={(newMaterial as any)[field] || ""} onChange={e => updateNewMaterialField(field, e.target.value)} /></div>)}</div>{(["hardness", "treatments", "weldability", "machinability", "uses"] as (keyof MaterialInfo)[]).map(field => <div key={String(field)}><label style={s.label}>{String(field)}</label><input style={{ ...s.input, background: isDark ? "#111" : "#fff", color: theme.text, border: `1px solid ${theme.border}` }} value={(newMaterial as any)[field] || ""} onChange={e => updateNewMaterialField(field, e.target.value)} /></div>)}<label style={s.label}>Note</label><textarea style={{ ...s.addMaterialTextarea, background: isDark ? "#111" : "#fff", color: theme.text, border: `1px solid ${theme.border}` }} value={newMaterial.notes} onChange={e => updateNewMaterialField("notes", e.target.value)} /><button style={{ ...s.saveMaterialBtn, background: theme.primary }} onClick={addCustomMaterial}>Salva materiale</button></div>}<div style={s.materialGrid}>{allMaterials.filter(m => { const q = materialSearch.toLowerCase().trim(); if (!q) return true; return `${m.name} ${m.en} ${m.uni} ${m.din} ${m.aisi} ${m.jis} ${m.iso} ${m.uses}`.toLowerCase().includes(q); }).map(material => <div key={material.key} style={{ ...s.materialCard, background: isDark ? "#050505" : "#f8fafc", border: `1px solid ${theme.border}` }}><div style={s.materialHead}><div><h3 style={{ margin: 0 }}>{material.name}</h3>{customMaterials.some(item => item.key === material.key) && <span style={s.customTag}>Personalizzato</span>}</div><div style={s.materialActions}><button style={{ ...s.smallUseBtn, background: theme.primary }} onClick={() => { setQuickCalcForm(prev => ({ ...prev, material: material.name })); setShowMaterials(false); setShowQuickCalc(true); }}>Usa in verifica</button>{customMaterials.some(item => item.key === material.key) && <button style={s.smallDeleteMaterialBtn} onClick={() => deleteCustomMaterial(material.key)}>Elimina</button>}</div></div><div style={s.materialCodes}><span>EN: {material.en}</span><span>UNI: {material.uni}</span><span>DIN: {material.din}</span><span>AISI/SAE: {material.aisi}</span><span>JIS: {material.jis}</span><span>ISO: {material.iso}</span></div><div style={s.materialProps}><strong>Rm:</strong> {material.rm} MPa · <strong>Re:</strong> {material.re} MPa · <strong>Durezza:</strong> {material.hardness}</div><p><strong>Trattamenti:</strong> {material.treatments}</p><p><strong>Saldabilità:</strong> {material.weldability}</p><p><strong>Lavorabilità:</strong> {material.machinability}</p><p><strong>Impieghi:</strong> {material.uses}</p><p style={{ opacity: 0.68 }}><strong>Nota:</strong> {material.notes}</p></div>)}</div></div></div>}
 
@@ -1437,10 +1539,12 @@ const s: any = {
   icon: { width: 22, height: 22, display: "inline-flex", justifyContent: "center", alignItems: "center", fontSize: 15, fontWeight: 600, opacity: 0.88, letterSpacing: "-1px", flexShrink: 0 },
   iconLabel: { whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" },
   chatHistory: { flex: 1, minHeight: 0, overflowY: "auto", overflowX: "hidden", display: "flex", flexDirection: "column", gap: 6, paddingRight: 2 },
-  historyHeader: { fontSize: 11, textTransform: "uppercase", fontWeight: 800, opacity: 0.5, padding: "6px 8px" },
-  historyItem: { minHeight: 38, display: "flex", alignItems: "center", justifyContent: "space-between", borderRadius: 12, padding: "8px 10px", fontSize: 13, cursor: "pointer" },
+  historyHeaderRow: { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, padding: "2px 4px" },
+  historyHeader: { fontSize: 11, textTransform: "uppercase", fontWeight: 800, opacity: 0.5, padding: "6px 4px" },
+  clearChatsBtn: { borderRadius: 999, background: "transparent", cursor: "pointer", fontSize: 11, fontWeight: 850, padding: "5px 8px" },
+  historyItem: { minHeight: 38, display: "flex", alignItems: "center", justifyContent: "space-between", borderRadius: 12, padding: "8px 8px 8px 10px", fontSize: 13, cursor: "pointer", gap: 8 },
   historyTitle: { overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis", flex: 1 },
-  deleteBtn: { border: "none", background: "transparent", cursor: "pointer", fontSize: 18, opacity: 0.55 },
+  deleteBtn: { width: 24, height: 24, borderRadius: "50%", background: "rgba(120,120,120,0.10)", cursor: "pointer", fontSize: 16, opacity: 0.85, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 },
   sidebarBottomActions: { marginTop: "auto", display: "flex", flexDirection: "column", gap: 8, flexShrink: 0 },
   sidebarAccount: { display: "flex", alignItems: "center", gap: 10, minHeight: 48, padding: "7px", cursor: "pointer", borderRadius: 14, flexShrink: 0 },
   avatar: { width: 38, height: 38, borderRadius: "50%", color: "white", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: 14, flexShrink: 0 },
@@ -1518,6 +1622,18 @@ const s: any = {
   drawingFileSub: { display: "block", fontSize: 11, opacity: 0.65, marginTop: 2 },
   drawingPreviewImage: { width: "100%", maxHeight: 160, objectFit: "contain", borderRadius: 12, marginTop: 10, background: "rgba(120,120,120,0.08)" },
   drawingRemoveBtn: { width: 28, height: 28, borderRadius: "50%", border: "none", background: "rgba(120,120,120,0.16)", cursor: "pointer", fontSize: 18, lineHeight: 1, flexShrink: 0 },
+  drawingPreviewPanel: { borderRadius: 18, padding: 16, marginBottom: 12 },
+  drawingPreviewTop: { display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, marginBottom: 12 },
+  previewBadge: { minWidth: 28, height: 28, borderRadius: 999, color: "white", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 900 },
+  drawingSheetMock: { position: "relative", height: 260, borderRadius: 14, overflow: "hidden", marginBottom: 12 },
+  sheetViewLarge: { position: "absolute", left: "8%", top: "12%", width: "42%", height: "42%", border: "1px solid rgba(120,120,120,0.35)", borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, opacity: 0.75 },
+  sheetViewSmallA: { position: "absolute", right: "10%", top: "14%", width: "28%", height: "24%", border: "1px solid rgba(120,120,120,0.35)", borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, opacity: 0.75 },
+  sheetViewSmallB: { position: "absolute", left: "20%", bottom: "16%", width: "26%", height: "20%", border: "1px solid rgba(120,120,120,0.35)", borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, opacity: 0.75 },
+  sheetCartiglio: { position: "absolute", right: "6%", bottom: "6%", width: "34%", height: "18%", border: "1px solid rgba(120,120,120,0.35)", borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, opacity: 0.75 },
+  issueMarker: { position: "absolute", transform: "translate(-50%, -50%)", width: 26, height: 26, borderRadius: "50%", color: "white", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 950, fontSize: 15, boxShadow: "0 8px 22px rgba(0,0,0,0.28)", border: "2px solid rgba(255,255,255,0.85)" },
+  issueList: { display: "flex", flexDirection: "column", gap: 8 },
+  issueRow: { display: "flex", alignItems: "flex-start", gap: 8, fontSize: 12, lineHeight: 1.35 },
+  issueDot: { width: 9, height: 9, borderRadius: "50%", marginTop: 5, flexShrink: 0 },
   checklistFormArea: { overflowY: "auto", paddingRight: 6 },
   checklistResultsArea: { overflowY: "auto", display: "flex", flexDirection: "column", gap: 12, paddingRight: 6 },
   checklistGrid: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 },
@@ -1557,3 +1673,4 @@ const s: any = {
   miniPrimaryBtn: { border: "none", color: "white", padding: 12, borderRadius: 12, cursor: "pointer", fontWeight: 800 },
   miniDangerBtn: { border: "none", color: "#991b1b", background: "#fee2e2", padding: 12, borderRadius: 12, cursor: "pointer", fontWeight: 800 },
 };
+

@@ -229,6 +229,7 @@ export default function App() {
   });
   const [drawingResults, setDrawingResults] = useState<DrawingResult[]>([]);
   const [drawingIssues, setDrawingIssues] = useState<DrawingIssue[]>([]);
+  const [drawingAiLoading, setDrawingAiLoading] = useState(false);
   const [drawingReviewFile, setDrawingReviewFile] = useState<DrawingUpload | null>(null);
   const [drawingStepFile, setDrawingStepFile] = useState<DrawingUpload | null>(null);
 
@@ -836,8 +837,108 @@ export default function App() {
     setChecklistResults(results);
   };
 
-  const runDrawingGenerator = () => {
+  const runDrawingGenerator = async () => {
     const f = drawingForm;
+
+    if (drawingReviewFile && drawingReviewFile.file.type.startsWith("image/")) {
+      setDrawingAiLoading(true);
+      setDrawingResults([]);
+      setDrawingIssues([]);
+
+      try {
+        const formData = new FormData();
+        formData.append(
+          "message",
+          `Analizza questa tavola tecnica caricata come immagine.
+
+Dati inseriti dall'utente:
+- Nome pezzo: ${f.partName || "non indicato"}
+- Tipo pezzo: ${f.partType || "non indicato"}
+- Materiale: ${f.material || "non indicato"}
+- Quantità/lotto: ${f.productionQuantity || "non indicato"}
+- Lavorazione prevista: ${f.manufacturing || "non indicata"}
+- Geometrie principali: ${f.mainFeatures || "non indicate"}
+- Funzione nell'assieme: ${f.assemblyFunction || "non indicata"}
+- Superfici funzionali: ${f.functionalSurfaces || "non indicate"}
+- Fori/filetti/lamature: ${f.holesThreads || "non indicati"}
+- Accoppiamenti: ${f.fits || "non indicati"}
+- Tolleranze previste: ${f.tolerances || "non indicate"}
+- Rugosità previste: ${f.roughness || "non indicate"}
+
+Non fare una checklist generica: guarda davvero l'immagine.
+Dimmi cosa vedi e quali errori o mancanze sono presenti nella tavola.
+Se una cosa non si legge, scrivi che non è leggibile invece di inventarla.
+Organizza la risposta con: Sintesi, Errori/Mancanze, Zone da controllare, Correzioni consigliate, Conclusione.`
+        );
+        formData.append("file", drawingReviewFile.file);
+        formData.append("profile", JSON.stringify({ userName: user.name, focus: interest }));
+        formData.append("messages", JSON.stringify([]));
+
+        const res = await fetch("/api/chat", {
+          method: "POST",
+          body: formData,
+        });
+
+        const raw = await res.text();
+        let data: any = null;
+        try {
+          data = raw ? JSON.parse(raw) : null;
+        } catch {
+          data = null;
+        }
+
+        const answer = data?.answer || data?.message || raw || "Nessuna risposta ricevuta dall'analisi immagine.";
+
+        const lowerAnswer = String(answer).toLowerCase();
+        const aiIssues: DrawingIssue[] = [];
+
+        if (lowerAnswer.includes("quota") || lowerAnswer.includes("quote")) {
+          aiIssues.push({ id: "ai-quote", label: "Quote", severity: "attenzione", x: 35, y: 35, detail: "L'analisi AI segnala possibili problemi o controlli sulle quote." });
+        }
+        if (lowerAnswer.includes("toller")) {
+          aiIssues.push({ id: "ai-tolleranze", label: "Tolleranze", severity: "attenzione", x: 62, y: 34, detail: "L'analisi AI segnala possibili problemi o controlli sulle tolleranze." });
+        }
+        if (lowerAnswer.includes("rugos")) {
+          aiIssues.push({ id: "ai-rugosita", label: "Rugosità", severity: "attenzione", x: 44, y: 62, detail: "L'analisi AI segnala possibili problemi o controlli sulla rugosità." });
+        }
+        if (lowerAnswer.includes("cartiglio") || lowerAnswer.includes("materiale") || lowerAnswer.includes("scala")) {
+          aiIssues.push({ id: "ai-cartiglio", label: "Cartiglio", severity: "attenzione", x: 78, y: 78, detail: "L'analisi AI segnala controlli da fare nel cartiglio o nelle note generali." });
+        }
+        if (lowerAnswer.includes("sezione") || lowerAnswer.includes("vista")) {
+          aiIssues.push({ id: "ai-viste", label: "Viste/Sezioni", severity: "info", x: 58, y: 24, detail: "L'analisi AI segnala controlli su viste, sezioni o dettagli." });
+        }
+
+        if (aiIssues.length === 0) {
+          aiIssues.push({ id: "ai-generale", label: "Analisi AI", severity: "info", x: 50, y: 50, detail: "Analisi immagine completata. Leggi il risultato testuale sotto." });
+        }
+
+        setDrawingIssues(aiIssues);
+        setDrawingResults([
+          {
+            category: "Analisi AI immagine",
+            status: "⚠️ Da verificare",
+            item: drawingReviewFile.fileAttachment.name,
+            reason: answer,
+            suggestion: "Usa questa analisi come revisione preliminare: controlla manualmente le zone indicate e verifica sempre quote, tolleranze, rugosità e cartiglio sulla tavola originale.",
+          },
+        ]);
+      } catch (error: any) {
+        setDrawingIssues([{ id: "ai-error", label: "Errore analisi", severity: "errore", x: 50, y: 50, detail: error?.message || "Errore durante l'analisi immagine." }]);
+        setDrawingResults([
+          {
+            category: "Errore analisi immagine",
+            status: "❌ Mancante",
+            item: drawingReviewFile.fileAttachment.name,
+            reason: error?.message || "Non sono riuscito ad analizzare l'immagine.",
+            suggestion: "Controlla che OPENROUTER_API_KEY sia presente su Vercel, che il deploy sia aggiornato e che il modello supporti immagini.",
+          },
+        ]);
+      } finally {
+        setDrawingAiLoading(false);
+      }
+
+      return;
+    }
     const text = `${f.partName} ${f.partType} ${f.material} ${f.manufacturing} ${f.mainFeatures} ${f.functionalSurfaces} ${f.holesThreads} ${f.fits} ${f.tolerances} ${f.roughness} ${f.assemblyFunction}`.toLowerCase();
     const partType = f.partType.toLowerCase();
     const holes = f.holesThreads.toLowerCase();
@@ -1457,7 +1558,9 @@ Dettaglio tecnico: ${error?.message || "errore sconosciuto"}`,
                     )}
                   </div>
 
-                  <div style={s.checklistGrid}><div><label style={s.label}>Nome pezzo</label><input style={{ ...s.input, background: isDark ? "#050505" : "#ffffff", color: theme.text, border: `1px solid ${theme.border}` }} value={drawingForm.partName} onChange={e => updateDrawingField("partName", e.target.value)} placeholder="Es. Albero intermedio" /></div><div><label style={s.label}>Tipo pezzo</label><input style={{ ...s.input, background: isDark ? "#050505" : "#ffffff", color: theme.text, border: `1px solid ${theme.border}` }} value={drawingForm.partType} onChange={e => updateDrawingField("partType", e.target.value)} placeholder="Albero, perno, staffa..." /></div><div><label style={s.label}>Materiale</label><input style={{ ...s.input, background: isDark ? "#050505" : "#ffffff", color: theme.text, border: `1px solid ${theme.border}` }} value={drawingForm.material} onChange={e => updateDrawingField("material", e.target.value)} placeholder="C45, S235..." /></div><div><label style={s.label}>Quantità / lotto</label><input style={{ ...s.input, background: isDark ? "#050505" : "#ffffff", color: theme.text, border: `1px solid ${theme.border}` }} value={drawingForm.productionQuantity} onChange={e => updateDrawingField("productionQuantity", e.target.value)} placeholder="1 pezzo, 100 pezzi..." /></div></div><label style={s.label}>Lavorazione prevista</label><input style={{ ...s.input, background: isDark ? "#050505" : "#ffffff", color: theme.text, border: `1px solid ${theme.border}` }} value={drawingForm.manufacturing} onChange={e => updateDrawingField("manufacturing", e.target.value)} placeholder="Tornitura, fresatura..." /><label style={s.label}>Geometrie principali</label><textarea style={{ ...s.checklistTextarea, background: isDark ? "#050505" : "#ffffff", color: theme.text, border: `1px solid ${theme.border}` }} value={drawingForm.mainFeatures} onChange={e => updateDrawingField("mainFeatures", e.target.value)} placeholder="Fori, cave, asole..." /><label style={s.label}>Funzione del pezzo nell'assieme</label><textarea style={{ ...s.checklistTextarea, background: isDark ? "#050505" : "#ffffff", color: theme.text, border: `1px solid ${theme.border}` }} value={drawingForm.assemblyFunction} onChange={e => updateDrawingField("assemblyFunction", e.target.value)} placeholder="Cosa fa il pezzo?" />{(["functionalSurfaces", "holesThreads", "fits", "tolerances", "roughness"] as (keyof DrawingForm)[]).map(field => <div key={field}><label style={s.label}>{field === "functionalSurfaces" ? "Superfici funzionali" : field === "holesThreads" ? "Fori / filetti / lamature" : field === "fits" ? "Accoppiamenti" : field === "tolerances" ? "Tolleranze già previste" : "Rugosità già previste"}</label><input style={{ ...s.input, background: isDark ? "#050505" : "#ffffff", color: theme.text, border: `1px solid ${theme.border}` }} value={drawingForm[field]} onChange={e => updateDrawingField(field, e.target.value)} /></div>)}<button style={{ ...s.checkBtn, background: theme.primary }} onClick={runDrawingGenerator}>Genera controllo tavola</button></div><div style={s.checklistResultsArea}>
+                  <div style={s.checklistGrid}><div><label style={s.label}>Nome pezzo</label><input style={{ ...s.input, background: isDark ? "#050505" : "#ffffff", color: theme.text, border: `1px solid ${theme.border}` }} value={drawingForm.partName} onChange={e => updateDrawingField("partName", e.target.value)} placeholder="Es. Albero intermedio" /></div><div><label style={s.label}>Tipo pezzo</label><input style={{ ...s.input, background: isDark ? "#050505" : "#ffffff", color: theme.text, border: `1px solid ${theme.border}` }} value={drawingForm.partType} onChange={e => updateDrawingField("partType", e.target.value)} placeholder="Albero, perno, staffa..." /></div><div><label style={s.label}>Materiale</label><input style={{ ...s.input, background: isDark ? "#050505" : "#ffffff", color: theme.text, border: `1px solid ${theme.border}` }} value={drawingForm.material} onChange={e => updateDrawingField("material", e.target.value)} placeholder="C45, S235..." /></div><div><label style={s.label}>Quantità / lotto</label><input style={{ ...s.input, background: isDark ? "#050505" : "#ffffff", color: theme.text, border: `1px solid ${theme.border}` }} value={drawingForm.productionQuantity} onChange={e => updateDrawingField("productionQuantity", e.target.value)} placeholder="1 pezzo, 100 pezzi..." /></div></div><label style={s.label}>Lavorazione prevista</label><input style={{ ...s.input, background: isDark ? "#050505" : "#ffffff", color: theme.text, border: `1px solid ${theme.border}` }} value={drawingForm.manufacturing} onChange={e => updateDrawingField("manufacturing", e.target.value)} placeholder="Tornitura, fresatura..." /><label style={s.label}>Geometrie principali</label><textarea style={{ ...s.checklistTextarea, background: isDark ? "#050505" : "#ffffff", color: theme.text, border: `1px solid ${theme.border}` }} value={drawingForm.mainFeatures} onChange={e => updateDrawingField("mainFeatures", e.target.value)} placeholder="Fori, cave, asole..." /><label style={s.label}>Funzione del pezzo nell'assieme</label><textarea style={{ ...s.checklistTextarea, background: isDark ? "#050505" : "#ffffff", color: theme.text, border: `1px solid ${theme.border}` }} value={drawingForm.assemblyFunction} onChange={e => updateDrawingField("assemblyFunction", e.target.value)} placeholder="Cosa fa il pezzo?" />{(["functionalSurfaces", "holesThreads", "fits", "tolerances", "roughness"] as (keyof DrawingForm)[]).map(field => <div key={field}><label style={s.label}>{field === "functionalSurfaces" ? "Superfici funzionali" : field === "holesThreads" ? "Fori / filetti / lamature" : field === "fits" ? "Accoppiamenti" : field === "tolerances" ? "Tolleranze già previste" : "Rugosità già previste"}</label><input style={{ ...s.input, background: isDark ? "#050505" : "#ffffff", color: theme.text, border: `1px solid ${theme.border}` }} value={drawingForm[field]} onChange={e => updateDrawingField(field, e.target.value)} /></div>)}<button style={{ ...s.checkBtn, background: theme.primary }} onClick={runDrawingGenerator} disabled={drawingAiLoading}>
+                    {drawingAiLoading ? "Analisi immagine in corso..." : drawingReviewFile?.file.type.startsWith("image/") ? "Analizza immagine tavola" : "Genera controllo tavola"}
+                  </button></div><div style={s.checklistResultsArea}>
                   <div style={{ ...s.drawingPreviewPanel, background: isDark ? "#050505" : "#f8fafc", border: `1px solid ${theme.border}` }}>
                     <div style={s.drawingPreviewTop}>
                       <div>
@@ -1707,4 +1810,3 @@ const s: any = {
   miniPrimaryBtn: { border: "none", color: "white", padding: 12, borderRadius: 12, cursor: "pointer", fontWeight: 800 },
   miniDangerBtn: { border: "none", color: "#991b1b", background: "#fee2e2", padding: 12, borderRadius: 12, cursor: "pointer", fontWeight: 800 },
 };
-

@@ -884,7 +884,7 @@ export default function App() {
               role: "system",
               content:
                 `Sei TechAI. Utente: ${user.name}. Focus: ${interest}. ` +
-                "Rispondi in italiano, in modo tecnico ma chiaro. Usa titoli Markdown con ## e ### quando la risposta è lunga. Usa liste ordinate per procedimenti. Quando scrivi formule, calcoli o passaggi matematici usa LaTeX leggibile: frazioni con \\frac{}, moltiplicazioni con \\cdot, radici con \\sqrt{}, potenze con ^{}. Per formule importanti usa blocchi \\[ ... \\]. Se l'utente carica un file, analizza il contenuto testuale presente in chat. Evidenzia sempre Conclusione:, Nota: o Risultato: quando utile.",
+                "Rispondi in italiano, in modo tecnico ma chiaro. Puoi usare emoji nelle risposte quando aiutano la leggibilità, ad esempio ✅ per conferme, ⚠️ per attenzioni, 📌 per punti importanti, 🔧 per parti tecniche, 📐 per disegni/tavole, 🧮 per calcoli e 🧠 per spiegazioni. Non esagerare: usa poche emoji mirate e professionali. Usa titoli Markdown con ## e ### quando la risposta è lunga. Usa liste ordinate per procedimenti. Quando scrivi formule, calcoli o passaggi matematici usa LaTeX leggibile: frazioni con \\frac{}, moltiplicazioni con \\cdot, radici con \\sqrt{}, potenze con ^{}. Per formule importanti usa blocchi \\[ ... \\]. Se l'utente carica un file, analizza il contenuto testuale presente in chat. Evidenzia sempre Conclusione:, Nota: o Risultato: quando utile.",
             },
             ...updatedMessages.map(m => ({
               role: m.role === "utente" ? "user" : "assistant",
@@ -1485,7 +1485,7 @@ export default function App() {
 
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap');
-        * { font-family: 'Inter', sans-serif !important; box-sizing: border-box; transition: background 0.2s, color 0.2s, width 0.25s ease, min-width 0.25s ease, border 0.2s; }
+        * { font-family: 'Inter', 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji', sans-serif !important; box-sizing: border-box; transition: background 0.2s, color 0.2s, width 0.25s ease, min-width 0.25s ease, border 0.2s; }
         html, body, #root { width: 100%; height: 100%; margin: 0; overflow: hidden; }
         input::placeholder, textarea::placeholder { opacity: 0.55; }
         button:disabled { opacity: 0.45; cursor: not-allowed; }

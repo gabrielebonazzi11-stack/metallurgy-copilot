@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { MATERIALS_DB, MaterialInfo } from "./data/materials";
 
 const THEMES = [
@@ -64,7 +64,6 @@ interface ChecklistResult {
   suggestion: string;
 }
 
-
 interface QuickCalcForm {
   componentType: string;
   stressType: string;
@@ -117,10 +116,8 @@ const defaultUser: UserProfile = {
   email: "mario.rossi@tech.it",
 };
 
-const STORAGE_KEY = "techai_ultimate_v6_login_sidebar";
+const STORAGE_KEY = "techai_ultimate_v7_pretty_answers";
 const BS = String.fromCharCode(92);
-
-
 
 export default function App() {
   const [query, setQuery] = useState("");
@@ -172,22 +169,8 @@ export default function App() {
     safetyFactorRequired: "2",
   });
   const [quickCalcResult, setQuickCalcResult] = useState<QuickCalcResult | null>(null);
+
   const [materialSearch, setMaterialSearch] = useState("");
-  const [drawingForm, setDrawingForm] = useState<DrawingForm>({
-    partName: "",
-    partType: "",
-    material: "",
-    manufacturing: "",
-    mainFeatures: "",
-    functionalSurfaces: "",
-    holesThreads: "",
-    fits: "",
-    tolerances: "",
-    roughness: "",
-    assemblyFunction: "",
-    productionQuantity: "",
-  });
-  const [drawingResults, setDrawingResults] = useState<DrawingResult[]>([]);
   const [customMaterials, setCustomMaterials] = useState<MaterialInfo[]>([]);
   const [showAddMaterial, setShowAddMaterial] = useState(false);
   const [newMaterial, setNewMaterial] = useState<MaterialInfo>({
@@ -208,6 +191,22 @@ export default function App() {
     uses: "",
     notes: "Materiale aggiunto dall'utente. Verificare sempre i dati prima di usarlo in calcoli reali.",
   });
+
+  const [drawingForm, setDrawingForm] = useState<DrawingForm>({
+    partName: "",
+    partType: "",
+    material: "",
+    manufacturing: "",
+    mainFeatures: "",
+    functionalSurfaces: "",
+    holesThreads: "",
+    fits: "",
+    tolerances: "",
+    roughness: "",
+    assemblyFunction: "",
+    productionQuantity: "",
+  });
+  const [drawingResults, setDrawingResults] = useState<DrawingResult[]>([]);
 
   const apiKey = import.meta.env.VITE_GROQ_API_KEY;
   const chatEndRef = useRef<HTMLDivElement>(null);
@@ -264,8 +263,8 @@ export default function App() {
     if (!existingScript) {
       (window as any).MathJax = {
         tex: {
-          inlineMath: [["\(", "\)"], ["$", "$"]],
-          displayMath: [["\[", "\]"], ["$$", "$$"]],
+          inlineMath: [["\\(", "\\)"], ["$", "$"]],
+          displayMath: [["\\[", "\\]"], ["$$", "$$"]],
         },
         svg: { fontCache: "global" },
       };
@@ -336,9 +335,7 @@ export default function App() {
   };
 
   const replaceMessagesInChat = (chatId: string, messages: Message[]) => {
-    setChats(prev =>
-      prev.map(chat => (chat.id === chatId ? { ...chat, messages } : chat))
-    );
+    setChats(prev => prev.map(chat => (chat.id === chatId ? { ...chat, messages } : chat)));
   };
 
   const handleLogin = () => {
@@ -419,121 +416,7 @@ export default function App() {
     setDrawingForm(prev => ({ ...prev, [field]: value }));
   };
 
-  const runDrawingGenerator = () => {
-    const f = drawingForm;
-    const text = `${f.partName} ${f.partType} ${f.material} ${f.manufacturing} ${f.mainFeatures} ${f.functionalSurfaces} ${f.holesThreads} ${f.fits} ${f.tolerances} ${f.roughness} ${f.assemblyFunction}`.toLowerCase();
-    const partType = f.partType.toLowerCase();
-    const features = f.mainFeatures.toLowerCase();
-    const holes = f.holesThreads.toLowerCase();
-    const fits = f.fits.toLowerCase();
-    const tolerances = f.tolerances.toLowerCase();
-    const roughness = f.roughness.toLowerCase();
-    const manufacturing = f.manufacturing.toLowerCase();
-
-    const hasHoles = holes.includes("foro") || holes.includes("m") || holes.includes("filett") || text.includes("lamatura") || text.includes("svasatura");
-    const hasShaft = partType.includes("albero") || partType.includes("perno") || text.includes("sede cuscinetto") || text.includes("linguetta");
-    const hasPlate = partType.includes("piastra") || partType.includes("staffa") || partType.includes("flangia");
-    const hasWeld = manufacturing.includes("sald") || text.includes("sald");
-    const hasBearing = text.includes("cuscinetto");
-    const hasThread = holes.includes("m") || holes.includes("filett");
-    const hasSlot = text.includes("asola") || text.includes("cava") || text.includes("linguetta");
-
-    const results: DrawingResult[] = [];
-
-    results.push({
-      category: "Viste",
-      status: "✅ Necessaria",
-      item: "Vista principale/frontale",
-      reason: "Serve per rappresentare la forma più riconoscibile e la maggior parte delle quote principali del pezzo.",
-      suggestion: "Scegli come vista frontale quella che mostra meglio funzione, fori principali, ingombri e simmetrie.",
-    });
-
-    results.push({
-      category: "Viste",
-      status: hasShaft ? "✅ Necessaria" : "🟦 Consigliata",
-      item: hasShaft ? "Vista longitudinale dell'albero/perno" : "Vista laterale o superiore",
-      reason: hasShaft ? "Per alberi e perni è essenziale mostrare diametri, spallamenti, gole, smussi e lunghezze." : "Una seconda vista evita ambiguità su spessori, profondità e posizione dei dettagli.",
-      suggestion: hasShaft ? "Quota diametri e lunghezze in sequenza, aggiungendo assi tratto-punto e dettagli su gole/cave." : "Aggiungi una vista laterale/superiore se la geometria non è completamente definita dalla vista frontale.",
-    });
-
-    results.push({
-      category: "Sezioni",
-      status: hasHoles || hasBearing || hasSlot ? "🟦 Consigliata" : "ℹ️ Informativa",
-      item: hasHoles || hasBearing || hasSlot ? "Sezione A-A" : "Sezione non obbligatoria salvo geometrie interne",
-      reason: hasHoles || hasBearing || hasSlot ? "Fori, sedi, cave, lamature o geometrie interne sono più chiare in sezione." : "Se il pezzo è pieno e semplice, la sezione può non essere necessaria.",
-      suggestion: hasBearing ? "Usa una sezione passante per la sede cuscinetto e quota diametro, profondità, smusso e rugosità." : hasHoles ? "Usa una sezione passante per fori ciechi, filetti, lamature o svasature." : "Valuta una sezione solo se ci sono dettagli nascosti importanti.",
-    });
-
-    results.push({
-      category: "Quote funzionali",
-      status: f.functionalSurfaces.trim() ? "⚠️ Da verificare" : "❌ Mancante",
-      item: "Superfici funzionali e quote critiche",
-      reason: f.functionalSurfaces.trim() ? `Superfici indicate: ${f.functionalSurfaces}.` : "Non sono state indicate superfici funzionali: rischio di quotare solo gli ingombri.",
-      suggestion: f.functionalSurfaces.trim() ? "Assicurati che ogni superficie funzionale abbia quota, tolleranza e rugosità adeguata." : "Indica sedi, appoggi, superfici di scorrimento, battute, fori di centraggio e riferimenti di montaggio.",
-    });
-
-    results.push({
-      category: "Fori e filetti",
-      status: hasHoles ? "⚠️ Da verificare" : "ℹ️ Informativa",
-      item: hasThread ? "Filetti e maschiature" : "Fori, lamature e svasature",
-      reason: hasHoles ? `Dettagli indicati: ${f.holesThreads}.` : "Non sono stati indicati fori o filetti.",
-      suggestion: hasThread ? "Per ogni filetto indica M, passo se non standard, profondità utile, eventuale preforo e tolleranza se richiesta." : hasHoles ? "Per ogni foro indica diametro, profondità, posizione, eventuale tolleranza H7/H13, lamatura o svasatura." : "Nessuna azione se il pezzo non contiene fori.",
-    });
-
-    results.push({
-      category: "Tolleranze",
-      status: tolerances || fits ? "⚠️ Da verificare" : "❌ Mancante",
-      item: "Tolleranze dimensionali/geometriche",
-      reason: tolerances || fits ? `Tolleranze/accoppiamenti indicati: ${f.tolerances || f.fits}.` : "Non risultano tolleranze specifiche: rischio tavola non producibile o non controllabile.",
-      suggestion: hasBearing ? "Per sedi cuscinetto valuta tolleranze tipo H7, h6, k6, m6 secondo montaggio. Aggiungi concentricità/coassialità se necessaria." : hasSlot ? "Per cave e asole valuta larghezza tollerata, posizione e rugosità se sono funzionali." : "Aggiungi tolleranze sulle quote funzionali; lascia le quote non critiche alla tolleranza generale del cartiglio.",
-    });
-
-    results.push({
-      category: "Rugosità",
-      status: roughness ? "⚠️ Da verificare" : "❌ Mancante",
-      item: "Rugosità generale e specifica",
-      reason: roughness ? `Rugosità indicata: ${f.roughness}.` : "Non è stata indicata rugosità generale o specifica.",
-      suggestion: hasBearing ? "Per sede cuscinetto consiglia Ra 1.6 o migliore secondo applicazione; per superfici generiche Ra 3.2/6.3." : text.includes("scorr") ? "Per superfici di scorrimento valuta Ra 0.8–1.6; per superfici non funzionali usa rugosità generale." : "Inserisci rugosità generale nel cartiglio e rugosità specifiche sulle superfici funzionali.",
-    });
-
-    results.push({
-      category: "Quote ridondanti",
-      status: "⚠️ Da verificare",
-      item: "Controllo quote sovrabbondanti",
-      reason: "La checklist non vede la tavola grafica, ma segnala il rischio tipico di quote duplicate o chiuse in catena.",
-      suggestion: "Evita catene di quote chiuse. Usa quote funzionali da riferimenti/datum e lascia le quote derivate non quotate.",
-    });
-
-    results.push({
-      category: "Cartiglio e note",
-      status: f.material.trim() && f.manufacturing.trim() ? "⚠️ Da verificare" : "❌ Mancante",
-      item: "Note generali di tavola",
-      reason: f.material.trim() && f.manufacturing.trim() ? "Materiale e lavorazione sono presenti, ma vanno riportati in modo coerente in tavola." : "Mancano informazioni base per il cartiglio o le note di lavorazione.",
-      suggestion: `Metti in cartiglio/materiale: ${f.material || "materiale da definire"}. Note consigliate: sbavare gli spigoli, smussi non quotati, trattamento superficiale, tolleranze generali ISO 2768 se applicabile.`,
-    });
-
-    results.push({
-      category: "Produzione",
-      status: manufacturing ? "⚠️ Da verificare" : "❌ Mancante",
-      item: "Metodo produttivo e quantità",
-      reason: manufacturing ? `Lavorazione indicata: ${f.manufacturing}. Quantità: ${f.productionQuantity || "non indicata"}.` : "Metodo produttivo non indicato.",
-      suggestion: hasWeld ? "Per pezzi saldati aggiungi simboli di saldatura, preparazioni lembi, controlli e distensione se richiesta." : manufacturing.includes("rett") ? "Se è prevista rettifica, quota tolleranze e rugosità coerenti sulle superfici rettificate." : "Specifica se il pezzo è tornito, fresato, tagliato laser, piegato, saldato, fuso o stampato.",
-    });
-
-    if (hasPlate) {
-      results.push({
-        category: "Riferimenti",
-        status: "🟦 Consigliata",
-        item: "Datum su superficie di appoggio",
-        reason: "Per piastre, staffe e flange conviene definire una superficie base per posizione fori e controlli geometrici.",
-        suggestion: "Imposta datum A sulla superficie di appoggio principale; datum B/C su lati o fori di riferimento.",
-      });
-    }
-
-    setDrawingResults(results);
-  };
-
-  const normalizeMaterialKey = (value: string) => value.toLowerCase().replaceAll(" ", "").replaceAll("-", "");
+  const normalizeMaterialKey = (value?: string) => String(value || "").toLowerCase().replaceAll(" ", "").replaceAll("-", "");
 
   const findMaterial = (value: string) => {
     const key = normalizeMaterialKey(value);
@@ -563,7 +446,9 @@ export default function App() {
     }
 
     const generatedKey = normalizeMaterialKey(newMaterial.key || materialName);
-    const exists = allMaterials.some(m => normalizeMaterialKey(m.key) === generatedKey || normalizeMaterialKey(m.name) === normalizeMaterialKey(materialName));
+    const exists = allMaterials.some(
+      m => normalizeMaterialKey(m.key) === generatedKey || normalizeMaterialKey(m.name) === normalizeMaterialKey(materialName)
+    );
 
     if (exists) {
       alert("Questo materiale sembra già presente nella libreria.");
@@ -589,7 +474,24 @@ export default function App() {
     };
 
     setCustomMaterials(prev => [...prev, materialToSave]);
-    setNewMaterial({ key: "", name: "", en: "", uni: "", din: "", aisi: "", jis: "", iso: "", rm: 0, re: 0, hardness: "", treatments: "", weldability: "", machinability: "", uses: "", notes: "Materiale aggiunto dall'utente. Verificare sempre i dati prima di usarlo in calcoli reali." });
+    setNewMaterial({
+      key: "",
+      name: "",
+      en: "",
+      uni: "",
+      din: "",
+      aisi: "",
+      jis: "",
+      iso: "",
+      rm: 0,
+      re: 0,
+      hardness: "",
+      treatments: "",
+      weldability: "",
+      machinability: "",
+      uses: "",
+      notes: "Materiale aggiunto dall'utente. Verificare sempre i dati prima di usarlo in calcoli reali.",
+    });
     setShowAddMaterial(false);
     setMaterialSearch(materialName);
   };
@@ -721,45 +623,29 @@ export default function App() {
     results.push({
       area: "Materiale selezionato",
       status: material ? "⚠️ Da verificare" : "❌ Errore critico",
-      detail: material
-        ? `Materiale indicato: ${f.material}. Va confrontato con carico, ambiente e lavorazione.`
-        : "Materiale non indicato: non è possibile valutare resistenza, trattamenti e lavorabilità.",
-      suggestion: material
-        ? "Controlla Rm, Re/Rp0.2, durezza, saldabilità e disponibilità commerciale. Per acciai comuni verifica anche la sigla EN/UNI/DIN."
-        : "Inserisci una sigla materiale, ad esempio C45, S235, 42CrMo4, 11SMnPb37, AISI 304.",
+      detail: material ? `Materiale indicato: ${f.material}. Va confrontato con carico, ambiente e lavorazione.` : "Materiale non indicato: non è possibile valutare resistenza, trattamenti e lavorabilità.",
+      suggestion: material ? "Controlla Rm, Re/Rp0.2, durezza, saldabilità e disponibilità commerciale. Per acciai comuni verifica anche la sigla EN/UNI/DIN." : "Inserisci una sigla materiale, ad esempio C45, S235, 42CrMo4, 11SMnPb37, AISI 304.",
     });
 
     results.push({
       area: "Coerenza carico/materiale",
       status: !f.load.trim() || Number.isNaN(loadValue) || loadValue <= 0 ? "❌ Errore critico" : material ? "⚠️ Da verificare" : "❌ Errore critico",
-      detail: !f.load.trim() || Number.isNaN(loadValue) || loadValue <= 0
-        ? "Carico non indicato o non numerico."
-        : `Carico indicativo inserito: ${f.load} N. La sola checklist non sostituisce la verifica tensionale.`,
+      detail: !f.load.trim() || Number.isNaN(loadValue) || loadValue <= 0 ? "Carico non indicato o non numerico." : `Carico indicativo inserito: ${f.load} N. La sola checklist non sostituisce la verifica tensionale.`,
       suggestion: "Esegui almeno una verifica rapida a trazione/flessione/taglio/torsione in base al componente. Indica anche braccio, sezione resistente e tipo di sollecitazione.",
     });
 
     results.push({
       area: "Ambiente d'uso",
       status: environment ? "⚠️ Da verificare" : "⚠️ Da verificare",
-      detail: environment
-        ? `Ambiente indicato: ${f.environment}.`
-        : "Ambiente non specificato: corrosione, temperatura, umidità e polveri possono cambiare la scelta del materiale.",
-      suggestion: environment.includes("corros") || environment.includes("umid") || environment.includes("esterno")
-        ? "Valuta inox, zincatura, brunitura, verniciatura o trattamento superficiale. Specifica sempre la protezione in tavola."
-        : "Specifica se il pezzo lavora a secco, in esterno, in olio, in ambiente corrosivo o ad alta temperatura.",
+      detail: environment ? `Ambiente indicato: ${f.environment}.` : "Ambiente non specificato: corrosione, temperatura, umidità e polveri possono cambiare la scelta del materiale.",
+      suggestion: environment.includes("corros") || environment.includes("umid") || environment.includes("esterno") ? "Valuta inox, zincatura, brunitura, verniciatura o trattamento superficiale. Specifica sempre la protezione in tavola." : "Specifica se il pezzo lavora a secco, in esterno, in olio, in ambiente corrosivo o ad alta temperatura.",
     });
 
     results.push({
       area: "Trattamenti termici/superficiali",
       status: material ? "⚠️ Da verificare" : "❌ Errore critico",
-      detail: material
-        ? "La necessità di trattamenti dipende da usura, fatica, durezza superficiale e accoppiamenti."
-        : "Senza materiale non si possono proporre trattamenti compatibili.",
-      suggestion: material.includes("c45")
-        ? "Per C45 valuta bonifica o tempra superficiale se servono resistenza e durezza."
-        : material.includes("42crmo4")
-          ? "Per 42CrMo4 valuta bonifica se servono alte prestazioni meccaniche."
-          : "Aggiungi una nota se sono richiesti bonifica, cementazione, nitrurazione, tempra, zincatura o anodizzazione.",
+      detail: material ? "La necessità di trattamenti dipende da usura, fatica, durezza superficiale e accoppiamenti." : "Senza materiale non si possono proporre trattamenti compatibili.",
+      suggestion: material.includes("c45") ? "Per C45 valuta bonifica o tempra superficiale se servono resistenza e durezza." : material.includes("42crmo4") ? "Per 42CrMo4 valuta bonifica se servono alte prestazioni meccaniche." : "Aggiungi una nota se sono richiesti bonifica, cementazione, nitrurazione, tempra, zincatura o anodizzazione.",
     });
 
     results.push({
@@ -772,23 +658,15 @@ export default function App() {
     results.push({
       area: "Coefficiente di sicurezza",
       status: !f.safetyFactor.trim() || Number.isNaN(safetyValue) ? "❌ Errore critico" : safetyValue < 1.5 ? "❌ Errore critico" : safetyValue < 2 ? "⚠️ Da verificare" : "✅ Conforme",
-      detail: !f.safetyFactor.trim() || Number.isNaN(safetyValue)
-        ? "Coefficiente di sicurezza non indicato."
-        : `Coefficiente di sicurezza indicato: n = ${f.safetyFactor}.`,
-      suggestion: !f.safetyFactor.trim() || Number.isNaN(safetyValue)
-        ? "Inserisci n. Per componenti statici spesso si parte da valori indicativi ≥ 2, salvo norme specifiche."
-        : safetyValue < 1.5
-          ? "Valore molto basso: giustificalo con norma, prove o calcolo accurato."
-          : "Verifica che il coefficiente sia coerente con incertezza del carico, conseguenze del cedimento e materiale.",
+      detail: !f.safetyFactor.trim() || Number.isNaN(safetyValue) ? "Coefficiente di sicurezza non indicato." : `Coefficiente di sicurezza indicato: n = ${f.safetyFactor}.`,
+      suggestion: !f.safetyFactor.trim() || Number.isNaN(safetyValue) ? "Inserisci n. Per componenti statici spesso si parte da valori indicativi ≥ 2, salvo norme specifiche." : safetyValue < 1.5 ? "Valore molto basso: giustificalo con norma, prove o calcolo accurato." : "Verifica che il coefficiente sia coerente con incertezza del carico, conseguenze del cedimento e materiale.",
     });
 
     results.push({
       area: "Tolleranze dimensionali",
       status: tolerances ? "✅ Conforme" : "⚠️ Da verificare",
       detail: tolerances ? `Tolleranze indicate: ${f.tolerances}.` : "Non risultano tolleranze o accoppiamenti indicati.",
-      suggestion: tolerances
-        ? "Controlla che siano presenti soprattutto sulle quote funzionali, sedi cuscinetto, fori di centraggio, spine, alberi e accoppiamenti."
-        : "Aggiungi tolleranze sulle quote funzionali. Esempi: Ø10 H7, Ø20 h6, posizione fori, planarità superfici di appoggio.",
+      suggestion: tolerances ? "Controlla che siano presenti soprattutto sulle quote funzionali, sedi cuscinetto, fori di centraggio, spine, alberi e accoppiamenti." : "Aggiungi tolleranze sulle quote funzionali. Esempi: Ø10 H7, Ø20 h6, posizione fori, planarità superfici di appoggio.",
     });
 
     results.push({
@@ -800,7 +678,7 @@ export default function App() {
 
     results.push({
       area: "Fori e filetti normalizzati",
-      status: f.notes.toLowerCase().includes("m") || f.notes.toLowerCase().includes("foro") || f.notes.toLowerCase().includes("filett") ? "⚠️ Da verificare" : "⚠️ Da verificare",
+      status: "⚠️ Da verificare",
       detail: "Controllare sempre che fori, maschiature e lamature siano quotati secondo norma.",
       suggestion: "Per viti indica M, passo se non grosso, profondità utile, lamatura/svasatura e classe vite se presente in distinta.",
     });
@@ -809,9 +687,7 @@ export default function App() {
       area: "Rugosità",
       status: roughness ? "✅ Conforme" : "⚠️ Da verificare",
       detail: roughness ? `Rugosità indicata: ${f.roughness}.` : "Rugosità non indicata.",
-      suggestion: roughness
-        ? "Verifica che la rugosità sia assegnata alle superfici funzionali e non solo come valore generale."
-        : "Aggiungi rugosità generale e rugosità specifiche per sedi, scorrimenti, appoggi, tenute e accoppiamenti.",
+      suggestion: roughness ? "Verifica che la rugosità sia assegnata alle superfici funzionali e non solo come valore generale." : "Aggiungi rugosità generale e rugosità specifiche per sedi, scorrimenti, appoggi, tenute e accoppiamenti.",
     });
 
     results.push({
@@ -822,6 +698,44 @@ export default function App() {
     });
 
     setChecklistResults(results);
+  };
+
+  const runDrawingGenerator = () => {
+    const f = drawingForm;
+    const text = `${f.partName} ${f.partType} ${f.material} ${f.manufacturing} ${f.mainFeatures} ${f.functionalSurfaces} ${f.holesThreads} ${f.fits} ${f.tolerances} ${f.roughness} ${f.assemblyFunction}`.toLowerCase();
+    const partType = f.partType.toLowerCase();
+    const holes = f.holesThreads.toLowerCase();
+    const fits = f.fits.toLowerCase();
+    const tolerances = f.tolerances.toLowerCase();
+    const roughness = f.roughness.toLowerCase();
+    const manufacturing = f.manufacturing.toLowerCase();
+
+    const hasHoles = holes.includes("foro") || holes.includes("m") || holes.includes("filett") || text.includes("lamatura") || text.includes("svasatura");
+    const hasShaft = partType.includes("albero") || partType.includes("perno") || text.includes("sede cuscinetto") || text.includes("linguetta");
+    const hasPlate = partType.includes("piastra") || partType.includes("staffa") || partType.includes("flangia");
+    const hasWeld = manufacturing.includes("sald") || text.includes("sald");
+    const hasBearing = text.includes("cuscinetto");
+    const hasThread = holes.includes("m") || holes.includes("filett");
+    const hasSlot = text.includes("asola") || text.includes("cava") || text.includes("linguetta");
+
+    const results: DrawingResult[] = [];
+
+    results.push({ category: "Viste", status: "✅ Necessaria", item: "Vista principale/frontale", reason: "Serve per rappresentare la forma più riconoscibile e la maggior parte delle quote principali del pezzo.", suggestion: "Scegli come vista frontale quella che mostra meglio funzione, fori principali, ingombri e simmetrie." });
+    results.push({ category: "Viste", status: hasShaft ? "✅ Necessaria" : "🟦 Consigliata", item: hasShaft ? "Vista longitudinale dell'albero/perno" : "Vista laterale o superiore", reason: hasShaft ? "Per alberi e perni è essenziale mostrare diametri, spallamenti, gole, smussi e lunghezze." : "Una seconda vista evita ambiguità su spessori, profondità e posizione dei dettagli.", suggestion: hasShaft ? "Quota diametri e lunghezze in sequenza, aggiungendo assi tratto-punto e dettagli su gole/cave." : "Aggiungi una vista laterale/superiore se la geometria non è completamente definita dalla vista frontale." });
+    results.push({ category: "Sezioni", status: hasHoles || hasBearing || hasSlot ? "🟦 Consigliata" : "ℹ️ Informativa", item: hasHoles || hasBearing || hasSlot ? "Sezione A-A" : "Sezione non obbligatoria salvo geometrie interne", reason: hasHoles || hasBearing || hasSlot ? "Fori, sedi, cave, lamature o geometrie interne sono più chiare in sezione." : "Se il pezzo è pieno e semplice, la sezione può non essere necessaria.", suggestion: hasBearing ? "Usa una sezione passante per la sede cuscinetto e quota diametro, profondità, smusso e rugosità." : hasHoles ? "Usa una sezione passante per fori ciechi, filetti, lamature o svasature." : "Valuta una sezione solo se ci sono dettagli nascosti importanti." });
+    results.push({ category: "Quote funzionali", status: f.functionalSurfaces.trim() ? "⚠️ Da verificare" : "❌ Mancante", item: "Superfici funzionali e quote critiche", reason: f.functionalSurfaces.trim() ? `Superfici indicate: ${f.functionalSurfaces}.` : "Non sono state indicate superfici funzionali: rischio di quotare solo gli ingombri.", suggestion: f.functionalSurfaces.trim() ? "Assicurati che ogni superficie funzionale abbia quota, tolleranza e rugosità adeguata." : "Indica sedi, appoggi, superfici di scorrimento, battute, fori di centraggio e riferimenti di montaggio." });
+    results.push({ category: "Fori e filetti", status: hasHoles ? "⚠️ Da verificare" : "ℹ️ Informativa", item: hasThread ? "Filetti e maschiature" : "Fori, lamature e svasature", reason: hasHoles ? `Dettagli indicati: ${f.holesThreads}.` : "Non sono stati indicati fori o filetti.", suggestion: hasThread ? "Per ogni filetto indica M, passo se non standard, profondità utile, eventuale preforo e tolleranza se richiesta." : hasHoles ? "Per ogni foro indica diametro, profondità, posizione, eventuale tolleranza H7/H13, lamatura o svasatura." : "Nessuna azione se il pezzo non contiene fori." });
+    results.push({ category: "Tolleranze", status: tolerances || fits ? "⚠️ Da verificare" : "❌ Mancante", item: "Tolleranze dimensionali/geometriche", reason: tolerances || fits ? `Tolleranze/accoppiamenti indicati: ${f.tolerances || f.fits}.` : "Non risultano tolleranze specifiche: rischio tavola non producibile o non controllabile.", suggestion: hasBearing ? "Per sedi cuscinetto valuta tolleranze tipo H7, h6, k6, m6 secondo montaggio. Aggiungi concentricità/coassialità se necessaria." : hasSlot ? "Per cave e asole valuta larghezza tollerata, posizione e rugosità se sono funzionali." : "Aggiungi tolleranze sulle quote funzionali; lascia le quote non critiche alla tolleranza generale del cartiglio." });
+    results.push({ category: "Rugosità", status: roughness ? "⚠️ Da verificare" : "❌ Mancante", item: "Rugosità generale e specifica", reason: roughness ? `Rugosità indicata: ${f.roughness}.` : "Non è stata indicata rugosità generale o specifica.", suggestion: hasBearing ? "Per sede cuscinetto consiglia Ra 1.6 o migliore secondo applicazione; per superfici generiche Ra 3.2/6.3." : text.includes("scorr") ? "Per superfici di scorrimento valuta Ra 0.8–1.6; per superfici non funzionali usa rugosità generale." : "Inserisci rugosità generale nel cartiglio e rugosità specifiche sulle superfici funzionali." });
+    results.push({ category: "Quote ridondanti", status: "⚠️ Da verificare", item: "Controllo quote sovrabbondanti", reason: "La checklist non vede la tavola grafica, ma segnala il rischio tipico di quote duplicate o chiuse in catena.", suggestion: "Evita catene di quote chiuse. Usa quote funzionali da riferimenti/datum e lascia le quote derivate non quotate." });
+    results.push({ category: "Cartiglio e note", status: f.material.trim() && f.manufacturing.trim() ? "⚠️ Da verificare" : "❌ Mancante", item: "Note generali di tavola", reason: f.material.trim() && f.manufacturing.trim() ? "Materiale e lavorazione sono presenti, ma vanno riportati in modo coerente in tavola." : "Mancano informazioni base per il cartiglio o le note di lavorazione.", suggestion: `Metti in cartiglio/materiale: ${f.material || "materiale da definire"}. Note consigliate: sbavare gli spigoli, smussi non quotati, trattamento superficiale, tolleranze generali ISO 2768 se applicabile.` });
+    results.push({ category: "Produzione", status: manufacturing ? "⚠️ Da verificare" : "❌ Mancante", item: "Metodo produttivo e quantità", reason: manufacturing ? `Lavorazione indicata: ${f.manufacturing}. Quantità: ${f.productionQuantity || "non indicata"}.` : "Metodo produttivo non indicato.", suggestion: hasWeld ? "Per pezzi saldati aggiungi simboli di saldatura, preparazioni lembi, controlli e distensione se richiesta." : manufacturing.includes("rett") ? "Se è prevista rettifica, quota tolleranze e rugosità coerenti sulle superfici rettificate." : "Specifica se il pezzo è tornito, fresato, tagliato laser, piegato, saldato, fuso o stampato." });
+
+    if (hasPlate) {
+      results.push({ category: "Riferimenti", status: "🟦 Consigliata", item: "Datum su superficie di appoggio", reason: "Per piastre, staffe e flange conviene definire una superficie base per posizione fori e controlli geometrici.", suggestion: "Imposta datum A sulla superficie di appoggio principale; datum B/C su lati o fori di riferimento." });
+    }
+
+    setDrawingResults(results);
   };
 
   const isSupportedTextFile = (file: File) => {
@@ -848,71 +762,65 @@ export default function App() {
       name.endsWith(".h") ||
       name.endsWith(".sql") ||
       name.endsWith(".yaml") ||
-      name.endsWith(".yml")
+      name.endsWith(".yml") ||
+      name.endsWith(".pdf") ||
+      name.endsWith(".docx") ||
+      name.endsWith(".xlsx")
     );
   };
-  
+
   const readTextFile = async (file: File) => {
-  const name = file.name.toLowerCase();
+    const name = file.name.toLowerCase();
 
-  // 📄 PDF
-  if (name.endsWith(".pdf")) {
-    const pdfjsLib = await import("pdfjs-dist");
-    const pdfWorker = await import("pdfjs-dist/build/pdf.worker.min?url");
-
-    pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorker.default;
-
-    const arrayBuffer = await file.arrayBuffer();
-    const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-
-    let text = "";
-
-    for (let i = 1; i <= pdf.numPages; i++) {
-      const page = await pdf.getPage(i);
-      const content = await page.getTextContent();
-
-      text += content.items.map((item: any) => item.str).join(" ") + "\n";
+    if (name.endsWith(".pdf")) {
+      const pdfjsLib = await import("pdfjs-dist");
+      const pdfWorker = await import("pdfjs-dist/build/pdf.worker.min?url");
+      pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorker.default;
+      const arrayBuffer = await file.arrayBuffer();
+      const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+      let text = "";
+      for (let i = 1; i <= pdf.numPages; i++) {
+        const page = await pdf.getPage(i);
+        const content = await page.getTextContent();
+        text += content.items.map((item: any) => item.str).join(" ") + "\n";
+      }
+      return text;
     }
 
-    return text;
-  }
+    if (file.type.startsWith("image/")) {
+      return `[Immagine caricata: ${file.name}]`;
+    }
 
-  // 🖼️ IMMAGINI (preview base)
-  if (file.type.startsWith("image/")) {
-    return `[Immagine caricata: ${file.name}]`;
-  }
+    if (name.endsWith(".docx")) {
+      const mammoth = await import("mammoth");
+      const arrayBuffer = await file.arrayBuffer();
+      const result = await mammoth.extractRawText({ arrayBuffer });
+      return result.value;
+    }
 
-  // 📄 DOCX
-  if (name.endsWith(".docx")) {
-    const mammoth = await import("mammoth");
-    const arrayBuffer = await file.arrayBuffer();
-    const result = await mammoth.extractRawText({ arrayBuffer });
-    return result.value;
-  }
+    if (name.endsWith(".xlsx")) {
+      const XLSX = await import("xlsx");
+      const data = await file.arrayBuffer();
+      const workbook = XLSX.read(data);
+      let text = "";
+      workbook.SheetNames.forEach(sheet => {
+        const sheetData = XLSX.utils.sheet_to_csv(workbook.Sheets[sheet]);
+        text += `\n--- ${sheet} ---\n${sheetData}`;
+      });
+      return text;
+    }
 
-  // 📊 EXCEL
-  if (name.endsWith(".xlsx")) {
-    const XLSX = await import("xlsx");
-    const data = await file.arrayBuffer();
-    const workbook = XLSX.read(data);
-
-    let text = "";
-
-    workbook.SheetNames.forEach(sheet => {
-      const sheetData = XLSX.utils.sheet_to_csv(workbook.Sheets[sheet]);
-      text += `\n--- ${sheet} ---\n${sheetData}`;
-    });
-
-    return text;
-  }
-
-  // 🧾 FILE TESTO (fallback)
-  return await file.text();
+    return await file.text();
   };
 
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file || fileLoading) return;
+
+    if (!isSupportedTextFile(file)) {
+      alert("Formato file non supportato.");
+      return;
+    }
 
     const chatId = ensureActiveChat(`File: ${file.name}`);
     setFileLoading(true);
@@ -921,18 +829,16 @@ export default function App() {
       const extractedText = await readTextFile(file);
       const cleanedText = extractedText.trim();
 
-  addMessageToChat(chatId, {
-  role: "utente",
-  text: `📎 File caricato: ${file.name}`,
-  hiddenText:
-    `CONTENUTO DEL FILE "${file.name}":\n` +
-    `${cleanedText || "Il file risulta vuoto."}`,
-  fileAttachment: {
-    name: file.name,
-    type: file.type || "sconosciuto",
-    size: file.size,
-  },
-});
+      addMessageToChat(chatId, {
+        role: "utente",
+        text: `📎 File caricato: ${file.name}`,
+        hiddenText: `CONTENUTO DEL FILE "${file.name}":\n${cleanedText || "Il file risulta vuoto."}`,
+        fileAttachment: {
+          name: file.name,
+          type: file.type || "sconosciuto",
+          size: file.size,
+        },
+      });
       setQuery(`Analizza il file "${file.name}" e fammi un riassunto chiaro dei punti principali.`);
     } catch (error: any) {
       addMessageToChat(chatId, {
@@ -978,7 +884,7 @@ export default function App() {
               role: "system",
               content:
                 `Sei TechAI. Utente: ${user.name}. Focus: ${interest}. ` +
-                "Rispondi in modo chiaro, tecnico e ordinato. Quando scrivi formule, calcoli o passaggi matematici usa LaTeX leggibile: frazioni con \frac{}, moltiplicazioni con \cdot, radici con \sqrt{}, potenze con ^{}. Per formule importanti usa blocchi \[ ... \]. Evita formule brutte scritte con / e * quando puoi. Se l'utente carica un file, analizza il contenuto testuale presente in chat.",
+                "Rispondi in italiano, in modo tecnico ma chiaro. Usa titoli Markdown con ## e ### quando la risposta è lunga. Usa liste ordinate per procedimenti. Quando scrivi formule, calcoli o passaggi matematici usa LaTeX leggibile: frazioni con \\frac{}, moltiplicazioni con \\cdot, radici con \\sqrt{}, potenze con ^{}. Per formule importanti usa blocchi \\[ ... \\]. Se l'utente carica un file, analizza il contenuto testuale presente in chat. Evidenzia sempre Conclusione:, Nota: o Risultato: quando utile.",
             },
             ...updatedMessages.map(m => ({
               role: m.role === "utente" ? "user" : "assistant",
@@ -990,7 +896,6 @@ export default function App() {
 
       const data = await res.json();
       const aiText = data?.choices?.[0]?.message?.content || "Errore nella risposta AI.";
-
       replaceMessagesInChat(chatId, [...updatedMessages, { role: "AI", text: aiText }]);
     } catch {
       replaceMessagesInChat(chatId, [
@@ -1020,6 +925,130 @@ export default function App() {
     setShowSettings(false);
   };
 
+  const renderInlineFormatting = (line: string) => {
+    const parts = line.split(/(\*\*[^*]+\*\*)/g);
+
+    return parts.map((part, index) => {
+      if (part.startsWith("**") && part.endsWith("**")) {
+        return (
+          <strong key={index} style={{ fontWeight: 850 }}>
+            {part.replace(/\*\*/g, "")}
+          </strong>
+        );
+      }
+
+      return <React.Fragment key={index}>{part}</React.Fragment>;
+    });
+  };
+
+  const formatText = (text: string) => {
+    const blocks = text.split(/(```[\s\S]*?```)/g);
+
+    return blocks.map((block, blockIndex) => {
+      if (!block) return null;
+
+      if (block.startsWith("```") && block.endsWith("```")) {
+        const cleanCode = block.replace(/^```[a-zA-Z]*\n?/, "").replace(/```$/, "");
+
+        return (
+          <pre
+            key={`code-${blockIndex}`}
+            style={{
+              ...s.codeBlock,
+              background: isDark ? "#050505" : "#0f172a",
+              color: "#e5e7eb",
+              border: `1px solid ${isDark ? "#262626" : "#1e293b"}`,
+            }}
+          >
+            <code>{cleanCode}</code>
+          </pre>
+        );
+      }
+
+      return block.split("\n").map((line, i) => {
+        const trimmed = line.trim();
+        const key = `line-${blockIndex}-${i}`;
+
+        if (!trimmed) return <div key={key} style={{ height: 10 }} />;
+
+        if (trimmed.startsWith("### ")) {
+          return <h3 key={key} style={{ ...s.aiHeading3, color: theme.primary }}>{trimmed.replace("### ", "")}</h3>;
+        }
+
+        if (trimmed.startsWith("## ")) {
+          return <h2 key={key} style={{ ...s.aiHeading2, color: theme.primary }}>{trimmed.replace("## ", "")}</h2>;
+        }
+
+        if (trimmed.startsWith("# ")) {
+          return <h1 key={key} style={{ ...s.aiHeading1, color: theme.primary }}>{trimmed.replace("# ", "")}</h1>;
+        }
+
+        if (trimmed.startsWith("**") && trimmed.endsWith("**")) {
+          return (
+            <div key={key} style={{ ...s.messageTitle, color: theme.primary, borderBottom: `1px solid ${theme.border || theme.surface}` }}>
+              {trimmed.replace(/\*\*/g, "")}
+            </div>
+          );
+        }
+
+        if (trimmed === "---") {
+          return <hr key={key} style={{ border: "none", borderTop: `1px solid ${theme.border || "rgba(120,120,120,0.25)"}`, margin: "18px 0" }} />;
+        }
+
+        if (trimmed.startsWith("* ") || trimmed.startsWith("+ ") || trimmed.startsWith("- ")) {
+          return (
+            <div key={key} style={s.messageListItem}>
+              <span style={{ ...s.bulletDot, backgroundColor: theme.primary }} />
+              <span>{renderInlineFormatting(trimmed.slice(2))}</span>
+            </div>
+          );
+        }
+
+        if (/^\d+\.\s/.test(trimmed)) {
+          const number = trimmed.match(/^(\d+)\./)?.[1];
+          const content = trimmed.replace(/^\d+\.\s/, "");
+
+          return (
+            <div key={key} style={s.numberedItem}>
+              <span style={{ ...s.numberBadge, backgroundColor: theme.primary }}>{number}</span>
+              <span>{renderInlineFormatting(content)}</span>
+            </div>
+          );
+        }
+
+        if (
+          trimmed.toLowerCase().startsWith("nota:") ||
+          trimmed.toLowerCase().startsWith("attenzione:") ||
+          trimmed.toLowerCase().startsWith("risultato:") ||
+          trimmed.toLowerCase().startsWith("conclusione:")
+        ) {
+          return (
+            <div
+              key={key}
+              style={{
+                ...s.highlightBox,
+                borderLeft: `4px solid ${theme.primary}`,
+                background: isDark ? "rgba(96,165,250,0.08)" : "rgba(59,130,246,0.08)",
+              }}
+            >
+              {renderInlineFormatting(line)}
+            </div>
+          );
+        }
+
+        if (trimmed.startsWith("$$") || trimmed.startsWith("\\[") || trimmed.includes("\\frac") || trimmed.includes("\\cdot")) {
+          return (
+            <div key={key} style={{ ...s.formulaPrettyBox, background: isDark ? "#050505" : "#f8fafc", border: `1px solid ${theme.border}` }}>
+              {line}
+            </div>
+          );
+        }
+
+        return <div key={key} style={s.messageLine}>{renderInlineFormatting(line)}</div>;
+      });
+    });
+  };
+
   const iconBtn = (icon: string, label: string, onClick: () => void, active = false) => (
     <button
       style={{
@@ -1040,87 +1069,18 @@ export default function App() {
     </button>
   );
 
-  const formatText = (text: string) => {
-    const parts = text.split(/(\*\*[^*]+\*\*)/g);
-
-    return parts.map((part, partIndex) => {
-      if (!part) return null;
-
-      const trimmedPart = part.trim();
-
-      if (trimmedPart.startsWith("**") && trimmedPart.endsWith("**")) {
-        return (
-          <div
-            key={`title-${partIndex}`}
-            style={{
-              ...s.messageTitle,
-              color: theme.primary,
-              borderBottom: `1px solid ${theme.border || theme.surface}`,
-            }}
-          >
-            {trimmedPart.replace(/\*\*/g, "")}
-          </div>
-        );
-      }
-
-      return part.split("\n").map((line, i) => {
-        const trimmed = line.trim();
-        const key = `line-${partIndex}-${i}`;
-
-        if (!trimmed) {
-          return <div key={key} style={{ height: 8 }} />;
-        }
-
-        if (trimmed.startsWith("* ") || trimmed.startsWith("+ ") || trimmed.startsWith("- ")) {
-          return (
-            <div key={key} style={s.messageListItem}>
-              <span style={{ color: theme.primary, fontWeight: 900 }}>•</span>
-              <span>{trimmed.slice(2)}</span>
-            </div>
-          );
-        }
-
-        return (
-          <div key={key} style={s.messageLine}>
-            {line}
-          </div>
-        );
-      });
-    });
-  };
-
   const renderInputBar = (placeholder: string) => (
     <div style={{ ...s.searchBar, backgroundColor: theme.surface, border: `1px solid ${theme.border || theme.surface}` }}>
       <input
         ref={fileInputRef}
         type="file"
-        accept=".txt,.md,.csv,.json,.xml,.html,.css,.js,.jsx,.ts,.tsx,.py,.java,.cpp,.c,.h,.sql,.yaml,.yml"
+        accept=".txt,.md,.csv,.json,.xml,.html,.css,.js,.jsx,.ts,.tsx,.py,.java,.cpp,.c,.h,.sql,.yaml,.yml,.pdf,.docx,.xlsx,image/*"
         style={{ display: "none" }}
         onChange={handleFileUpload}
       />
 
-      <button
-        style={{ ...s.fileBtn, color: theme.primary }}
-        onClick={() => fileInputRef.current?.click()}
-        title="Carica file testuale"
-        disabled={fileLoading || !isLoggedIn}
-      >
-        {fileLoading ? (
-          "…"
-        ) : (
-          <svg
-            width="20"
-            height="20"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.8"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <path d="M21.44 11.05 12.2 20.29a6 6 0 0 1-8.49-8.49l9.24-9.24a4 4 0 0 1 5.66 5.66L9.64 17.2a2 2 0 0 1-2.83-2.83l8.49-8.49" />
-          </svg>
-        )}
+      <button style={{ ...s.fileBtn, color: theme.primary }} onClick={() => fileInputRef.current?.click()} title="Carica file" disabled={fileLoading || !isLoggedIn}>
+        {fileLoading ? "…" : "📎"}
       </button>
 
       <textarea
@@ -1139,13 +1099,7 @@ export default function App() {
         onKeyDown={e => e.key === "Enter" && !e.shiftKey && (e.preventDefault(), callAI())}
       />
 
-      <button
-        style={{ ...s.sendBtn, color: theme.primary }}
-        onClick={callAI}
-        disabled={loading || fileLoading}
-      >
-        ➤
-      </button>
+      <button style={{ ...s.sendBtn, color: theme.primary }} onClick={callAI} disabled={loading || fileLoading}>➤</button>
     </div>
   );
 
@@ -1159,10 +1113,7 @@ export default function App() {
         width: compact ? "100%" : "min(560px, calc(100vw - 32px))",
       }}
     >
-      <div style={s.loginBrand}>
-        TECH<span style={{ color: theme.primary }}>AI</span>
-      </div>
-
+      <div style={s.loginBrand}>TECH<span style={{ color: theme.primary }}>AI</span></div>
       <h1 style={s.loginHeadline}>Accedi al tuo account</h1>
       <p style={s.loginDescription}>Area privata predisposta per salvare chat, file e impostazioni utente.</p>
 
@@ -1171,12 +1122,7 @@ export default function App() {
           <div style={s.savedLoginTitle}>Account salvati</div>
           <div style={s.savedLoginList}>
             {savedLogins.map(item => (
-              <button
-                key={item.email}
-                style={{ ...s.savedLoginPill, border: `1px solid ${theme.border}`, color: theme.text }}
-                onClick={() => useSavedLogin(item.email)}
-                type="button"
-              >
+              <button key={item.email} style={{ ...s.savedLoginPill, border: `1px solid ${theme.border}`, color: theme.text }} onClick={() => useSavedLogin(item.email)} type="button">
                 {item.email}
               </button>
             ))}
@@ -1185,79 +1131,26 @@ export default function App() {
       )}
 
       <label style={s.cleanLoginLabel}>Email</label>
-      <input
-        style={{ ...s.cleanLoginInput, color: theme.text, border: `1px solid ${theme.border}` }}
-        value={loginEmail}
-        onChange={e => setLoginEmail(e.target.value)}
-        placeholder="nome@email.com"
-        type="email"
-        autoComplete="email"
-      />
+      <input style={{ ...s.cleanLoginInput, color: theme.text, border: `1px solid ${theme.border}` }} value={loginEmail} onChange={e => setLoginEmail(e.target.value)} placeholder="nome@email.com" type="email" autoComplete="email" />
 
       <label style={s.cleanLoginLabel}>Password</label>
       <div style={{ ...s.cleanPasswordWrap, border: `1px solid ${theme.border}` }}>
-        <input
-          style={{ ...s.cleanPasswordInput, color: theme.text }}
-          value={loginPassword}
-          onChange={e => setLoginPassword(e.target.value)}
-          placeholder="Minimo 6 caratteri"
-          type={showPassword ? "text" : "password"}
-          autoComplete="current-password"
-          onKeyDown={e => e.key === "Enter" && handleLogin()}
-        />
-        <button
-          style={{ ...s.cleanPasswordToggle, color: theme.primary }}
-          onClick={() => setShowPassword(prev => !prev)}
-          type="button"
-        >
-          {showPassword ? "Nascondi" : "Mostra"}
-        </button>
+        <input style={{ ...s.cleanPasswordInput, color: theme.text }} value={loginPassword} onChange={e => setLoginPassword(e.target.value)} placeholder="Minimo 6 caratteri" type={showPassword ? "text" : "password"} autoComplete="current-password" onKeyDown={e => e.key === "Enter" && handleLogin()} />
+        <button style={{ ...s.cleanPasswordToggle, color: theme.primary }} onClick={() => setShowPassword(prev => !prev)} type="button">{showPassword ? "Nascondi" : "Mostra"}</button>
       </div>
 
       {loginError && <div style={s.loginError}>{loginError}</div>}
 
-      <button style={{ ...s.mainLoginBtn, background: theme.primary }} onClick={handleLogin}>
-        Accedi
-      </button>
-
+      <button style={{ ...s.mainLoginBtn, background: theme.primary }} onClick={handleLogin}>Accedi</button>
       <div style={s.loginDivider}>oppure</div>
-
-      <button
-        style={{ ...s.providerBtn, color: theme.text, border: `1px solid ${theme.border}` }}
-        onClick={() => handleProviderLogin("Google")}
-        type="button"
-      >
-        Continua con Google
-      </button>
-
-      <button
-        style={{ ...s.providerBtn, color: theme.text, border: `1px solid ${theme.border}` }}
-        onClick={() => handleProviderLogin("telefono")}
-        type="button"
-      >
-        Continua con telefono
-      </button>
-
-      <button
-        style={{ ...s.guestBtn, color: theme.text, border: `1px solid ${theme.border}` }}
-        onClick={handleGuestLogin}
-        type="button"
-      >
+      <button style={{ ...s.providerBtn, color: theme.text, border: `1px solid ${theme.border}` }} onClick={() => handleProviderLogin("Google")} type="button">Continua con Google</button>
+      <button style={{ ...s.providerBtn, color: theme.text, border: `1px solid ${theme.border}` }} onClick={() => handleProviderLogin("telefono")} type="button">Continua con telefono</button>
+      <button style={{ ...s.guestBtn, color: theme.text, border: `1px solid ${theme.border}` }} onClick={handleGuestLogin} type="button">
         <span style={s.guestIcon}>♟</span>
-        <span style={s.guestTextWrap}>
-          <strong>Continua come ospite</strong>
-          <small>Usa TechAI senza account. Le chat non verranno salvate come profilo.</small>
-        </span>
+        <span style={s.guestTextWrap}><strong>Continua come ospite</strong><small>Usa TechAI senza account. Le chat non verranno salvate come profilo.</small></span>
         <span style={s.guestArrow}>›</span>
       </button>
-
-      <button
-        style={{ ...s.registerBtn, color: theme.primary }}
-        onClick={() => setLoginError("Registrazione grafica: per un account reale serve collegare un backend/database.")}
-        type="button"
-      >
-        Non hai un account? Registrati
-      </button>
+      <button style={{ ...s.registerBtn, color: theme.primary }} onClick={() => setLoginError("Registrazione grafica: per un account reale serve collegare un backend/database.")} type="button">Non hai un account? Registrati</button>
     </div>
   );
 
@@ -1284,24 +1177,10 @@ export default function App() {
           {sidebarOpen && (
             <div style={s.logoWrap}>
               <div style={{ ...s.logoMark, backgroundColor: theme.primary }}>T</div>
-              <div style={s.logoText}>
-                TECH<span style={{ color: theme.primary }}>AI</span>
-              </div>
+              <div style={s.logoText}>TECH<span style={{ color: theme.primary }}>AI</span></div>
             </div>
           )}
-
-          <button
-            style={{
-              ...s.collapseBtn,
-              color: theme.text,
-              backgroundColor: sidebarOpen ? "transparent" : theme.surface,
-              border: `1px solid ${theme.border || theme.surface}`,
-            }}
-            onClick={() => setSidebarOpen(prev => !prev)}
-            title={sidebarOpen ? "Chiudi barra laterale" : "Apri barra laterale"}
-          >
-            ☰
-          </button>
+          <button style={{ ...s.collapseBtn, color: theme.text, backgroundColor: sidebarOpen ? "transparent" : theme.surface, border: `1px solid ${theme.border || theme.surface}` }} onClick={() => setSidebarOpen(prev => !prev)} title={sidebarOpen ? "Chiudi barra laterale" : "Apri barra laterale"}>☰</button>
         </div>
 
         <div style={{ ...s.iconNav, alignItems: sidebarOpen ? "stretch" : "center" }}>
@@ -1309,20 +1188,8 @@ export default function App() {
           {iconBtn("≡", "Chat", () => setSidebarOpen(true), sidebarOpen)}
           {iconBtn("🔐", isLoggedIn ? "Account" : "Login", openLoginInsideApp)}
 
-          <div
-            style={{
-              ...s.toolsGroup,
-              backgroundColor: isDark ? "#111111" : theme.surface,
-              border: `1px solid ${theme.border || theme.surface}`,
-              boxShadow: isDark ? "0 0 0 1px rgba(255,255,255,0.04) inset" : "0 8px 20px rgba(0,0,0,0.04)",
-            }}
-          >
-            {sidebarOpen && (
-              <div style={{ ...s.toolsTitle, color: theme.primary }}>
-                Strumenti tecnici
-              </div>
-            )}
-
+          <div style={{ ...s.toolsGroup, backgroundColor: isDark ? "#111111" : theme.surface, border: `1px solid ${theme.border || theme.surface}`, boxShadow: isDark ? "0 0 0 1px rgba(255,255,255,0.04) inset" : "0 8px 20px rgba(0,0,0,0.04)" }}>
+            {sidebarOpen && <div style={{ ...s.toolsTitle, color: theme.primary }}>Strumenti tecnici</div>}
             {iconBtn("✓", "Checklist", () => setShowChecklist(true))}
             {iconBtn("∑", "Verifica", () => setShowQuickCalc(true))}
             {iconBtn("▦", "Materiali", () => setShowMaterials(true))}
@@ -1333,42 +1200,20 @@ export default function App() {
         {sidebarOpen && (
           <div style={s.chatHistory}>
             <div style={s.historyHeader}>Cronologia</div>
-
-            {chats.length === 0 && (
-              <div style={{ fontSize: 12, opacity: 0.6, padding: "8px" }}>Nessuna chat salvata</div>
-            )}
-
+            {chats.length === 0 && <div style={{ fontSize: 12, opacity: 0.6, padding: "8px" }}>Nessuna chat salvata</div>}
             {chats.map(chat => (
-              <div
-                key={chat.id}
-                style={{
-                  ...s.historyItem,
-                  backgroundColor: chat.id === activeChatId ? theme.surface : "transparent",
-                  color: chat.id === activeChatId ? theme.primary : theme.text,
-                  border: `1px solid ${chat.id === activeChatId ? theme.border || theme.surface : "transparent"}`,
-                }}
-              >
-                <div style={s.historyTitle} onClick={() => setActiveChatId(chat.id)}>
-                  {chat.title}
-                </div>
-
-                <button style={s.deleteBtn} onClick={() => deleteChat(chat.id)} title="Elimina chat">
-                  ×
-                </button>
+              <div key={chat.id} style={{ ...s.historyItem, backgroundColor: chat.id === activeChatId ? theme.surface : "transparent", color: chat.id === activeChatId ? theme.primary : theme.text, border: `1px solid ${chat.id === activeChatId ? theme.border || theme.surface : "transparent"}` }}>
+                <div style={s.historyTitle} onClick={() => setActiveChatId(chat.id)}>{chat.title}</div>
+                <button style={s.deleteBtn} onClick={() => deleteChat(chat.id)} title="Elimina chat">×</button>
               </div>
             ))}
           </div>
         )}
-        <div style={s.sidebarBottomActions}>
-          {iconBtn("⚙", "Impostazioni", () => { setActiveTab("Aspetto"); setShowSettings(true); })}
-        </div>
 
-        <div
-          style={{ ...s.sidebarAccount, justifyContent: sidebarOpen ? "flex-start" : "center" }}
-          onClick={() => { setActiveTab("Account"); setShowSettings(true); }}
-        >
+        <div style={s.sidebarBottomActions}>{iconBtn("⚙", "Impostazioni", () => { setActiveTab("Aspetto"); setShowSettings(true); })}</div>
+
+        <div style={{ ...s.sidebarAccount, justifyContent: sidebarOpen ? "flex-start" : "center" }} onClick={() => { setActiveTab("Account"); setShowSettings(true); }}>
           <div style={{ ...s.avatar, backgroundColor: theme.primary }}>{user.name.charAt(0)}</div>
-
           {sidebarOpen && (
             <div style={s.accountText}>
               <div style={{ fontWeight: 700, fontSize: "13px" }}>{user.name}</div>
@@ -1383,66 +1228,54 @@ export default function App() {
           {currentMessages.length === 0 ? (
             <div style={s.homeWrapper}>
               <h1 style={s.welcomeText}>Benvenuto {user.name.split(" ")[0]}, come posso aiutarti?</h1>
-              {renderInputBar("Chiedi a TechAI o carica un file testuale...")}
-              <p style={s.fileHint}>Supporta file testuali: TXT, CSV, JSON, MD, XML, HTML, CSS, JS, TS, TSX.</p>
+              {renderInputBar("Chiedi a TechAI o carica un file...")}
+              <p style={s.fileHint}>Supporta TXT, CSV, JSON, MD, XML, HTML, CSS, JS, TS, TSX, PDF, DOCX, XLSX e immagini.</p>
             </div>
           ) : (
             <div style={s.chatView}>
               <div style={s.msgList}>
                 {currentMessages.map((m, i) => (
                   <div key={i} style={m.role === "utente" ? s.uRow : s.aRow}>
+                    {m.role === "AI" && <div style={{ ...s.aiAvatar, background: theme.primary }}>T</div>}
+
                     <div
                       style={
                         m.role === "utente"
-                          ? { ...s.uBox, backgroundColor: theme.surface, border: `1px solid ${theme.border || theme.surface}` }
-                          : { ...s.aBox, color: theme.text }
+                          ? {
+                              ...s.uBox,
+                              backgroundColor: theme.surface,
+                              border: `1px solid ${theme.border || theme.surface}`,
+                              boxShadow: isDark ? "0 8px 20px rgba(0,0,0,0.20)" : "0 8px 22px rgba(15,23,42,0.06)",
+                            }
+                          : {
+                              ...s.aBox,
+                              color: theme.text,
+                              background: isDark ? "#0b0b0b" : "#ffffff",
+                              border: `1px solid ${theme.border || theme.surface}`,
+                              boxShadow: isDark ? "0 12px 28px rgba(0,0,0,0.32)" : "0 14px 34px rgba(15,23,42,0.08)",
+                            }
                       }
                     >
+                      {m.role === "AI" && (
+                        <div style={s.aiHeader}>
+                          <div>
+                            <div style={s.aiName}>TechAI</div>
+                            <div style={s.aiSubName}>Risposta tecnica</div>
+                          </div>
+                        </div>
+                      )}
+
                       {formatText(m.text)}
+
                       {m.fileAttachment && (
-  <div style={{
-    marginTop: 10,
-    display: "flex",
-    alignItems: "center",
-    gap: 10,
-    padding: "10px 12px",
-    borderRadius: 12,
-    background: "rgba(120,120,120,0.10)",
-    border: `1px solid ${theme.border}`,
-    maxWidth: 320,
-  }}>
-    <div style={{
-      width: 34,
-      height: 42,
-      borderRadius: 6,
-      background: theme.primary,
-      color: "white",
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "center",
-      fontWeight: 900,
-      fontSize: 18,
-    }}>
-      📄
-    </div>
-
-    <div style={{ minWidth: 0 }}>
-      <div style={{
-        fontWeight: 800,
-        fontSize: 13,
-        whiteSpace: "nowrap",
-        overflow: "hidden",
-        textOverflow: "ellipsis",
-      }}>
-        {m.fileAttachment.name}
-      </div>
-
-      <div style={{ fontSize: 11, opacity: 0.65 }}>
-        {(m.fileAttachment.size / 1024).toFixed(1)} KB · PDF/file caricato
-      </div>
-    </div>
-  </div>
-)}
+                        <div style={{ marginTop: 10, display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", borderRadius: 12, background: "rgba(120,120,120,0.10)", border: `1px solid ${theme.border}`, maxWidth: 320 }}>
+                          <div style={{ width: 34, height: 42, borderRadius: 6, background: theme.primary, color: "white", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 900, fontSize: 18 }}>📄</div>
+                          <div style={{ minWidth: 0 }}>
+                            <div style={{ fontWeight: 800, fontSize: 13, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{m.fileAttachment.name}</div>
+                            <div style={{ fontSize: 11, opacity: 0.65 }}>{(m.fileAttachment.size / 1024).toFixed(1)} KB · file caricato</div>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </div>
                 ))}
@@ -1451,8 +1284,7 @@ export default function App() {
                 {loading && <div style={{ color: theme.primary, textAlign: "center" }}>✨ TechAI sta elaborando...</div>}
                 <div ref={chatEndRef} />
               </div>
-
-              <div style={s.bottomInput}>{renderInputBar("Scrivi qui o carica un file testuale...")}</div>
+              <div style={s.bottomInput}>{renderInputBar("Scrivi qui o carica un file...")}</div>
             </div>
           )}
         </section>
@@ -1461,98 +1293,7 @@ export default function App() {
           <div style={s.overlay}>
             <div style={s.loginModalWrap}>
               {renderLoginCard(false)}
-              <button
-                style={{ ...s.closeFloatingBtn, background: isDark ? "#111" : "#fff", color: theme.text, border: `1px solid ${theme.border}` }}
-                onClick={() => {
-                  setShowLoginPanel(false);
-                  setLoginError("");
-                }}
-                title="Torna indietro"
-              >
-                ×
-              </button>
-            </div>
-          </div>
-        )}
-
-        {showDrawingGenerator && (
-          <div style={s.overlay}>
-            <div style={{ ...s.checklistModal, background: isDark ? "#111111" : "white", color: theme.text, border: `1px solid ${theme.border}` }}>
-              <div style={s.modalHeader}>
-                <div>
-                  <h2 style={{ fontSize: "20px", margin: 0 }}>Generatore tavole tecniche controllate</h2>
-                  <p style={s.checklistSubtitle}>Suggerisce viste, sezioni, quote, tolleranze, rugosità e note di cartiglio.</p>
-                </div>
-                <button style={{ ...s.backBtn, color: theme.text, border: `1px solid ${theme.border}` }} onClick={() => setShowDrawingGenerator(false)}>← Indietro</button>
-              </div>
-
-              <div style={s.drawingLayout}>
-                <div style={s.checklistFormArea}>
-                  <div style={s.checklistGrid}>
-                    <div>
-                      <label style={s.label}>Nome pezzo</label>
-                      <input style={{ ...s.input, background: isDark ? "#050505" : "#ffffff", color: theme.text, border: `1px solid ${theme.border}` }} value={drawingForm.partName} onChange={e => updateDrawingField("partName", e.target.value)} placeholder="Es. Albero intermedio" />
-                    </div>
-                    <div>
-                      <label style={s.label}>Tipo pezzo</label>
-                      <input style={{ ...s.input, background: isDark ? "#050505" : "#ffffff", color: theme.text, border: `1px solid ${theme.border}` }} value={drawingForm.partType} onChange={e => updateDrawingField("partType", e.target.value)} placeholder="Albero, perno, staffa, flangia..." />
-                    </div>
-                    <div>
-                      <label style={s.label}>Materiale</label>
-                      <input style={{ ...s.input, background: isDark ? "#050505" : "#ffffff", color: theme.text, border: `1px solid ${theme.border}` }} value={drawingForm.material} onChange={e => updateDrawingField("material", e.target.value)} placeholder="C45, S235, 6082 T6..." />
-                    </div>
-                    <div>
-                      <label style={s.label}>Quantità / lotto</label>
-                      <input style={{ ...s.input, background: isDark ? "#050505" : "#ffffff", color: theme.text, border: `1px solid ${theme.border}` }} value={drawingForm.productionQuantity} onChange={e => updateDrawingField("productionQuantity", e.target.value)} placeholder="1 pezzo, 100 pezzi..." />
-                    </div>
-                  </div>
-
-                  <label style={s.label}>Lavorazione prevista</label>
-                  <input style={{ ...s.input, background: isDark ? "#050505" : "#ffffff", color: theme.text, border: `1px solid ${theme.border}` }} value={drawingForm.manufacturing} onChange={e => updateDrawingField("manufacturing", e.target.value)} placeholder="Tornitura, fresatura, saldatura, piega, rettifica..." />
-
-                  <label style={s.label}>Geometrie principali</label>
-                  <textarea style={{ ...s.checklistTextarea, background: isDark ? "#050505" : "#ffffff", color: theme.text, border: `1px solid ${theme.border}` }} value={drawingForm.mainFeatures} onChange={e => updateDrawingField("mainFeatures", e.target.value)} placeholder="Fori, cave, asole, spallamenti, lamature, sedi cuscinetto..." />
-
-                  <label style={s.label}>Funzione del pezzo nell'assieme</label>
-                  <textarea style={{ ...s.checklistTextarea, background: isDark ? "#050505" : "#ffffff", color: theme.text, border: `1px solid ${theme.border}` }} value={drawingForm.assemblyFunction} onChange={e => updateDrawingField("assemblyFunction", e.target.value)} placeholder="Cosa fa il pezzo? Appoggia, centra, scorre, trasmette coppia, supporta carichi..." />
-
-                  <label style={s.label}>Superfici funzionali</label>
-                  <input style={{ ...s.input, background: isDark ? "#050505" : "#ffffff", color: theme.text, border: `1px solid ${theme.border}` }} value={drawingForm.functionalSurfaces} onChange={e => updateDrawingField("functionalSurfaces", e.target.value)} placeholder="Sede cuscinetto, piano appoggio, superficie scorrimento..." />
-
-                  <label style={s.label}>Fori / filetti / lamature</label>
-                  <input style={{ ...s.input, background: isDark ? "#050505" : "#ffffff", color: theme.text, border: `1px solid ${theme.border}` }} value={drawingForm.holesThreads} onChange={e => updateDrawingField("holesThreads", e.target.value)} placeholder="Foro Ø10 H7, M8 prof. 15, lamatura Ø14..." />
-
-                  <label style={s.label}>Accoppiamenti</label>
-                  <input style={{ ...s.input, background: isDark ? "#050505" : "#ffffff", color: theme.text, border: `1px solid ${theme.border}` }} value={drawingForm.fits} onChange={e => updateDrawingField("fits", e.target.value)} placeholder="Ø20 h6, Ø35 H7, sede cuscinetto..." />
-
-                  <label style={s.label}>Tolleranze già previste</label>
-                  <input style={{ ...s.input, background: isDark ? "#050505" : "#ffffff", color: theme.text, border: `1px solid ${theme.border}` }} value={drawingForm.tolerances} onChange={e => updateDrawingField("tolerances", e.target.value)} placeholder="ISO 2768-mK, planarità, posizione fori..." />
-
-                  <label style={s.label}>Rugosità già previste</label>
-                  <input style={{ ...s.input, background: isDark ? "#050505" : "#ffffff", color: theme.text, border: `1px solid ${theme.border}` }} value={drawingForm.roughness} onChange={e => updateDrawingField("roughness", e.target.value)} placeholder="Ra 3.2 generale, Ra 1.6 sede..." />
-
-                  <button style={{ ...s.checkBtn, background: theme.primary }} onClick={runDrawingGenerator}>Genera controllo tavola</button>
-                </div>
-
-                <div style={s.checklistResultsArea}>
-                  {drawingResults.length === 0 ? (
-                    <div style={{ ...s.emptyChecklist, border: `1px dashed ${theme.border}` }}>
-                      Inserisci i dati del pezzo e premi “Genera controllo tavola”.
-                    </div>
-                  ) : (
-                    drawingResults.map((item, index) => (
-                      <div key={index} style={{ ...s.resultCard, background: isDark ? "#050505" : "#f8fafc", border: `1px solid ${theme.border}` }}>
-                        <div style={s.resultTop}>
-                          <strong>{item.category}: {item.item}</strong>
-                          <span style={s.resultStatus}>{item.status}</span>
-                        </div>
-                        <p style={s.resultDetail}>{item.reason}</p>
-                        <p style={{ ...s.resultSuggestion, borderLeft: `3px solid ${theme.primary}` }}>{item.suggestion}</p>
-                      </div>
-                    ))
-                  )}
-                </div>
-              </div>
+              <button style={{ ...s.closeFloatingBtn, background: isDark ? "#111" : "#fff", color: theme.text, border: `1px solid ${theme.border}` }} onClick={() => { setShowLoginPanel(false); setLoginError(""); }} title="Torna indietro">×</button>
             </div>
           </div>
         )}
@@ -1561,62 +1302,28 @@ export default function App() {
           <div style={s.overlay}>
             <div style={{ ...s.checklistModal, background: isDark ? "#111111" : "white", color: theme.text, border: `1px solid ${theme.border}` }}>
               <div style={s.modalHeader}>
-                <div>
-                  <h2 style={{ fontSize: "20px", margin: 0 }}>Verifica dimensionale rapida</h2>
-                  <p style={s.checklistSubtitle}>Modulo preliminare per alberi, perni, staffe e componenti semplici.</p>
-                </div>
+                <div><h2 style={{ fontSize: "20px", margin: 0 }}>Verifica dimensionale rapida</h2><p style={s.checklistSubtitle}>Modulo preliminare per alberi, perni, staffe e componenti semplici.</p></div>
                 <button style={{ ...s.backBtn, color: theme.text, border: `1px solid ${theme.border}` }} onClick={() => setShowQuickCalc(false)}>← Indietro</button>
               </div>
-
               <div style={s.quickCalcLayout}>
                 <div style={s.checklistFormArea}>
                   <div style={s.checklistGrid}>
-                    <div>
-                      <label style={s.label}>Tipo componente</label>
-                      <input style={{ ...s.input, background: isDark ? "#050505" : "#ffffff", color: theme.text, border: `1px solid ${theme.border}` }} value={quickCalcForm.componentType} onChange={e => updateQuickCalcField("componentType", e.target.value)} placeholder="Perno, albero, staffa..." />
-                    </div>
-                    <div>
-                      <label style={s.label}>Tipo verifica</label>
-                      <select style={{ ...s.input, background: isDark ? "#050505" : "#ffffff", color: theme.text, border: `1px solid ${theme.border}` }} value={quickCalcForm.stressType} onChange={e => updateQuickCalcField("stressType", e.target.value)}>
-                        <option value="flessione">Flessione</option>
-                        <option value="taglio">Taglio</option>
-                        <option value="torsione">Torsione</option>
-                        <option value="assiale">Trazione / compressione</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label style={s.label}>Materiale</label>
-                      <input style={{ ...s.input, background: isDark ? "#050505" : "#ffffff", color: theme.text, border: `1px solid ${theme.border}` }} value={quickCalcForm.material} onChange={e => updateQuickCalcField("material", e.target.value)} placeholder="C45" />
-                    </div>
-                    <div>
-                      <label style={s.label}>Carico F [N]</label>
-                      <input style={{ ...s.input, background: isDark ? "#050505" : "#ffffff", color: theme.text, border: `1px solid ${theme.border}` }} value={quickCalcForm.load} onChange={e => updateQuickCalcField("load", e.target.value)} placeholder="2500" />
-                    </div>
-                    <div>
-                      <label style={s.label}>Distanza / braccio L [mm]</label>
-                      <input style={{ ...s.input, background: isDark ? "#050505" : "#ffffff", color: theme.text, border: `1px solid ${theme.border}` }} value={quickCalcForm.distance} onChange={e => updateQuickCalcField("distance", e.target.value)} placeholder="120" />
-                    </div>
-                    <div>
-                      <label style={s.label}>Diametro d [mm]</label>
-                      <input style={{ ...s.input, background: isDark ? "#050505" : "#ffffff", color: theme.text, border: `1px solid ${theme.border}` }} value={quickCalcForm.diameter} onChange={e => updateQuickCalcField("diameter", e.target.value)} placeholder="20" />
-                    </div>
+                    <div><label style={s.label}>Tipo componente</label><input style={{ ...s.input, background: isDark ? "#050505" : "#ffffff", color: theme.text, border: `1px solid ${theme.border}` }} value={quickCalcForm.componentType} onChange={e => updateQuickCalcField("componentType", e.target.value)} placeholder="Perno, albero, staffa..." /></div>
+                    <div><label style={s.label}>Tipo verifica</label><select style={{ ...s.input, background: isDark ? "#050505" : "#ffffff", color: theme.text, border: `1px solid ${theme.border}` }} value={quickCalcForm.stressType} onChange={e => updateQuickCalcField("stressType", e.target.value)}><option value="flessione">Flessione</option><option value="taglio">Taglio</option><option value="torsione">Torsione</option><option value="assiale">Trazione / compressione</option></select></div>
+                    <div><label style={s.label}>Materiale</label><input style={{ ...s.input, background: isDark ? "#050505" : "#ffffff", color: theme.text, border: `1px solid ${theme.border}` }} value={quickCalcForm.material} onChange={e => updateQuickCalcField("material", e.target.value)} placeholder="C45" /></div>
+                    <div><label style={s.label}>Carico F [N]</label><input style={{ ...s.input, background: isDark ? "#050505" : "#ffffff", color: theme.text, border: `1px solid ${theme.border}` }} value={quickCalcForm.load} onChange={e => updateQuickCalcField("load", e.target.value)} placeholder="2500" /></div>
+                    <div><label style={s.label}>Distanza / braccio L [mm]</label><input style={{ ...s.input, background: isDark ? "#050505" : "#ffffff", color: theme.text, border: `1px solid ${theme.border}` }} value={quickCalcForm.distance} onChange={e => updateQuickCalcField("distance", e.target.value)} placeholder="120" /></div>
+                    <div><label style={s.label}>Diametro d [mm]</label><input style={{ ...s.input, background: isDark ? "#050505" : "#ffffff", color: theme.text, border: `1px solid ${theme.border}` }} value={quickCalcForm.diameter} onChange={e => updateQuickCalcField("diameter", e.target.value)} placeholder="20" /></div>
                   </div>
-
                   <label style={s.label}>Coefficiente sicurezza richiesto</label>
                   <input style={{ ...s.input, background: isDark ? "#050505" : "#ffffff", color: theme.text, border: `1px solid ${theme.border}` }} value={quickCalcForm.safetyFactorRequired} onChange={e => updateQuickCalcField("safetyFactorRequired", e.target.value)} placeholder="2" />
                   <button style={{ ...s.checkBtn, background: theme.primary }} onClick={runQuickCalc}>Calcola verifica</button>
                   <div style={{ ...s.warningBox, border: `1px solid ${theme.border}` }}>Calcolo preliminare: non sostituisce verifica normativa, FEM o relazione firmata. Usa modelli semplificati.</div>
                 </div>
-
                 <div style={s.checklistResultsArea}>
-                  {!quickCalcResult ? (
-                    <div style={{ ...s.emptyChecklist, border: `1px dashed ${theme.border}` }}>Inserisci i dati e premi “Calcola verifica”.</div>
-                  ) : (
+                  {!quickCalcResult ? <div style={{ ...s.emptyChecklist, border: `1px dashed ${theme.border}` }}>Inserisci i dati e premi “Calcola verifica”.</div> : (
                     <div style={{ ...s.resultCard, background: isDark ? "#050505" : "#f8fafc", border: `1px solid ${theme.border}` }}>
-                      <div style={s.resultTop}>
-                        <strong>{quickCalcResult.title}</strong>
-                        <span style={{ ...s.bigOutcome, color: quickCalcResult.outcome === "OK" ? "#16a34a" : "#dc2626" }}>{quickCalcResult.outcome}</span>
-                      </div>
+                      <div style={s.resultTop}><strong>{quickCalcResult.title}</strong><span style={{ ...s.bigOutcome, color: quickCalcResult.outcome === "OK" ? "#16a34a" : "#dc2626" }}>{quickCalcResult.outcome}</span></div>
                       <p style={s.resultDetail}>{quickCalcResult.scheme}</p>
                       <div style={s.formulaBlock}>{quickCalcResult.formulas.map((formula, index) => <div key={index}>{formula}</div>)}</div>
                       <div style={s.valueList}>{quickCalcResult.values.map((value, index) => <div key={index} style={s.valueRow}>• {value}</div>)}</div>
@@ -1630,57 +1337,106 @@ export default function App() {
           </div>
         )}
 
+        {showChecklist && (
+          <div style={s.overlay}>
+            <div style={{ ...s.checklistModal, background: isDark ? "#111111" : "white", color: theme.text, border: `1px solid ${theme.border}` }}>
+              <div style={s.modalHeader}>
+                <div><h2 style={{ fontSize: "20px", margin: 0 }}>Checklist tecnica progetto</h2><p style={s.checklistSubtitle}>Controllo preliminare automatico per componenti meccanici.</p></div>
+                <button style={{ ...s.backBtn, color: theme.text, border: `1px solid ${theme.border}` }} onClick={() => setShowChecklist(false)}>← Indietro</button>
+              </div>
+              <div style={s.checklistLayout}>
+                <div style={s.checklistFormArea}>
+                  <div style={s.checklistGrid}>
+                    <div><label style={s.label}>Tipo componente</label><input style={{ ...s.input, background: isDark ? "#050505" : "#ffffff", color: theme.text, border: `1px solid ${theme.border}` }} value={checklistForm.componentType} onChange={e => updateChecklistField("componentType", e.target.value)} placeholder="Albero, perno, staffa, flangia..." /></div>
+                    <div><label style={s.label}>Materiale</label><input style={{ ...s.input, background: isDark ? "#050505" : "#ffffff", color: theme.text, border: `1px solid ${theme.border}` }} value={checklistForm.material} onChange={e => updateChecklistField("material", e.target.value)} placeholder="C45, S235, 42CrMo4..." /></div>
+                    <div><label style={s.label}>Carico indicativo [N]</label><input style={{ ...s.input, background: isDark ? "#050505" : "#ffffff", color: theme.text, border: `1px solid ${theme.border}` }} value={checklistForm.load} onChange={e => updateChecklistField("load", e.target.value)} placeholder="2500" /></div>
+                    <div><label style={s.label}>Coefficiente sicurezza</label><input style={{ ...s.input, background: isDark ? "#050505" : "#ffffff", color: theme.text, border: `1px solid ${theme.border}` }} value={checklistForm.safetyFactor} onChange={e => updateChecklistField("safetyFactor", e.target.value)} placeholder="2" /></div>
+                  </div>
+                  <label style={s.label}>Ambiente d'uso</label><input style={{ ...s.input, background: isDark ? "#050505" : "#ffffff", color: theme.text, border: `1px solid ${theme.border}` }} value={checklistForm.environment} onChange={e => updateChecklistField("environment", e.target.value)} placeholder="Interno, esterno, umido, corrosivo, olio..." />
+                  <label style={s.label}>Lavorazione prevista</label><input style={{ ...s.input, background: isDark ? "#050505" : "#ffffff", color: theme.text, border: `1px solid ${theme.border}` }} value={checklistForm.machining} onChange={e => updateChecklistField("machining", e.target.value)} placeholder="Tornitura, fresatura, saldatura, rettifica..." />
+                  <label style={s.label}>Tolleranze / accoppiamenti presenti</label><input style={{ ...s.input, background: isDark ? "#050505" : "#ffffff", color: theme.text, border: `1px solid ${theme.border}` }} value={checklistForm.tolerances} onChange={e => updateChecklistField("tolerances", e.target.value)} placeholder="Ø20 h6, foro Ø10 H7..." />
+                  <label style={s.label}>Rugosità</label><input style={{ ...s.input, background: isDark ? "#050505" : "#ffffff", color: theme.text, border: `1px solid ${theme.border}` }} value={checklistForm.roughness} onChange={e => updateChecklistField("roughness", e.target.value)} placeholder="Ra 3.2 generale, Ra 1.6 sedi..." />
+                  <label style={s.label}>Note tecniche</label><textarea style={{ ...s.checklistTextarea, background: isDark ? "#050505" : "#ffffff", color: theme.text, border: `1px solid ${theme.border}` }} value={checklistForm.notes} onChange={e => updateChecklistField("notes", e.target.value)} placeholder="Smussi, raggi, filetti, trattamenti..." />
+                  <button style={{ ...s.checkBtn, background: theme.primary }} onClick={runProjectChecklist}>Esegui checklist</button>
+                </div>
+                <div style={s.checklistResultsArea}>
+                  {checklistResults.length === 0 ? <div style={{ ...s.emptyChecklist, border: `1px dashed ${theme.border}` }}>Inserisci i dati del pezzo e premi “Esegui checklist”.</div> : checklistResults.map((item, index) => (
+                    <div key={index} style={{ ...s.resultCard, background: isDark ? "#050505" : "#f8fafc", border: `1px solid ${theme.border}` }}>
+                      <div style={s.resultTop}><strong>{item.area}</strong><span style={s.resultStatus}>{item.status}</span></div>
+                      <p style={s.resultDetail}>{item.detail}</p>
+                      <p style={{ ...s.resultSuggestion, borderLeft: `3px solid ${theme.primary}` }}>{item.suggestion}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {showDrawingGenerator && (
+          <div style={s.overlay}>
+            <div style={{ ...s.checklistModal, background: isDark ? "#111111" : "white", color: theme.text, border: `1px solid ${theme.border}` }}>
+              <div style={s.modalHeader}>
+                <div><h2 style={{ fontSize: "20px", margin: 0 }}>Generatore tavole tecniche controllate</h2><p style={s.checklistSubtitle}>Suggerisce viste, sezioni, quote, tolleranze, rugosità e note di cartiglio.</p></div>
+                <button style={{ ...s.backBtn, color: theme.text, border: `1px solid ${theme.border}` }} onClick={() => setShowDrawingGenerator(false)}>← Indietro</button>
+              </div>
+              <div style={s.drawingLayout}>
+                <div style={s.checklistFormArea}>
+                  <div style={s.checklistGrid}>
+                    <div><label style={s.label}>Nome pezzo</label><input style={{ ...s.input, background: isDark ? "#050505" : "#ffffff", color: theme.text, border: `1px solid ${theme.border}` }} value={drawingForm.partName} onChange={e => updateDrawingField("partName", e.target.value)} placeholder="Es. Albero intermedio" /></div>
+                    <div><label style={s.label}>Tipo pezzo</label><input style={{ ...s.input, background: isDark ? "#050505" : "#ffffff", color: theme.text, border: `1px solid ${theme.border}` }} value={drawingForm.partType} onChange={e => updateDrawingField("partType", e.target.value)} placeholder="Albero, perno, staffa..." /></div>
+                    <div><label style={s.label}>Materiale</label><input style={{ ...s.input, background: isDark ? "#050505" : "#ffffff", color: theme.text, border: `1px solid ${theme.border}` }} value={drawingForm.material} onChange={e => updateDrawingField("material", e.target.value)} placeholder="C45, S235..." /></div>
+                    <div><label style={s.label}>Quantità / lotto</label><input style={{ ...s.input, background: isDark ? "#050505" : "#ffffff", color: theme.text, border: `1px solid ${theme.border}` }} value={drawingForm.productionQuantity} onChange={e => updateDrawingField("productionQuantity", e.target.value)} placeholder="1 pezzo, 100 pezzi..." /></div>
+                  </div>
+                  <label style={s.label}>Lavorazione prevista</label><input style={{ ...s.input, background: isDark ? "#050505" : "#ffffff", color: theme.text, border: `1px solid ${theme.border}` }} value={drawingForm.manufacturing} onChange={e => updateDrawingField("manufacturing", e.target.value)} placeholder="Tornitura, fresatura..." />
+                  <label style={s.label}>Geometrie principali</label><textarea style={{ ...s.checklistTextarea, background: isDark ? "#050505" : "#ffffff", color: theme.text, border: `1px solid ${theme.border}` }} value={drawingForm.mainFeatures} onChange={e => updateDrawingField("mainFeatures", e.target.value)} placeholder="Fori, cave, asole..." />
+                  <label style={s.label}>Funzione del pezzo nell'assieme</label><textarea style={{ ...s.checklistTextarea, background: isDark ? "#050505" : "#ffffff", color: theme.text, border: `1px solid ${theme.border}` }} value={drawingForm.assemblyFunction} onChange={e => updateDrawingField("assemblyFunction", e.target.value)} placeholder="Cosa fa il pezzo?" />
+                  {(["functionalSurfaces", "holesThreads", "fits", "tolerances", "roughness"] as (keyof DrawingForm)[]).map(field => (
+                    <div key={field}>
+                      <label style={s.label}>{field === "functionalSurfaces" ? "Superfici funzionali" : field === "holesThreads" ? "Fori / filetti / lamature" : field === "fits" ? "Accoppiamenti" : field === "tolerances" ? "Tolleranze già previste" : "Rugosità già previste"}</label>
+                      <input style={{ ...s.input, background: isDark ? "#050505" : "#ffffff", color: theme.text, border: `1px solid ${theme.border}` }} value={drawingForm[field]} onChange={e => updateDrawingField(field, e.target.value)} />
+                    </div>
+                  ))}
+                  <button style={{ ...s.checkBtn, background: theme.primary }} onClick={runDrawingGenerator}>Genera controllo tavola</button>
+                </div>
+                <div style={s.checklistResultsArea}>
+                  {drawingResults.length === 0 ? <div style={{ ...s.emptyChecklist, border: `1px dashed ${theme.border}` }}>Inserisci i dati del pezzo e premi “Genera controllo tavola”.</div> : drawingResults.map((item, index) => (
+                    <div key={index} style={{ ...s.resultCard, background: isDark ? "#050505" : "#f8fafc", border: `1px solid ${theme.border}` }}>
+                      <div style={s.resultTop}><strong>{item.category}: {item.item}</strong><span style={s.resultStatus}>{item.status}</span></div>
+                      <p style={s.resultDetail}>{item.reason}</p>
+                      <p style={{ ...s.resultSuggestion, borderLeft: `3px solid ${theme.primary}` }}>{item.suggestion}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
         {showMaterials && (
           <div style={s.overlay}>
             <div style={{ ...s.checklistModal, background: isDark ? "#111111" : "white", color: theme.text, border: `1px solid ${theme.border}` }}>
               <div style={s.modalHeader}>
-                <div>
-                  <h2 style={{ fontSize: "20px", margin: 0 }}>Libreria materiali</h2>
-                  <p style={s.checklistSubtitle}>Conversioni normative e proprietà meccaniche indicative.</p>
-                </div>
+                <div><h2 style={{ fontSize: "20px", margin: 0 }}>Libreria materiali</h2><p style={s.checklistSubtitle}>Conversioni normative e proprietà meccaniche indicative.</p></div>
                 <button style={{ ...s.backBtn, color: theme.text, border: `1px solid ${theme.border}` }} onClick={() => setShowMaterials(false)}>← Indietro</button>
               </div>
-
               <div style={s.materialToolbar}>
                 <input style={{ ...s.materialSearch, background: isDark ? "#050505" : "#ffffff", color: theme.text, border: `1px solid ${theme.border}` }} value={materialSearch} onChange={e => setMaterialSearch(e.target.value)} placeholder="Cerca materiale, EN, DIN, AISI, JIS..." />
-                <button style={{ ...s.addMaterialBtn, background: theme.primary }} onClick={() => setShowAddMaterial(prev => !prev)}>
-                  {showAddMaterial ? "Chiudi" : "+ Aggiungi materiale"}
-                </button>
+                <button style={{ ...s.addMaterialBtn, background: theme.primary }} onClick={() => setShowAddMaterial(prev => !prev)}>{showAddMaterial ? "Chiudi" : "+ Aggiungi materiale"}</button>
               </div>
 
               {showAddMaterial && (
                 <div style={{ ...s.addMaterialPanel, background: isDark ? "#050505" : "#f8fafc", border: `1px solid ${theme.border}` }}>
-                  <div style={s.addMaterialHeader}>
-                    <strong>Nuovo materiale personalizzato</strong>
-                    <span>Compila i dati che conosci. Gli altri resteranno “Non specificato”.</span>
-                  </div>
-
+                  <div style={s.addMaterialHeader}><strong>Nuovo materiale personalizzato</strong><span>Compila i dati che conosci. Gli altri resteranno “Non specificato”.</span></div>
                   <div style={s.addMaterialGrid}>
-                    <div><label style={s.label}>Nome materiale *</label><input style={{ ...s.input, background: isDark ? "#111" : "#fff", color: theme.text, border: `1px solid ${theme.border}` }} value={newMaterial.name} onChange={e => updateNewMaterialField("name", e.target.value)} placeholder="Es. AISI 316Ti" /></div>
-                    <div><label style={s.label}>Chiave interna</label><input style={{ ...s.input, background: isDark ? "#111" : "#fff", color: theme.text, border: `1px solid ${theme.border}` }} value={newMaterial.key} onChange={e => updateNewMaterialField("key", e.target.value)} placeholder="Es. aisi316ti" /></div>
-                    <div><label style={s.label}>EN</label><input style={{ ...s.input, background: isDark ? "#111" : "#fff", color: theme.text, border: `1px solid ${theme.border}` }} value={newMaterial.en} onChange={e => updateNewMaterialField("en", e.target.value)} placeholder="EN 1.xxxx" /></div>
-                    <div><label style={s.label}>UNI</label><input style={{ ...s.input, background: isDark ? "#111" : "#fff", color: theme.text, border: `1px solid ${theme.border}` }} value={newMaterial.uni} onChange={e => updateNewMaterialField("uni", e.target.value)} placeholder="Norma UNI" /></div>
-                    <div><label style={s.label}>DIN</label><input style={{ ...s.input, background: isDark ? "#111" : "#fff", color: theme.text, border: `1px solid ${theme.border}` }} value={newMaterial.din} onChange={e => updateNewMaterialField("din", e.target.value)} placeholder="DIN" /></div>
-                    <div><label style={s.label}>AISI/SAE</label><input style={{ ...s.input, background: isDark ? "#111" : "#fff", color: theme.text, border: `1px solid ${theme.border}` }} value={newMaterial.aisi} onChange={e => updateNewMaterialField("aisi", e.target.value)} placeholder="AISI / SAE" /></div>
-                    <div><label style={s.label}>JIS</label><input style={{ ...s.input, background: isDark ? "#111" : "#fff", color: theme.text, border: `1px solid ${theme.border}` }} value={newMaterial.jis} onChange={e => updateNewMaterialField("jis", e.target.value)} placeholder="JIS" /></div>
-                    <div><label style={s.label}>ISO / categoria</label><input style={{ ...s.input, background: isDark ? "#111" : "#fff", color: theme.text, border: `1px solid ${theme.border}` }} value={newMaterial.iso} onChange={e => updateNewMaterialField("iso", e.target.value)} placeholder="Acciaio, alluminio, polimero..." /></div>
-                    <div><label style={s.label}>Rm [MPa]</label><input style={{ ...s.input, background: isDark ? "#111" : "#fff", color: theme.text, border: `1px solid ${theme.border}` }} value={newMaterial.rm || ""} onChange={e => updateNewMaterialField("rm", e.target.value)} placeholder="Es. 650" /></div>
-                    <div><label style={s.label}>Re [MPa]</label><input style={{ ...s.input, background: isDark ? "#111" : "#fff", color: theme.text, border: `1px solid ${theme.border}` }} value={newMaterial.re || ""} onChange={e => updateNewMaterialField("re", e.target.value)} placeholder="Es. 370" /></div>
+                    {(["name", "key", "en", "uni", "din", "aisi", "jis", "iso", "rm", "re"] as (keyof MaterialInfo)[]).map(field => (
+                      <div key={String(field)}><label style={s.label}>{String(field).toUpperCase()}</label><input style={{ ...s.input, background: isDark ? "#111" : "#fff", color: theme.text, border: `1px solid ${theme.border}` }} value={(newMaterial as any)[field] || ""} onChange={e => updateNewMaterialField(field, e.target.value)} /></div>
+                    ))}
                   </div>
-
-                  <label style={s.label}>Durezza</label>
-                  <input style={{ ...s.input, background: isDark ? "#111" : "#fff", color: theme.text, border: `1px solid ${theme.border}` }} value={newMaterial.hardness} onChange={e => updateNewMaterialField("hardness", e.target.value)} placeholder="Es. 170-220 HB" />
-
-                  <div style={s.addMaterialGrid}>
-                    <div><label style={s.label}>Trattamenti</label><input style={{ ...s.input, background: isDark ? "#111" : "#fff", color: theme.text, border: `1px solid ${theme.border}` }} value={newMaterial.treatments} onChange={e => updateNewMaterialField("treatments", e.target.value)} placeholder="Bonifica, tempra..." /></div>
-                    <div><label style={s.label}>Saldabilità</label><input style={{ ...s.input, background: isDark ? "#111" : "#fff", color: theme.text, border: `1px solid ${theme.border}` }} value={newMaterial.weldability} onChange={e => updateNewMaterialField("weldability", e.target.value)} placeholder="Buona, limitata..." /></div>
-                    <div><label style={s.label}>Lavorabilità</label><input style={{ ...s.input, background: isDark ? "#111" : "#fff", color: theme.text, border: `1px solid ${theme.border}` }} value={newMaterial.machinability} onChange={e => updateNewMaterialField("machinability", e.target.value)} placeholder="Buona, difficile..." /></div>
-                    <div><label style={s.label}>Impieghi</label><input style={{ ...s.input, background: isDark ? "#111" : "#fff", color: theme.text, border: `1px solid ${theme.border}` }} value={newMaterial.uses} onChange={e => updateNewMaterialField("uses", e.target.value)} placeholder="Alberi, staffe, piastre..." /></div>
-                  </div>
-
-                  <label style={s.label}>Note</label>
-                  <textarea style={{ ...s.addMaterialTextarea, background: isDark ? "#111" : "#fff", color: theme.text, border: `1px solid ${theme.border}` }} value={newMaterial.notes} onChange={e => updateNewMaterialField("notes", e.target.value)} />
-
+                  {(["hardness", "treatments", "weldability", "machinability", "uses"] as (keyof MaterialInfo)[]).map(field => (
+                    <div key={String(field)}><label style={s.label}>{String(field)}</label><input style={{ ...s.input, background: isDark ? "#111" : "#fff", color: theme.text, border: `1px solid ${theme.border}` }} value={(newMaterial as any)[field] || ""} onChange={e => updateNewMaterialField(field, e.target.value)} /></div>
+                  ))}
+                  <label style={s.label}>Note</label><textarea style={{ ...s.addMaterialTextarea, background: isDark ? "#111" : "#fff", color: theme.text, border: `1px solid ${theme.border}` }} value={newMaterial.notes} onChange={e => updateNewMaterialField("notes", e.target.value)} />
                   <button style={{ ...s.saveMaterialBtn, background: theme.primary }} onClick={addCustomMaterial}>Salva materiale</button>
                 </div>
               )}
@@ -1693,111 +1449,17 @@ export default function App() {
                 }).map(material => (
                   <div key={material.key} style={{ ...s.materialCard, background: isDark ? "#050505" : "#f8fafc", border: `1px solid ${theme.border}` }}>
                     <div style={s.materialHead}>
-                      <div>
-                        <h3 style={{ margin: 0 }}>{material.name}</h3>
-                        {customMaterials.some(item => item.key === material.key) && <span style={s.customTag}>Personalizzato</span>}
-                      </div>
+                      <div><h3 style={{ margin: 0 }}>{material.name}</h3>{customMaterials.some(item => item.key === material.key) && <span style={s.customTag}>Personalizzato</span>}</div>
                       <div style={s.materialActions}>
                         <button style={{ ...s.smallUseBtn, background: theme.primary }} onClick={() => { setQuickCalcForm(prev => ({ ...prev, material: material.name })); setShowMaterials(false); setShowQuickCalc(true); }}>Usa in verifica</button>
-                        {customMaterials.some(item => item.key === material.key) && (
-                          <button style={s.smallDeleteMaterialBtn} onClick={() => deleteCustomMaterial(material.key)}>Elimina</button>
-                        )}
+                        {customMaterials.some(item => item.key === material.key) && <button style={s.smallDeleteMaterialBtn} onClick={() => deleteCustomMaterial(material.key)}>Elimina</button>}
                       </div>
                     </div>
-                    <div style={s.materialCodes}>
-                      <span>EN: {material.en}</span>
-                      <span>UNI: {material.uni}</span>
-                      <span>DIN: {material.din}</span>
-                      <span>AISI/SAE: {material.aisi}</span>
-                      <span>JIS: {material.jis}</span>
-                      <span>ISO: {material.iso}</span>
-                    </div>
+                    <div style={s.materialCodes}><span>EN: {material.en}</span><span>UNI: {material.uni}</span><span>DIN: {material.din}</span><span>AISI/SAE: {material.aisi}</span><span>JIS: {material.jis}</span><span>ISO: {material.iso}</span></div>
                     <div style={s.materialProps}><strong>Rm:</strong> {material.rm} MPa · <strong>Re:</strong> {material.re} MPa · <strong>Durezza:</strong> {material.hardness}</div>
-                    <p><strong>Trattamenti:</strong> {material.treatments}</p>
-                    <p><strong>Saldabilità:</strong> {material.weldability}</p>
-                    <p><strong>Lavorabilità:</strong> {material.machinability}</p>
-                    <p><strong>Impieghi:</strong> {material.uses}</p>
-                    <p style={{ opacity: 0.68 }}><strong>Nota:</strong> {material.notes}</p>
+                    <p><strong>Trattamenti:</strong> {material.treatments}</p><p><strong>Saldabilità:</strong> {material.weldability}</p><p><strong>Lavorabilità:</strong> {material.machinability}</p><p><strong>Impieghi:</strong> {material.uses}</p><p style={{ opacity: 0.68 }}><strong>Nota:</strong> {material.notes}</p>
                   </div>
                 ))}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {showChecklist && (
-          <div style={s.overlay}>
-            <div style={{ ...s.checklistModal, background: isDark ? "#111111" : "white", color: theme.text, border: `1px solid ${theme.border}` }}>
-              <div style={s.modalHeader}>
-                <div>
-                  <h2 style={{ fontSize: "20px", margin: 0 }}>Checklist tecnica progetto</h2>
-                  <p style={s.checklistSubtitle}>Controllo preliminare automatico per componenti meccanici.</p>
-                </div>
-                <button
-                  style={{ ...s.backBtn, color: theme.text, border: `1px solid ${theme.border}` }}
-                  onClick={() => setShowChecklist(false)}
-                >
-                  ← Indietro
-                </button>
-              </div>
-
-              <div style={s.checklistLayout}>
-                <div style={s.checklistFormArea}>
-                  <div style={s.checklistGrid}>
-                    <div>
-                      <label style={s.label}>Tipo componente</label>
-                      <input style={{ ...s.input, background: isDark ? "#050505" : "#ffffff", color: theme.text, border: `1px solid ${theme.border}` }} value={checklistForm.componentType} onChange={e => updateChecklistField("componentType", e.target.value)} placeholder="Albero, perno, staffa, flangia..." />
-                    </div>
-                    <div>
-                      <label style={s.label}>Materiale</label>
-                      <input style={{ ...s.input, background: isDark ? "#050505" : "#ffffff", color: theme.text, border: `1px solid ${theme.border}` }} value={checklistForm.material} onChange={e => updateChecklistField("material", e.target.value)} placeholder="C45, S235, 42CrMo4..." />
-                    </div>
-                    <div>
-                      <label style={s.label}>Carico indicativo [N]</label>
-                      <input style={{ ...s.input, background: isDark ? "#050505" : "#ffffff", color: theme.text, border: `1px solid ${theme.border}` }} value={checklistForm.load} onChange={e => updateChecklistField("load", e.target.value)} placeholder="2500" />
-                    </div>
-                    <div>
-                      <label style={s.label}>Coefficiente sicurezza</label>
-                      <input style={{ ...s.input, background: isDark ? "#050505" : "#ffffff", color: theme.text, border: `1px solid ${theme.border}` }} value={checklistForm.safetyFactor} onChange={e => updateChecklistField("safetyFactor", e.target.value)} placeholder="2" />
-                    </div>
-                  </div>
-
-                  <label style={s.label}>Ambiente d'uso</label>
-                  <input style={{ ...s.input, background: isDark ? "#050505" : "#ffffff", color: theme.text, border: `1px solid ${theme.border}` }} value={checklistForm.environment} onChange={e => updateChecklistField("environment", e.target.value)} placeholder="Interno, esterno, umido, corrosivo, olio..." />
-
-                  <label style={s.label}>Lavorazione prevista</label>
-                  <input style={{ ...s.input, background: isDark ? "#050505" : "#ffffff", color: theme.text, border: `1px solid ${theme.border}` }} value={checklistForm.machining} onChange={e => updateChecklistField("machining", e.target.value)} placeholder="Tornitura, fresatura, saldatura, rettifica..." />
-
-                  <label style={s.label}>Tolleranze / accoppiamenti presenti</label>
-                  <input style={{ ...s.input, background: isDark ? "#050505" : "#ffffff", color: theme.text, border: `1px solid ${theme.border}` }} value={checklistForm.tolerances} onChange={e => updateChecklistField("tolerances", e.target.value)} placeholder="Ø20 h6, foro Ø10 H7, posizione fori..." />
-
-                  <label style={s.label}>Rugosità</label>
-                  <input style={{ ...s.input, background: isDark ? "#050505" : "#ffffff", color: theme.text, border: `1px solid ${theme.border}` }} value={checklistForm.roughness} onChange={e => updateChecklistField("roughness", e.target.value)} placeholder="Ra 3.2 generale, Ra 1.6 sedi..." />
-
-                  <label style={s.label}>Note tecniche</label>
-                  <textarea style={{ ...s.checklistTextarea, background: isDark ? "#050505" : "#ffffff", color: theme.text, border: `1px solid ${theme.border}` }} value={checklistForm.notes} onChange={e => updateChecklistField("notes", e.target.value)} placeholder="Smussi, raggi, filetti, trattamenti, note cartiglio..." />
-
-                  <button style={{ ...s.checkBtn, background: theme.primary }} onClick={runProjectChecklist}>Esegui checklist</button>
-                </div>
-
-                <div style={s.checklistResultsArea}>
-                  {checklistResults.length === 0 ? (
-                    <div style={{ ...s.emptyChecklist, border: `1px dashed ${theme.border}` }}>
-                      Inserisci i dati del pezzo e premi “Esegui checklist”.
-                    </div>
-                  ) : (
-                    checklistResults.map((item, index) => (
-                      <div key={index} style={{ ...s.resultCard, background: isDark ? "#050505" : "#f8fafc", border: `1px solid ${theme.border}` }}>
-                        <div style={s.resultTop}>
-                          <strong>{item.area}</strong>
-                          <span style={s.resultStatus}>{item.status}</span>
-                        </div>
-                        <p style={s.resultDetail}>{item.detail}</p>
-                        <p style={{ ...s.resultSuggestion, borderLeft: `3px solid ${theme.primary}` }}>{item.suggestion}</p>
-                      </div>
-                    ))
-                  )}
-                </div>
               </div>
             </div>
           </div>
@@ -1807,95 +1469,13 @@ export default function App() {
           <div style={s.overlay}>
             <div style={{ ...s.modal, background: isDark ? "#111111" : "white", color: theme.text, border: `1px solid ${theme.border}` }}>
               <div style={{ ...s.modalSide, background: isDark ? "#050505" : "#f8fafc", borderRight: `1px solid ${theme.border}` }}>
-                {["Account", "Aspetto", "AI Focus"].map(t => (
-                  <div
-                    key={t}
-                    onClick={() => setActiveTab(t)}
-                    style={{ ...s.tab, color: activeTab === t ? theme.primary : theme.text, fontWeight: activeTab === t ? 800 : 400 }}
-                  >
-                    {t}
-                  </div>
-                ))}
+                {["Account", "Aspetto", "AI Focus"].map(t => <div key={t} onClick={() => setActiveTab(t)} style={{ ...s.tab, color: activeTab === t ? theme.primary : theme.text, fontWeight: activeTab === t ? 800 : 400 }}>{t}</div>)}
               </div>
-
               <div style={s.modalMain}>
-                <div style={s.modalHeader}>
-                  <h2 style={{ fontSize: "18px", margin: 0 }}>{activeTab}</h2>
-                  <button
-                    style={{ ...s.backBtn, color: theme.text, border: `1px solid ${theme.border}` }}
-                    onClick={() => setShowSettings(false)}
-                  >
-                    ← Indietro
-                  </button>
-                </div>
-
-                {activeTab === "Account" && (
-                  <div>
-                    <label style={s.label}>Nome Visualizzato</label>
-                    <input style={{ ...s.input, background: isDark ? "#050505" : "#ffffff", color: theme.text, border: `1px solid ${theme.border}` }} value={user.name} onChange={e => setUser({ ...user, name: e.target.value })} />
-
-                    <label style={s.label}>Email</label>
-                    <input style={{ ...s.input, background: isDark ? "#050505" : "#ffffff", color: theme.text, border: `1px solid ${theme.border}` }} value={user.email} onChange={e => setUser({ ...user, email: e.target.value })} />
-
-                    <div style={s.accountButtonRow}>
-                      <button style={{ ...s.miniPrimaryBtn, background: theme.primary }} onClick={openLoginInsideApp}>
-                        Apri login
-                      </button>
-                      <button style={{ ...s.miniDangerBtn }} onClick={handleLogout}>
-                        Logout
-                      </button>
-                    </div>
-
-                    <div style={s.badge}>Stato Account: {isLoggedIn ? "Accesso effettuato ✅" : "Non connesso"}</div>
-                  </div>
-                )}
-
-                {activeTab === "Aspetto" && (
-                  <div style={s.themeGrid}>
-                    {THEMES.map(t => (
-                      <div
-                        key={t.name}
-                        onClick={() => setTheme(t)}
-                        style={{
-                          ...s.themeOption,
-                          background: theme.name === t.name ? theme.surface : "transparent",
-                          color: theme.text,
-                          border:
-                            theme.name === "Dark Black"
-                              ? theme.name === t.name
-                                ? "1px solid #5b5b5b"
-                                : "1px solid #2f2f2f"
-                              : theme.name === t.name
-                                ? `1px solid ${t.primary}`
-                                : `1px solid ${theme.border || "transparent"}`,
-                          boxShadow:
-                            theme.name === "Dark Black" && theme.name === t.name
-                              ? "0 0 0 1px rgba(255,255,255,0.06) inset"
-                              : "none",
-                        }}
-                      >
-                        <div
-                          style={{
-                            width: 12,
-                            height: 12,
-                            borderRadius: "50%",
-                            background: t.name === "Dark Black" ? "#0b0b0b" : t.primary,
-                            border: t.name === "Dark Black" ? "1px solid #f8fafc" : "none",
-                          }}
-                        />
-                        {t.name}
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                {activeTab === "AI Focus" && (
-                  <div>
-                    <label style={s.label}>Ambito Tecnico Principale</label>
-                    <input style={{ ...s.input, background: isDark ? "#050505" : "#ffffff", color: theme.text, border: `1px solid ${theme.border}` }} value={interest} onChange={e => setInterest(e.target.value)} />
-                  </div>
-                )}
-
+                <div style={s.modalHeader}><h2 style={{ fontSize: "18px", margin: 0 }}>{activeTab}</h2><button style={{ ...s.backBtn, color: theme.text, border: `1px solid ${theme.border}` }} onClick={() => setShowSettings(false)}>← Indietro</button></div>
+                {activeTab === "Account" && <div><label style={s.label}>Nome Visualizzato</label><input style={{ ...s.input, background: isDark ? "#050505" : "#ffffff", color: theme.text, border: `1px solid ${theme.border}` }} value={user.name} onChange={e => setUser({ ...user, name: e.target.value })} /><label style={s.label}>Email</label><input style={{ ...s.input, background: isDark ? "#050505" : "#ffffff", color: theme.text, border: `1px solid ${theme.border}` }} value={user.email} onChange={e => setUser({ ...user, email: e.target.value })} /><div style={s.accountButtonRow}><button style={{ ...s.miniPrimaryBtn, background: theme.primary }} onClick={openLoginInsideApp}>Apri login</button><button style={s.miniDangerBtn} onClick={handleLogout}>Logout</button></div><div style={s.badge}>Stato Account: {isLoggedIn ? "Accesso effettuato ✅" : "Non connesso"}</div></div>}
+                {activeTab === "Aspetto" && <div style={s.themeGrid}>{THEMES.map(t => <div key={t.name} onClick={() => setTheme(t)} style={{ ...s.themeOption, background: theme.name === t.name ? theme.surface : "transparent", color: theme.text, border: theme.name === t.name ? `1px solid ${t.primary}` : `1px solid ${theme.border || "transparent"}` }}><div style={{ width: 12, height: 12, borderRadius: "50%", background: t.primary }} />{t.name}</div>)}</div>}
+                {activeTab === "AI Focus" && <div><label style={s.label}>Ambito Tecnico Principale</label><input style={{ ...s.input, background: isDark ? "#050505" : "#ffffff", color: theme.text, border: `1px solid ${theme.border}` }} value={interest} onChange={e => setInterest(e.target.value)} /></div>}
                 <button style={{ ...s.saveBtn, background: theme.primary }} onClick={saveAll}>Salva modifiche</button>
               </div>
             </div>
@@ -1909,7 +1489,7 @@ export default function App() {
         html, body, #root { width: 100%; height: 100%; margin: 0; overflow: hidden; }
         input::placeholder, textarea::placeholder { opacity: 0.55; }
         button:disabled { opacity: 0.45; cursor: not-allowed; }
-        ::-webkit-scrollbar { width: 5px; }
+        ::-webkit-scrollbar { width: 5px; height: 5px; }
         ::-webkit-scrollbar-thumb { background: rgba(120,120,120,0.35); border-radius: 10px; }
       `}</style>
     </div>
@@ -1918,284 +1498,49 @@ export default function App() {
 
 const s: any = {
   app: { display: "flex", height: "100dvh", width: "100vw", overflow: "hidden", minWidth: 0 },
-
-  loginScreen: {
-    position: "fixed",
-    inset: 0,
-    zIndex: 2000,
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    padding: 16,
-  },
+  loginScreen: { position: "fixed", inset: 0, zIndex: 2000, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 },
   loginModalWrap: { position: "relative" },
-  loginCard: {
-    borderRadius: 30,
-    padding: 28,
-    boxShadow: "0 30px 80px rgba(0,0,0,0.28)",
-    backdropFilter: "blur(18px)",
-  },
-  loginLogo: {
-    width: 46,
-    height: 46,
-    borderRadius: 16,
-    color: "white",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    fontWeight: 900,
-    marginBottom: 18,
-  },
-  loginTitle: { margin: 0, fontSize: 28, fontWeight: 850, letterSpacing: "-0.8px" },
-  loginSubtitle: { margin: "8px 0 24px", fontSize: 14, opacity: 0.68, lineHeight: 1.45 },
-  loginLabel: { display: "block", fontSize: 11, fontWeight: 850, textTransform: "uppercase", opacity: 0.62, margin: "14px 0 8px" },
-  loginInputWrap: {
-    minHeight: 54,
-    borderRadius: 18,
-    display: "flex",
-    alignItems: "center",
-    gap: 10,
-    padding: "0 14px",
-    boxShadow: "0 8px 22px rgba(0,0,0,0.035)",
-  },
-  loginInputIcon: { width: 22, textAlign: "center", fontWeight: 900, opacity: 0.88 },
-  loginInput: {
-    flex: 1,
-    minWidth: 0,
-    border: "none",
-    outline: "none",
-    background: "transparent",
-    fontSize: 15,
-    padding: "14px 0",
-  },
-  passwordToggle: {
-    border: "none",
-    background: "transparent",
-    cursor: "pointer",
-    fontSize: 12,
-    fontWeight: 800,
-    padding: "8px 0 8px 8px",
-  },
-  loginError: {
-    marginTop: 12,
-    padding: "10px 12px",
-    borderRadius: 12,
-    color: "#b91c1c",
-    background: "#fee2e2",
-    fontSize: 13,
-    fontWeight: 700,
-  },
-  loginBtn: {
-    width: "100%",
-    minHeight: 52,
-    border: "none",
-    borderRadius: 18,
-    color: "white",
-    fontWeight: 850,
-    fontSize: 15,
-    marginTop: 18,
-    cursor: "pointer",
-    boxShadow: "0 14px 30px rgba(0,0,0,0.14)",
-  },
-  ghostLoginBtn: {
-    width: "100%",
-    minHeight: 44,
-    borderRadius: 16,
-    background: "transparent",
-    fontWeight: 800,
-    marginTop: 10,
-    cursor: "pointer",
-  },
-  loginNote: { fontSize: 11, opacity: 0.55, lineHeight: 1.45, margin: "14px 0 0", textAlign: "center" },
-  closeFloatingBtn: {
-    position: "absolute",
-    top: -12,
-    right: -12,
-    width: 38,
-    height: 38,
-    borderRadius: "50%",
-    cursor: "pointer",
-    fontSize: 22,
-    fontWeight: 700,
-  },
-
-  loginCardModern: {
-    borderRadius: 28,
-    padding: "34px 44px",
-    boxShadow: "0 30px 90px rgba(0,0,0,0.22)",
-    backdropFilter: "blur(24px)",
-    WebkitBackdropFilter: "blur(24px)",
-  },
-  loginBrand: {
-    textAlign: "center",
-    fontSize: 25,
-    fontWeight: 950,
-    letterSpacing: "-1px",
-    marginBottom: 20,
-  },
-  loginHeadline: {
-    textAlign: "center",
-    margin: 0,
-    fontSize: 28,
-    fontWeight: 850,
-    letterSpacing: "-0.8px",
-  },
-  loginDescription: {
-    textAlign: "center",
-    margin: "14px 0 24px",
-    fontSize: 14,
-    opacity: 0.72,
-    lineHeight: 1.45,
-  },
+  closeFloatingBtn: { position: "absolute", top: -12, right: -12, width: 38, height: 38, borderRadius: "50%", cursor: "pointer", fontSize: 22, fontWeight: 700 },
+  loginCardModern: { borderRadius: 28, padding: "34px 44px", boxShadow: "0 30px 90px rgba(0,0,0,0.22)", backdropFilter: "blur(24px)", WebkitBackdropFilter: "blur(24px)" },
+  loginBrand: { textAlign: "center", fontSize: 25, fontWeight: 950, letterSpacing: "-1px", marginBottom: 20 },
+  loginHeadline: { textAlign: "center", margin: 0, fontSize: 28, fontWeight: 850, letterSpacing: "-0.8px" },
+  loginDescription: { textAlign: "center", margin: "14px 0 24px", fontSize: 14, opacity: 0.72, lineHeight: 1.45 },
   savedLoginArea: { marginBottom: 18 },
   savedLoginTitle: { fontSize: 11, fontWeight: 900, textTransform: "uppercase", opacity: 0.58, marginBottom: 8 },
   savedLoginList: { display: "flex", gap: 8, flexWrap: "wrap" },
-  savedLoginPill: {
-    background: "rgba(255,255,255,0.35)",
-    borderRadius: 999,
-    padding: "8px 11px",
-    cursor: "pointer",
-    fontSize: 12,
-    fontWeight: 800,
-  },
-  cleanLoginLabel: {
-    display: "block",
-    fontSize: 12,
-    fontWeight: 900,
-    textTransform: "uppercase",
-    opacity: 0.7,
-    margin: "18px 0 8px",
-  },
-  cleanLoginInput: {
-    width: "100%",
-    minHeight: 54,
-    borderRadius: 16,
-    background: "rgba(255,255,255,0.28)",
-    outline: "none",
-    padding: "0 16px",
-    fontSize: 15,
-    fontWeight: 600,
-  },
-  cleanPasswordWrap: {
-    width: "100%",
-    minHeight: 54,
-    borderRadius: 16,
-    background: "rgba(255,255,255,0.28)",
-    display: "flex",
-    alignItems: "center",
-    padding: "0 8px 0 16px",
-  },
-  cleanPasswordInput: {
-    flex: 1,
-    minWidth: 0,
-    border: "none",
-    outline: "none",
-    background: "transparent",
-    fontSize: 15,
-    fontWeight: 600,
-  },
-  cleanPasswordToggle: {
-    border: "none",
-    background: "transparent",
-    cursor: "pointer",
-    fontSize: 12,
-    fontWeight: 850,
-    padding: "10px",
-  },
-  mainLoginBtn: {
-    width: "100%",
-    minHeight: 54,
-    border: "none",
-    borderRadius: 16,
-    color: "white",
-    fontWeight: 900,
-    fontSize: 15,
-    marginTop: 24,
-    cursor: "pointer",
-    boxShadow: "0 14px 30px rgba(37,99,235,0.28)",
-  },
+  savedLoginPill: { background: "rgba(255,255,255,0.35)", borderRadius: 999, padding: "8px 11px", cursor: "pointer", fontSize: 12, fontWeight: 800 },
+  cleanLoginLabel: { display: "block", fontSize: 12, fontWeight: 900, textTransform: "uppercase", opacity: 0.7, margin: "18px 0 8px" },
+  cleanLoginInput: { width: "100%", minHeight: 54, borderRadius: 16, background: "rgba(255,255,255,0.28)", outline: "none", padding: "0 16px", fontSize: 15, fontWeight: 600 },
+  cleanPasswordWrap: { width: "100%", minHeight: 54, borderRadius: 16, background: "rgba(255,255,255,0.28)", display: "flex", alignItems: "center", padding: "0 8px 0 16px" },
+  cleanPasswordInput: { flex: 1, minWidth: 0, border: "none", outline: "none", background: "transparent", fontSize: 15, fontWeight: 600 },
+  cleanPasswordToggle: { border: "none", background: "transparent", cursor: "pointer", fontSize: 12, fontWeight: 850, padding: "10px" },
+  loginError: { marginTop: 12, padding: "10px 12px", borderRadius: 12, color: "#b91c1c", background: "#fee2e2", fontSize: 13, fontWeight: 700 },
+  mainLoginBtn: { width: "100%", minHeight: 54, border: "none", borderRadius: 16, color: "white", fontWeight: 900, fontSize: 15, marginTop: 24, cursor: "pointer", boxShadow: "0 14px 30px rgba(37,99,235,0.28)" },
   loginDivider: { textAlign: "center", fontSize: 12, opacity: 0.62, margin: "15px 0" },
-  providerBtn: {
-    width: "100%",
-    minHeight: 48,
-    borderRadius: 16,
-    background: "rgba(255,255,255,0.22)",
-    cursor: "pointer",
-    fontWeight: 850,
-    fontSize: 14,
-    marginBottom: 10,
-  },
-  guestBtn: {
-    width: "100%",
-    minHeight: 64,
-    borderRadius: 18,
-    background: "rgba(255,255,255,0.22)",
-    cursor: "pointer",
-    display: "flex",
-    alignItems: "center",
-    gap: 12,
-    padding: "10px 14px",
-    textAlign: "left",
-    marginTop: 4,
-  },
+  providerBtn: { width: "100%", minHeight: 48, borderRadius: 16, background: "rgba(255,255,255,0.22)", cursor: "pointer", fontWeight: 850, fontSize: 14, marginBottom: 10 },
+  guestBtn: { width: "100%", minHeight: 64, borderRadius: 18, background: "rgba(255,255,255,0.22)", cursor: "pointer", display: "flex", alignItems: "center", gap: 12, padding: "10px 14px", textAlign: "left", marginTop: 4 },
   guestIcon: { width: 28, fontSize: 22, textAlign: "center" },
   guestTextWrap: { display: "flex", flexDirection: "column", gap: 3, flex: 1, minWidth: 0 },
   guestArrow: { fontSize: 30, opacity: 0.58 },
-  registerBtn: {
-    width: "100%",
-    border: "none",
-    background: "transparent",
-    cursor: "pointer",
-    fontWeight: 900,
-    fontSize: 15,
-    marginTop: 20,
-  },
+  registerBtn: { width: "100%", border: "none", background: "transparent", cursor: "pointer", fontWeight: 900, fontSize: 15, marginTop: 20 },
 
-  sidebar: {
-    height: "100dvh",
-    padding: "10px",
-    display: "flex",
-    flexDirection: "column",
-    gap: "12px",
-    overflow: "hidden",
-    flexShrink: 0,
-  },
-
+  sidebar: { height: "100dvh", padding: "10px", display: "flex", flexDirection: "column", gap: "12px", overflow: "hidden", flexShrink: 0 },
   sidebarTop: { display: "flex", alignItems: "center", gap: 8, minHeight: 50, flexShrink: 0 },
   logoWrap: { display: "flex", alignItems: "center", gap: 10, minWidth: 0 },
   logoMark: { width: 34, height: 34, borderRadius: 12, color: "white", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 900 },
   logoText: { fontSize: 21, fontWeight: 900, letterSpacing: "-1px", whiteSpace: "nowrap" },
   collapseBtn: { width: 44, height: 44, borderRadius: 14, cursor: "pointer", fontSize: 22, lineHeight: 1, display: "flex", alignItems: "center", justifyContent: "center" },
-
   iconNav: { display: "flex", flexDirection: "column", gap: 10, flexShrink: 0 },
-  toolsGroup: {
-    display: "flex",
-    flexDirection: "column",
-    gap: 6,
-    borderRadius: 18,
-    padding: 8,
-    margin: "8px 0",
-  },
-  toolsTitle: {
-    fontSize: 11,
-    textTransform: "uppercase",
-    fontWeight: 950,
-    letterSpacing: "0.6px",
-    opacity: 0.95,
-    padding: "5px 8px 7px",
-    borderBottom: "1px solid rgba(120,120,120,0.18)",
-    marginBottom: 3,
-  },
+  toolsGroup: { display: "flex", flexDirection: "column", gap: 6, borderRadius: 18, padding: 8, margin: "8px 0" },
+  toolsTitle: { fontSize: 11, textTransform: "uppercase", fontWeight: 950, letterSpacing: "0.6px", opacity: 0.95, padding: "5px 8px 7px", borderBottom: "1px solid rgba(120,120,120,0.18)", marginBottom: 3 },
   iconBtn: { minHeight: 44, borderRadius: 14, cursor: "pointer", display: "flex", alignItems: "center", gap: 10, fontSize: 14, fontWeight: 700, background: "transparent", textAlign: "left", flexShrink: 0 },
   icon: { width: 22, height: 22, display: "inline-flex", justifyContent: "center", alignItems: "center", fontSize: 15, fontWeight: 600, opacity: 0.88, letterSpacing: "-1px", flexShrink: 0 },
   iconLabel: { whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" },
-
   chatHistory: { flex: 1, minHeight: 0, overflowY: "auto", overflowX: "hidden", display: "flex", flexDirection: "column", gap: 6, paddingRight: 2 },
   historyHeader: { fontSize: 11, textTransform: "uppercase", fontWeight: 800, opacity: 0.5, padding: "6px 8px" },
   historyItem: { minHeight: 38, display: "flex", alignItems: "center", justifyContent: "space-between", borderRadius: 12, padding: "8px 10px", fontSize: 13, cursor: "pointer" },
   historyTitle: { overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis", flex: 1 },
   deleteBtn: { border: "none", background: "transparent", cursor: "pointer", fontSize: 18, opacity: 0.55 },
-
   sidebarBottomActions: { marginTop: "auto", display: "flex", flexDirection: "column", gap: 8, flexShrink: 0 },
   sidebarAccount: { display: "flex", alignItems: "center", gap: 10, minHeight: 48, padding: "7px", cursor: "pointer", borderRadius: 14, flexShrink: 0 },
   avatar: { width: 38, height: 38, borderRadius: "50%", color: "white", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: 14, flexShrink: 0 },
@@ -2205,47 +1550,36 @@ const s: any = {
   content: { flex: 1, minHeight: 0, width: "100%", display: "flex", flexDirection: "column", alignItems: "center", overflow: "hidden" },
   homeWrapper: { width: "100%", maxWidth: 720, textAlign: "center", padding: "0 22px" },
   welcomeText: { fontSize: "clamp(25px, 4vw, 38px)", fontWeight: 600, marginBottom: 30, letterSpacing: "-1px" },
-
   searchBar: { display: "flex", alignItems: "center", borderRadius: 28, padding: "6px 16px", width: "100%", minHeight: 56, boxShadow: "0 8px 24px rgba(0,0,0,0.04)", backdropFilter: "blur(10px)", flexShrink: 0 },
-  fileBtn: { width: 34, height: 34, background: "none", border: "none", cursor: "pointer", marginRight: 6, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", opacity: 0.85 },
+  fileBtn: { width: 34, height: 34, background: "none", border: "none", cursor: "pointer", marginRight: 6, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", opacity: 0.85, fontSize: 18 },
   textarea: { flex: 1, minWidth: 0, maxHeight: 140, background: "none", border: "none", outline: "none", textAlign: "center", fontSize: 16, resize: "none", padding: "10px 0", overflowY: "auto" },
   sendBtn: { width: 34, height: 34, background: "none", border: "none", cursor: "pointer", fontSize: 20, marginLeft: 6, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", opacity: 0.9 },
   fileHint: { fontSize: 12, opacity: 0.58, marginTop: 12 },
 
-  chatView: { width: "100%", maxWidth: 900, flex: 1, minHeight: 0, display: "flex", flexDirection: "column", padding: "14px 22px", overflow: "hidden" },
+  chatView: { width: "100%", maxWidth: 940, flex: 1, minHeight: 0, display: "flex", flexDirection: "column", padding: "14px 22px", overflow: "hidden" },
   msgList: { flex: 1, minHeight: 0, overflowY: "auto", overflowX: "hidden", display: "flex", flexDirection: "column", gap: 18, padding: "10px 0" },
-  uRow: { display: "flex", justifyContent: "flex-end" },
-  aRow: { display: "flex", justifyContent: "flex-start" },
-  uBox: { padding: "13px 18px", borderRadius: 20, maxWidth: "82%", fontSize: 15, whiteSpace: "pre-wrap", overflowWrap: "anywhere" },
-  aBox: { padding: "10px 0", lineHeight: 1.7, fontSize: 16, whiteSpace: "pre-wrap", maxWidth: "92%", overflowWrap: "anywhere" },
+  uRow: { display: "flex", justifyContent: "flex-end", width: "100%" },
+  aRow: { display: "flex", justifyContent: "flex-start", alignItems: "flex-start", gap: 12, width: "100%" },
+  uBox: { padding: "13px 18px", borderRadius: "22px 22px 6px 22px", maxWidth: "78%", fontSize: 15, whiteSpace: "pre-wrap", overflowWrap: "anywhere", lineHeight: 1.55 },
+  aBox: { padding: "18px 20px", borderRadius: "8px 22px 22px 22px", lineHeight: 1.72, fontSize: 16, whiteSpace: "pre-wrap", maxWidth: "86%", overflowWrap: "anywhere" },
   bottomInput: { padding: "10px 0 8px", flexShrink: 0 },
 
-  messageTitle: {
-    fontSize: 20,
-    fontWeight: 850,
-    marginTop: 22,
-    marginBottom: 12,
-    paddingBottom: 8,
-    letterSpacing: "-0.4px",
-  },
-  messageListItem: {
-    display: "flex",
-    alignItems: "flex-start",
-    gap: 8,
-    margin: "4px 0",
-    lineHeight: 1.65,
-  },
-  messageLine: {
-    lineHeight: 1.7,
-    margin: "2px 0",
-  },
-  mathExampleBox: {
-    borderRadius: 16,
-    padding: 14,
-    margin: "10px 0",
-    fontSize: 15,
-    lineHeight: 1.7,
-  },
+  aiAvatar: { width: 34, height: 34, borderRadius: "50%", color: "white", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 950, fontSize: 14, flexShrink: 0, marginTop: 10, boxShadow: "0 10px 24px rgba(0,0,0,0.18)" },
+  aiHeader: { display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14, paddingBottom: 12, borderBottom: "1px solid rgba(120,120,120,0.18)" },
+  aiName: { fontSize: 14, fontWeight: 900, letterSpacing: "-0.2px" },
+  aiSubName: { fontSize: 11, opacity: 0.55, marginTop: 2 },
+  aiHeading1: { fontSize: 26, fontWeight: 900, margin: "20px 0 12px", letterSpacing: "-0.7px", lineHeight: 1.2 },
+  aiHeading2: { fontSize: 22, fontWeight: 880, margin: "18px 0 10px", letterSpacing: "-0.5px", lineHeight: 1.25 },
+  aiHeading3: { fontSize: 18, fontWeight: 850, margin: "16px 0 8px", letterSpacing: "-0.3px", lineHeight: 1.3 },
+  messageTitle: { fontSize: 20, fontWeight: 850, marginTop: 22, marginBottom: 12, paddingBottom: 8, letterSpacing: "-0.4px" },
+  messageListItem: { display: "flex", alignItems: "flex-start", gap: 8, margin: "6px 0", lineHeight: 1.65 },
+  bulletDot: { width: 7, height: 7, borderRadius: "50%", marginTop: 10, flexShrink: 0 },
+  numberedItem: { display: "flex", alignItems: "flex-start", gap: 10, margin: "8px 0", lineHeight: 1.65 },
+  numberBadge: { minWidth: 24, height: 24, borderRadius: 999, color: "white", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 900, marginTop: 1, flexShrink: 0 },
+  highlightBox: { borderRadius: 14, padding: "12px 14px", margin: "12px 0", fontSize: 14, lineHeight: 1.6, fontWeight: 650 },
+  formulaPrettyBox: { borderRadius: 16, padding: "14px 16px", margin: "12px 0", overflowX: "auto", fontSize: 15, lineHeight: 1.7 },
+  codeBlock: { borderRadius: 16, padding: "16px 18px", margin: "14px 0", overflowX: "auto", fontSize: 13, lineHeight: 1.55, whiteSpace: "pre-wrap" },
+  messageLine: { lineHeight: 1.7, margin: "2px 0" },
 
   overlay: { position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", display: "flex", justifyContent: "center", alignItems: "center", zIndex: 1000, padding: 16 },
   modal: { borderRadius: 24, width: "min(620px, 100%)", height: "min(450px, calc(100dvh - 32px))", display: "flex", overflow: "hidden", boxShadow: "0 30px 60px rgba(0,0,0,0.25)" },
@@ -2260,6 +1594,7 @@ const s: any = {
   themeGrid: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(135px, 1fr))", gap: 10 },
   themeOption: { padding: 12, borderRadius: 14, cursor: "pointer", display: "flex", alignItems: "center", gap: 12, fontSize: 13, fontWeight: 700 },
   saveBtn: { marginTop: "auto", padding: 14, border: "none", borderRadius: 14, color: "white", fontWeight: 700, cursor: "pointer" },
+
   checklistModal: { borderRadius: 24, width: "min(1120px, calc(100vw - 32px))", height: "min(760px, calc(100dvh - 32px))", display: "flex", flexDirection: "column", overflow: "hidden", boxShadow: "0 30px 70px rgba(0,0,0,0.28)", padding: 28 },
   checklistSubtitle: { margin: "6px 0 0", fontSize: 13, opacity: 0.62 },
   checklistLayout: { flex: 1, minHeight: 0, display: "grid", gridTemplateColumns: "minmax(340px, 0.9fr) minmax(360px, 1.1fr)", gap: 22, overflow: "hidden" },
@@ -2282,6 +1617,7 @@ const s: any = {
   valueRow: { fontSize: 13, lineHeight: 1.45 },
   finalBox: { marginTop: 16, padding: "12px 14px", borderRadius: 14, background: "rgba(120,120,120,0.08)", fontWeight: 850 },
   bigOutcome: { fontWeight: 950, fontSize: 18 },
+
   materialToolbar: { display: "grid", gridTemplateColumns: "1fr auto", gap: 10, alignItems: "center", marginBottom: 18 },
   materialSearch: { width: "100%", padding: 14, borderRadius: 14, outline: "none", fontSize: 14 },
   addMaterialBtn: { border: "none", color: "white", borderRadius: 14, padding: "14px 16px", cursor: "pointer", fontWeight: 850, whiteSpace: "nowrap" },

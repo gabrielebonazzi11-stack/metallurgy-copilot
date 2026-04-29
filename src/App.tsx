@@ -42,44 +42,6 @@ type UserProfile = {
   email: string;
 };
 
-type DrawingUpload = {
-  file: File;
-  fileAttachment: FileAttachment;
-  previewUrl?: string;
-};
-
-type DrawingIssue = {
-  id: string;
-  label: string;
-  severity: IssueSeverity;
-  x: number;
-  y: number;
-  detail: string;
-};
-
-type DrawingResult = {
-  category: string;
-  status: string;
-  item: string;
-  reason: string;
-  suggestion: string;
-};
-
-type DrawingForm = {
-  partName: string;
-  partType: string;
-  material: string;
-  manufacturing: string;
-  mainFeatures: string;
-  functionalSurfaces: string;
-  holesThreads: string;
-  fits: string;
-  tolerances: string;
-  roughness: string;
-  assemblyFunction: string;
-  productionQuantity: string;
-};
-
 type ChecklistStatus = "✅ Conforme" | "⚠️ Da verificare" | "❌ Errore critico";
 
 type ChecklistForm = {
@@ -123,6 +85,44 @@ type QuickCalcResult = {
   notes: string[];
 };
 
+type DrawingUpload = {
+  file: File;
+  fileAttachment: FileAttachment;
+  previewUrl?: string;
+};
+
+type DrawingIssue = {
+  id: string;
+  label: string;
+  severity: IssueSeverity;
+  x: number;
+  y: number;
+  detail: string;
+};
+
+type DrawingResult = {
+  category: string;
+  status: string;
+  item: string;
+  reason: string;
+  suggestion: string;
+};
+
+type DrawingForm = {
+  partName: string;
+  partType: string;
+  material: string;
+  manufacturing: string;
+  mainFeatures: string;
+  functionalSurfaces: string;
+  holesThreads: string;
+  fits: string;
+  tolerances: string;
+  roughness: string;
+  assemblyFunction: string;
+  productionQuantity: string;
+};
+
 const THEMES: Theme[] = [
   { name: "Industrial Blue", primary: "#3b82f6", bg: "#f8fafc", surface: "#eff6ff", text: "#1e293b", border: "#dbeafe" },
   { name: "Slate Grey", primary: "#475569", bg: "#f1f5f9", surface: "#e2e8f0", text: "#1e293b", border: "#cbd5e1" },
@@ -132,7 +132,7 @@ const THEMES: Theme[] = [
   { name: "Dark Black", primary: "#60a5fa", bg: "#050505", surface: "#111111", text: "#f8fafc", border: "#262626" },
 ];
 
-const STORAGE_KEY = "techai_backend_ready_fixed_v3";
+const STORAGE_KEY = "techai_stable_app_v4";
 const DEFAULT_USER: UserProfile = { name: "Utente", email: "utente@techai.local" };
 
 function createId() {
@@ -148,21 +148,6 @@ function makeAttachment(file: File): FileAttachment {
   };
 }
 
-function isDrawingReviewFile(file: File | null | undefined) {
-  if (!file) return false;
-  return file.type.startsWith("image/");
-}
-
-function isImageReviewFile(upload: DrawingUpload | null) {
-  return Boolean(upload?.file && upload.file.type.startsWith("image/"));
-}
-
-function isStepFile(file: File | null | undefined) {
-  if (!file) return false;
-  const name = file.name.toLowerCase();
-  return name.endsWith(".step") || name.endsWith(".stp") || name.endsWith(".stl") || name.endsWith(".iges") || name.endsWith(".igs");
-}
-
 function safeParseJson<T>(value: string, fallback: T): T {
   try {
     return JSON.parse(value) as T;
@@ -171,46 +156,86 @@ function safeParseJson<T>(value: string, fallback: T): T {
   }
 }
 
+function isImageFile(file: File | null | undefined) {
+  if (!file) return false;
+  return file.type.startsWith("image/");
+}
+
+function isImageUpload(upload: DrawingUpload | null) {
+  return Boolean(upload?.file && upload.file.type.startsWith("image/"));
+}
+
 function buildIssuesFromAiAnswer(answer: string): DrawingIssue[] {
   const lower = answer.toLowerCase();
   const issues: DrawingIssue[] = [];
 
   if (lower.includes("quota") || lower.includes("quote")) {
-    issues.push({ id: "ai-quote", label: "Quote", severity: "attenzione", x: 34, y: 36, detail: "L'analisi AI segnala controlli sulle quote." });
+    issues.push({
+      id: "ai-quote",
+      label: "Quote",
+      severity: "attenzione",
+      x: 34,
+      y: 36,
+      detail: "L'analisi AI segnala controlli sulle quote.",
+    });
   }
+
   if (lower.includes("toller")) {
-    issues.push({ id: "ai-tolleranze", label: "Tolleranze", severity: "attenzione", x: 63, y: 34, detail: "L'analisi AI segnala controlli sulle tolleranze." });
+    issues.push({
+      id: "ai-tolleranze",
+      label: "Tolleranze",
+      severity: "attenzione",
+      x: 63,
+      y: 34,
+      detail: "L'analisi AI segnala controlli sulle tolleranze.",
+    });
   }
+
   if (lower.includes("rugos")) {
-    issues.push({ id: "ai-rugosita", label: "Rugosità", severity: "attenzione", x: 44, y: 64, detail: "L'analisi AI segnala controlli sulla rugosità." });
+    issues.push({
+      id: "ai-rugosita",
+      label: "Rugosità",
+      severity: "attenzione",
+      x: 44,
+      y: 64,
+      detail: "L'analisi AI segnala controlli sulla rugosità.",
+    });
   }
+
   if (lower.includes("cartiglio") || lower.includes("materiale") || lower.includes("scala") || lower.includes("unità")) {
-    issues.push({ id: "ai-cartiglio", label: "Cartiglio", severity: "attenzione", x: 78, y: 78, detail: "L'analisi AI segnala controlli sul cartiglio o sulle note generali." });
+    issues.push({
+      id: "ai-cartiglio",
+      label: "Cartiglio",
+      severity: "attenzione",
+      x: 78,
+      y: 78,
+      detail: "L'analisi AI segnala controlli sul cartiglio o sulle note generali.",
+    });
   }
+
   if (lower.includes("sezione") || lower.includes("vista") || lower.includes("dettaglio")) {
-    issues.push({ id: "ai-viste", label: "Viste/Sezioni", severity: "info", x: 58, y: 24, detail: "L'analisi AI segnala controlli su viste, sezioni o dettagli." });
+    issues.push({
+      id: "ai-viste",
+      label: "Viste/Sezioni",
+      severity: "info",
+      x: 58,
+      y: 24,
+      detail: "L'analisi AI segnala controlli su viste, sezioni o dettagli.",
+    });
   }
 
   if (issues.length === 0) {
-    issues.push({ id: "ai-generale", label: "Analisi AI", severity: "info", x: 50, y: 50, detail: "Analisi completata. Leggi il risultato testuale sotto." });
+    issues.push({
+      id: "ai-generale",
+      label: "Analisi AI",
+      severity: "info",
+      x: 50,
+      y: 50,
+      detail: "Analisi completata. Leggi il risultato testuale sotto.",
+    });
   }
 
   return issues;
-}
-
-function runClientTests() {
-  try {
-    const png = new File(["x"], "tavola.png", { type: "image/png" });
-    const step = new File(["x"], "pezzo.step", { type: "application/octet-stream" });
-    const txt = new File(["x"], "note.txt", { type: "text/plain" });
-
-    console.assert(isDrawingReviewFile(png) === true, "TEST: PNG should be valid drawing review file");
-    console.assert(isStepFile(step) === true, "TEST: STEP helper still validates STEP files, but STEP upload is hidden in the Tavole UI");
-    console.assert(isDrawingReviewFile(txt) === false, "TEST: TXT should not be a drawing review file");
-    console.assert(buildIssuesFromAiAnswer("mancano quote e tolleranze").length >= 2, "TEST: AI issue extraction should detect quote/tolleranze");
-  } catch {
-    // I test usano File, disponibile nel browser. Nessun blocco in ambienti strani.
-  }
 }
 
 export default function App() {
@@ -265,7 +290,6 @@ export default function App() {
   const [quickCalcResult, setQuickCalcResult] = useState<QuickCalcResult | null>(null);
 
   const [drawingReviewFile, setDrawingReviewFile] = useState<DrawingUpload | null>(null);
-  const [drawingStepFile, setDrawingStepFile] = useState<DrawingUpload | null>(null);
   const [drawingAiLoading, setDrawingAiLoading] = useState(false);
   const [drawingResults, setDrawingResults] = useState<DrawingResult[]>([]);
   const [drawingIssues, setDrawingIssues] = useState<DrawingIssue[]>([]);
@@ -286,7 +310,6 @@ export default function App() {
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const drawingReviewInputRef = useRef<HTMLInputElement>(null);
-  const drawingStepInputRef = useRef<HTMLInputElement>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
 
   const isDark = theme.name === "Dark Black";
@@ -295,16 +318,19 @@ export default function App() {
 
   const filteredMaterials = useMemo(() => {
     const q = materialSearch.trim().toLowerCase();
-    if (!q) return MATERIALS_DB.slice(0, 40);
-    return MATERIALS_DB.filter((m: MaterialInfo) => `${m.name} ${m.en} ${m.uni} ${m.din} ${m.aisi} ${m.jis} ${m.iso} ${m.uses}`.toLowerCase().includes(q)).slice(0, 80);
+    if (!q) return MATERIALS_DB.slice(0, 80);
+    return MATERIALS_DB.filter((m: MaterialInfo) =>
+      `${m.name} ${m.en} ${m.uni} ${m.din} ${m.aisi} ${m.jis} ${m.iso} ${m.uses}`.toLowerCase().includes(q)
+    ).slice(0, 120);
   }, [materialSearch]);
 
   useEffect(() => {
-    runClientTests();
     const saved = localStorage.getItem(STORAGE_KEY);
     if (!saved) return;
+
     const data = safeParseJson<any>(saved, null);
     if (!data) return;
+
     setTheme(THEMES.find(t => t.name === data.themeName) || THEMES[5]);
     setUser(data.user || DEFAULT_USER);
     setLoginEmail(data.user?.email || DEFAULT_USER.email);
@@ -318,12 +344,24 @@ export default function App() {
   useEffect(() => {
     const safeChats = chats.map(chat => ({
       ...chat,
-      messages: chat.messages.map(message => ({ role: message.role, text: message.text, fileAttachment: message.fileAttachment })),
+      messages: chat.messages.map(message => ({
+        role: message.role,
+        text: message.text,
+        fileAttachment: message.fileAttachment,
+      })),
     }));
 
     localStorage.setItem(
       STORAGE_KEY,
-      JSON.stringify({ themeName: theme.name, user, interest, chats: safeChats, activeChatId, sidebarOpen, isLoggedIn })
+      JSON.stringify({
+        themeName: theme.name,
+        user,
+        interest,
+        chats: safeChats,
+        activeChatId,
+        sidebarOpen,
+        isLoggedIn,
+      })
     );
   }, [theme, user, interest, chats, activeChatId, sidebarOpen, isLoggedIn]);
 
@@ -334,9 +372,8 @@ export default function App() {
   useEffect(() => {
     return () => {
       if (drawingReviewFile?.previewUrl) URL.revokeObjectURL(drawingReviewFile.previewUrl);
-      if (drawingStepFile?.previewUrl) URL.revokeObjectURL(drawingStepFile.previewUrl);
     };
-  }, [drawingReviewFile?.previewUrl, drawingStepFile?.previewUrl]);
+  }, [drawingReviewFile?.previewUrl]);
 
   const createChatObject = (title = "Nuova chat"): ChatSession => ({
     id: createId(),
@@ -355,6 +392,7 @@ export default function App() {
 
   const ensureActiveChat = (title = "Nuova chat") => {
     if (activeChatId) return activeChatId;
+
     const newChat = createChatObject(title);
     setChats(prev => [newChat, ...prev]);
     setActiveChatId(newChat.id);
@@ -366,7 +404,11 @@ export default function App() {
       prev.map(chat => {
         if (chat.id !== chatId) return chat;
         const first = messages.find(m => m.role === "utente")?.text || chat.title;
-        return { ...chat, messages, title: first.slice(0, 32) + (first.length > 32 ? "..." : "") };
+        return {
+          ...chat,
+          messages,
+          title: first.slice(0, 32) + (first.length > 32 ? "..." : ""),
+        };
       })
     );
   };
@@ -383,10 +425,6 @@ export default function App() {
     setQuery("");
   };
 
-  const updateDrawingField = (field: keyof DrawingForm, value: string) => {
-    setDrawingForm(prev => ({ ...prev, [field]: value }));
-  };
-
   const updateChecklistField = (field: keyof ChecklistForm, value: string) => {
     setChecklistForm(prev => ({ ...prev, [field]: value }));
   };
@@ -395,7 +433,13 @@ export default function App() {
     setQuickCalcForm(prev => ({ ...prev, [field]: value }));
   };
 
-  const normalizeMaterialKey = (value?: string) => String(value || "").toLowerCase().replaceAll(" ", "").replaceAll("-", "");
+  const updateDrawingField = (field: keyof DrawingForm, value: string) => {
+    setDrawingForm(prev => ({ ...prev, [field]: value }));
+  };
+
+  const normalizeMaterialKey = (value?: string) => {
+    return String(value || "").toLowerCase().replaceAll(" ", "").replaceAll("-", "");
+  };
 
   const findMaterial = (value: string) => {
     const key = normalizeMaterialKey(value);
@@ -411,9 +455,12 @@ export default function App() {
 
   const getYoungModulus = (material?: MaterialInfo) => {
     if (!material) return 210000;
-    const n = material.name.toLowerCase();
-    if (n.includes("alluminio") || n.includes("aluminium")) return 70000;
-    if (n.includes("rame") || n.includes("ottone")) return 110000;
+    const name = material.name.toLowerCase();
+
+    if (name.includes("alluminio")) return 70000;
+    if (name.includes("rame") || name.includes("ottone")) return 110000;
+    if (name.includes("ptfe") || name.includes("nylon") || name.includes("gomma") || name.includes("pvc")) return 3000;
+
     return 210000;
   };
 
@@ -422,10 +469,12 @@ export default function App() {
       setLoginError("Inserisci una email valida.");
       return;
     }
+
     if (!loginPassword.trim()) {
       setLoginError("Inserisci una password.");
       return;
     }
+
     setUser(prev => ({ ...prev, email: loginEmail.trim() }));
     setIsLoggedIn(true);
     setShowLoginPanel(false);
@@ -436,7 +485,12 @@ export default function App() {
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
-    setPendingFile({ file, fileAttachment: makeAttachment(file) });
+
+    setPendingFile({
+      file,
+      fileAttachment: makeAttachment(file),
+    });
+
     event.target.value = "";
   };
 
@@ -450,7 +504,10 @@ export default function App() {
 
     const text = query.trim() || `Analizza il file "${pendingFile?.fileAttachment.name}".`;
     const chatId = ensureActiveChat(pendingFile ? `File: ${pendingFile.fileAttachment.name}` : text);
-    const userMessage: Message = pendingFile ? { role: "utente", text, fileAttachment: pendingFile.fileAttachment } : { role: "utente", text };
+    const userMessage: Message = pendingFile
+      ? { role: "utente", text, fileAttachment: pendingFile.fileAttachment }
+      : { role: "utente", text };
+
     const fileToSend = pendingFile;
     const oldMessages = chats.find(chat => chat.id === chatId)?.messages || [];
     const updatedMessages = [...oldMessages, userMessage];
@@ -467,11 +524,16 @@ export default function App() {
       formData.append("profile", JSON.stringify({ userName: user.name, focus: interest }));
       if (fileToSend?.file) formData.append("file", fileToSend.file);
 
-      const res = await fetch("/api/chat", { method: "POST", body: formData });
+      const res = await fetch("/api/chat", {
+        method: "POST",
+        body: formData,
+      });
+
       const raw = await res.text();
       const data = safeParseJson<any>(raw, null);
 
       if (!res.ok) throw new Error(data?.error || raw || `Errore HTTP ${res.status}`);
+
       const answer = data?.answer || data?.message || raw;
       if (!answer) throw new Error("Il backend non ha restituito una risposta valida.");
 
@@ -481,165 +543,15 @@ export default function App() {
         ...updatedMessages,
         {
           role: "AI",
-          text: `⚠️ Backend non collegato correttamente.\n\nControlla che la rotta \`/api/chat\` esista su Vercel e che le variabili ambiente siano configurate.\n\nDettaglio tecnico: ${error?.message || "errore sconosciuto"}`,
+          text:
+            `⚠️ Backend non collegato correttamente.\n\n` +
+            `Controlla che la rotta \`/api/chat\` esista su Vercel e che le variabili ambiente siano configurate.\n\n` +
+            `Dettaglio tecnico: ${error?.message || "errore sconosciuto"}`,
         },
       ]);
     } finally {
       setLoading(false);
     }
-  };
-
-  const handleDrawingReviewUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
-    if (!isDrawingReviewFile(file)) {
-      alert("Per la revisione tavola carica solo immagini: PNG, JPG, JPEG o WebP.");
-      event.target.value = "";
-      return;
-    }
-
-    if (drawingReviewFile?.previewUrl) URL.revokeObjectURL(drawingReviewFile.previewUrl);
-
-    setDrawingReviewFile({
-      file,
-      fileAttachment: makeAttachment(file),
-      previewUrl: file.type.startsWith("image/") ? URL.createObjectURL(file) : undefined,
-    });
-    setDrawingResults([]);
-    setDrawingIssues([]);
-    event.target.value = "";
-  };
-
-  const handleDrawingStepUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
-    if (!isStepFile(file)) {
-      alert("Per l'idea tavola carica un file STEP/STP, STL o IGES.");
-      event.target.value = "";
-      return;
-    }
-
-    if (drawingStepFile?.previewUrl) URL.revokeObjectURL(drawingStepFile.previewUrl);
-
-    setDrawingStepFile({ file, fileAttachment: makeAttachment(file) });
-    setDrawingResults([]);
-    setDrawingIssues([]);
-    event.target.value = "";
-  };
-
-  const removeDrawingReviewFile = () => {
-    if (drawingReviewFile?.previewUrl) URL.revokeObjectURL(drawingReviewFile.previewUrl);
-    setDrawingReviewFile(null);
-    setDrawingResults([]);
-    setDrawingIssues([]);
-    if (drawingReviewInputRef.current) drawingReviewInputRef.current.value = "";
-  };
-
-  const removeDrawingStepFile = () => {
-    if (drawingStepFile?.previewUrl) URL.revokeObjectURL(drawingStepFile.previewUrl);
-    setDrawingStepFile(null);
-    setDrawingResults([]);
-    setDrawingIssues([]);
-    if (drawingStepInputRef.current) drawingStepInputRef.current.value = "";
-  };
-
-  const runDrawingGenerator = async () => {
-    const f = drawingForm;
-
-    if (isImageReviewFile(drawingReviewFile)) {
-      setDrawingAiLoading(true);
-      setDrawingResults([]);
-      setDrawingIssues([]);
-
-      try {
-        const formData = new FormData();
-        formData.append(
-          "message",
-          `Analizza questa tavola tecnica caricata come immagine.\n\nDati utente:\n- Nome pezzo: ${f.partName || "non indicato"}\n- Tipo pezzo: ${f.partType || "non indicato"}\n- Materiale: ${f.material || "non indicato"}\n- Quantità/lotto: ${f.productionQuantity || "non indicato"}\n- Lavorazione prevista: ${f.manufacturing || "non indicata"}\n- Geometrie principali: ${f.mainFeatures || "non indicate"}\n- Funzione nell'assieme: ${f.assemblyFunction || "non indicata"}\n- Superfici funzionali: ${f.functionalSurfaces || "non indicate"}\n- Fori/filetti/lamature: ${f.holesThreads || "non indicati"}\n- Accoppiamenti: ${f.fits || "non indicati"}\n- Tolleranze previste: ${f.tolerances || "non indicate"}\n- Rugosità previste: ${f.roughness || "non indicate"}\n\nGuarda davvero l'immagine. Non fare una checklist generica. Se qualcosa non è leggibile, dillo chiaramente. Organizza la risposta con Sintesi, Errori/Mancanze, Zone da controllare, Correzioni consigliate e Conclusione.`
-        );
-        formData.append("file", drawingReviewFile!.file);
-        formData.append("profile", JSON.stringify({ userName: user.name, focus: interest }));
-        formData.append("messages", JSON.stringify([]));
-
-        const res = await fetch("/api/chat", { method: "POST", body: formData });
-        const raw = await res.text();
-        const data = safeParseJson<any>(raw, null);
-
-        if (!res.ok) throw new Error(data?.error || raw || `Errore HTTP ${res.status}`);
-        const answer = data?.answer || data?.message || raw || "Nessuna risposta ricevuta dall'analisi immagine.";
-
-        setDrawingIssues(buildIssuesFromAiAnswer(String(answer)));
-        setDrawingResults([
-          {
-            category: "Analisi AI immagine",
-            status: "⚠️ Da verificare",
-            item: drawingReviewFile!.fileAttachment.name,
-            reason: String(answer),
-            suggestion: "Usa questa analisi come revisione preliminare: controlla manualmente la tavola originale.",
-          },
-        ]);
-      } catch (error: any) {
-        setDrawingIssues([{ id: "ai-error", label: "Errore analisi", severity: "errore", x: 50, y: 50, detail: error?.message || "Errore durante l'analisi immagine." }]);
-        setDrawingResults([
-          {
-            category: "Errore analisi immagine",
-            status: "❌ Errore",
-            item: drawingReviewFile?.fileAttachment.name || "immagine",
-            reason: error?.message || "Non sono riuscito ad analizzare l'immagine.",
-            suggestion: "Controlla OPENROUTER_API_KEY, OPENROUTER_VISION_MODEL e redeploy Vercel.",
-          },
-        ]);
-      } finally {
-        setDrawingAiLoading(false);
-      }
-      return;
-    }
-
-    const issues: DrawingIssue[] = [];
-    const results: DrawingResult[] = [];
-    const text = `${f.partType} ${f.mainFeatures} ${f.holesThreads} ${f.fits}`.toLowerCase();
-
-    if (drawingReviewFile) {
-      results.push({
-        category: "File immagine tavola caricato",
-        status: "⚠️ Da verificare",
-        item: drawingReviewFile.fileAttachment.name,
-        reason: "Il file immagine è stato caricato correttamente.",
-        suggestion: "Premi Analizza immagine tavola per inviarlo al backend AI."
-      });
-    }
-
-    if (!f.functionalSurfaces.trim()) {
-      issues.push({ id: "funzionali", label: "Superfici funzionali", severity: "errore", x: 24, y: 28, detail: "Mancano superfici funzionali: indica sedi, appoggi, scorrimenti, battute o riferimenti." });
-    }
-    if (!f.tolerances.trim() && !f.fits.trim()) {
-      issues.push({ id: "tolleranze", label: "Tolleranze", severity: "errore", x: 66, y: 35, detail: "Mancano tolleranze o accoppiamenti sulle quote importanti." });
-    }
-    if (!f.roughness.trim()) {
-      issues.push({ id: "rugosita", label: "Rugosità", severity: "attenzione", x: 44, y: 62, detail: "Manca rugosità generale o specifica sulle superfici funzionali." });
-    }
-    if (!f.material.trim() || !f.manufacturing.trim()) {
-      issues.push({ id: "cartiglio", label: "Cartiglio", severity: "attenzione", x: 78, y: 78, detail: "Controlla materiale, lavorazione, trattamento, scala, unità e note generali nel cartiglio." });
-    }
-    if (text.includes("foro") || text.includes("filett") || text.includes("lamatura")) {
-      issues.push({ id: "fori", label: "Fori/filetti", severity: "info", x: 58, y: 22, detail: "Verifica diametri, profondità, posizioni, lamature/svasature e tolleranze dei fori." });
-    }
-
-    if (issues.length === 0) {
-      issues.push({ id: "ok", label: "Controllo base OK", severity: "info", x: 50, y: 50, detail: "Non emergono mancanze principali dai dati inseriti." });
-    }
-
-    results.push(
-      { category: "Viste", status: "✅ Necessaria", item: "Vista principale", reason: "Serve per mostrare la forma più riconoscibile e le quote principali.", suggestion: "Scegli la vista più rappresentativa del pezzo." },
-      { category: "Sezioni", status: "🟦 Consigliata", item: "Sezione A-A", reason: "Utile se ci sono fori, cave, lamature o geometrie interne.", suggestion: "Aggiungi sezioni solo dove chiariscono dettagli nascosti." },
-      { category: "Quote", status: "⚠️ Da verificare", item: "Quote funzionali", reason: "Le quote devono descrivere funzione e producibilità, non solo ingombri.", suggestion: "Evita catene chiuse e quota da riferimenti funzionali." },
-      { category: "Cartiglio", status: f.material.trim() ? "⚠️ Da verificare" : "❌ Mancante", item: "Materiale/note", reason: f.material.trim() ? `Materiale indicato: ${f.material}.` : "Materiale non indicato.", suggestion: "Riporta materiale, trattamento, scala, unità, tolleranze generali e note." }
-    );
-
-    setDrawingIssues(issues);
-    setDrawingResults(results);
   };
 
   const runProjectChecklist = () => {
@@ -657,50 +569,90 @@ export default function App() {
     results.push({
       area: "Materiale selezionato",
       status: material ? "⚠️ Da verificare" : "❌ Errore critico",
-      detail: material ? `Materiale indicato: ${f.material}. Va confrontato con carico, ambiente e lavorazione.` : "Materiale non indicato: non è possibile valutare resistenza, trattamenti e lavorabilità.",
-      suggestion: material ? "Controlla Rm, Re/Rp0.2, durezza, saldabilità e disponibilità commerciale." : "Inserisci una sigla materiale, ad esempio C45, S235JR, 42CrMo4, AISI 304.",
+      detail: material
+        ? `Materiale indicato: ${f.material}. Va confrontato con carico, ambiente e lavorazione.`
+        : "Materiale non indicato: non è possibile valutare resistenza, trattamenti e lavorabilità.",
+      suggestion: material
+        ? "Controlla Rm, Re/Rp0.2, durezza, saldabilità e disponibilità commerciale."
+        : "Inserisci una sigla materiale, ad esempio C45, S235JR, 42CrMo4, AISI 304.",
     });
 
     results.push({
       area: "Coerenza carico/materiale",
-      status: !f.load.trim() || Number.isNaN(loadValue) || loadValue <= 0 ? "❌ Errore critico" : material ? "⚠️ Da verificare" : "❌ Errore critico",
-      detail: !f.load.trim() || Number.isNaN(loadValue) || loadValue <= 0 ? "Carico non indicato o non numerico." : `Carico indicativo inserito: ${f.load} N. La sola checklist non sostituisce la verifica tensionale.`,
+      status: !f.load.trim() || Number.isNaN(loadValue) || loadValue <= 0
+        ? "❌ Errore critico"
+        : material
+        ? "⚠️ Da verificare"
+        : "❌ Errore critico",
+      detail: !f.load.trim() || Number.isNaN(loadValue) || loadValue <= 0
+        ? "Carico non indicato o non numerico."
+        : `Carico indicativo inserito: ${f.load} N. La sola checklist non sostituisce la verifica tensionale.`,
       suggestion: "Esegui almeno una verifica rapida a trazione/flessione/taglio/torsione in base al componente.",
     });
 
     results.push({
       area: "Ambiente d'uso",
       status: "⚠️ Da verificare",
-      detail: environment ? `Ambiente indicato: ${f.environment}.` : "Ambiente non specificato: corrosione, temperatura, umidità e polveri possono cambiare la scelta del materiale.",
-      suggestion: environment.includes("corros") || environment.includes("umid") || environment.includes("esterno") ? "Valuta inox, zincatura, verniciatura o altro trattamento superficiale." : "Specifica se il pezzo lavora a secco, in esterno, in olio, in ambiente corrosivo o ad alta temperatura.",
+      detail: environment
+        ? `Ambiente indicato: ${f.environment}.`
+        : "Ambiente non specificato: corrosione, temperatura, umidità e polveri possono cambiare la scelta del materiale.",
+      suggestion: environment.includes("corros") || environment.includes("umid") || environment.includes("esterno")
+        ? "Valuta inox, zincatura, verniciatura o altro trattamento superficiale."
+        : "Specifica se il pezzo lavora a secco, in esterno, in olio, in ambiente corrosivo o ad alta temperatura.",
     });
 
     results.push({
       area: "Trattamenti termici/superficiali",
       status: material ? "⚠️ Da verificare" : "❌ Errore critico",
-      detail: material ? "La necessità di trattamenti dipende da usura, fatica, durezza superficiale e accoppiamenti." : "Senza materiale non si possono proporre trattamenti compatibili.",
-      suggestion: material.includes("c45") ? "Per C45 valuta bonifica o tempra superficiale se servono resistenza e durezza." : material.includes("42crmo4") ? "Per 42CrMo4 valuta bonifica se servono alte prestazioni meccaniche." : "Aggiungi una nota se sono richiesti bonifica, cementazione, nitrurazione, tempra, zincatura o anodizzazione.",
+      detail: material
+        ? "La necessità di trattamenti dipende da usura, fatica, durezza superficiale e accoppiamenti."
+        : "Senza materiale non si possono proporre trattamenti compatibili.",
+      suggestion: material.includes("c45")
+        ? "Per C45 valuta bonifica o tempra superficiale se servono resistenza e durezza."
+        : material.includes("42crmo4")
+        ? "Per 42CrMo4 valuta bonifica se servono alte prestazioni meccaniche."
+        : "Aggiungi una nota se sono richiesti bonifica, cementazione, nitrurazione, tempra, zincatura o anodizzazione.",
     });
 
     results.push({
       area: "Coefficiente di sicurezza",
-      status: !f.safetyFactor.trim() || Number.isNaN(safetyValue) ? "❌ Errore critico" : safetyValue < 1.5 ? "❌ Errore critico" : safetyValue < 2 ? "⚠️ Da verificare" : "✅ Conforme",
-      detail: !f.safetyFactor.trim() || Number.isNaN(safetyValue) ? "Coefficiente di sicurezza non indicato." : `Coefficiente di sicurezza indicato: n = ${f.safetyFactor}.`,
-      suggestion: !f.safetyFactor.trim() || Number.isNaN(safetyValue) ? "Inserisci n. Per componenti statici spesso si parte da valori indicativi ≥ 2." : safetyValue < 1.5 ? "Valore molto basso: giustificalo con norma, prove o calcolo accurato." : "Verifica che il coefficiente sia coerente con incertezza del carico e conseguenze del cedimento.",
+      status: !f.safetyFactor.trim() || Number.isNaN(safetyValue)
+        ? "❌ Errore critico"
+        : safetyValue < 1.5
+        ? "❌ Errore critico"
+        : safetyValue < 2
+        ? "⚠️ Da verificare"
+        : "✅ Conforme",
+      detail: !f.safetyFactor.trim() || Number.isNaN(safetyValue)
+        ? "Coefficiente di sicurezza non indicato."
+        : `Coefficiente di sicurezza indicato: n = ${f.safetyFactor}.`,
+      suggestion: !f.safetyFactor.trim() || Number.isNaN(safetyValue)
+        ? "Inserisci n. Per componenti statici spesso si parte da valori indicativi ≥ 2."
+        : safetyValue < 1.5
+        ? "Valore molto basso: giustificalo con norma, prove o calcolo accurato."
+        : "Verifica che il coefficiente sia coerente con incertezza del carico e conseguenze del cedimento.",
     });
 
     results.push({
       area: "Tolleranze dimensionali",
       status: tolerances ? "✅ Conforme" : "⚠️ Da verificare",
-      detail: tolerances ? `Tolleranze indicate: ${f.tolerances}.` : "Non risultano tolleranze o accoppiamenti indicati.",
-      suggestion: tolerances ? "Controlla che siano presenti sulle quote funzionali." : "Aggiungi tolleranze sulle quote funzionali. Esempi: Ø10 H7, Ø20 h6, posizione fori, planarità appoggi.",
+      detail: tolerances
+        ? `Tolleranze indicate: ${f.tolerances}.`
+        : "Non risultano tolleranze o accoppiamenti indicati.",
+      suggestion: tolerances
+        ? "Controlla che siano presenti sulle quote funzionali."
+        : "Aggiungi tolleranze sulle quote funzionali. Esempi: Ø10 H7, Ø20 h6, posizione fori, planarità appoggi.",
     });
 
     results.push({
       area: "Rugosità",
       status: roughness ? "✅ Conforme" : "⚠️ Da verificare",
-      detail: roughness ? `Rugosità indicata: ${f.roughness}.` : "Rugosità non indicata.",
-      suggestion: roughness ? "Verifica che la rugosità sia assegnata alle superfici funzionali e non solo come valore generale." : "Aggiungi rugosità generale e rugosità specifiche per sedi, scorrimenti, appoggi, tenute e accoppiamenti.",
+      detail: roughness
+        ? `Rugosità indicata: ${f.roughness}.`
+        : "Rugosità non indicata.",
+      suggestion: roughness
+        ? "Verifica che la rugosità sia assegnata alle superfici funzionali e non solo come valore generale."
+        : "Aggiungi rugosità generale e rugosità specifiche per sedi, scorrimenti, appoggi, tenute e accoppiamenti.",
     });
 
     results.push({
@@ -780,6 +732,7 @@ export default function App() {
 
     const n = Re / sigma;
     const outcome = n >= nRequired ? "OK" : "NON OK";
+
     const values = [
       `Materiale usato: ${material ? `${material.name} (${material.en})` : `${quickCalcForm.material} non trovato: usato Re indicativo = ${Re} MPa`}`,
       `Carico: F = ${F.toFixed(2)} N`,
@@ -792,13 +745,247 @@ export default function App() {
       `Re materiale indicativo: ${Re} MPa`,
     ];
 
-    setQuickCalcResult({ title, scheme, formulas, values, sigma, deflection, safetyFactor: n, outcome, notes });
+    setQuickCalcResult({
+      title,
+      scheme,
+      formulas,
+      values,
+      sigma,
+      deflection,
+      safetyFactor: n,
+      outcome,
+      notes,
+    });
+  };
+
+  const handleDrawingReviewUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    if (!isImageFile(file)) {
+      alert("Per la revisione tavola carica solo immagini: PNG, JPG, JPEG o WebP.");
+      event.target.value = "";
+      return;
+    }
+
+    if (drawingReviewFile?.previewUrl) URL.revokeObjectURL(drawingReviewFile.previewUrl);
+
+    setDrawingReviewFile({
+      file,
+      fileAttachment: makeAttachment(file),
+      previewUrl: URL.createObjectURL(file),
+    });
+
+    setDrawingResults([]);
+    setDrawingIssues([]);
+    event.target.value = "";
+  };
+
+  const removeDrawingReviewFile = () => {
+    if (drawingReviewFile?.previewUrl) URL.revokeObjectURL(drawingReviewFile.previewUrl);
+
+    setDrawingReviewFile(null);
+    setDrawingResults([]);
+    setDrawingIssues([]);
+
+    if (drawingReviewInputRef.current) drawingReviewInputRef.current.value = "";
+  };
+
+  const runDrawingGenerator = async () => {
+    const f = drawingForm;
+
+    if (isImageUpload(drawingReviewFile)) {
+      setDrawingAiLoading(true);
+      setDrawingResults([]);
+      setDrawingIssues([]);
+
+      try {
+        const formData = new FormData();
+        formData.append(
+          "message",
+          `Analizza questa tavola tecnica caricata come immagine.
+
+Dati utente:
+- Nome pezzo: ${f.partName || "non indicato"}
+- Tipo pezzo: ${f.partType || "non indicato"}
+- Materiale: ${f.material || "non indicato"}
+- Quantità/lotto: ${f.productionQuantity || "non indicato"}
+- Lavorazione prevista: ${f.manufacturing || "non indicata"}
+- Geometrie principali: ${f.mainFeatures || "non indicate"}
+- Funzione nell'assieme: ${f.assemblyFunction || "non indicata"}
+- Superfici funzionali: ${f.functionalSurfaces || "non indicate"}
+- Fori/filetti/lamature: ${f.holesThreads || "non indicati"}
+- Accoppiamenti: ${f.fits || "non indicati"}
+- Tolleranze previste: ${f.tolerances || "non indicate"}
+- Rugosità previste: ${f.roughness || "non indicate"}
+
+Guarda davvero l'immagine. Non fare una checklist generica. Se qualcosa non è leggibile, dillo chiaramente. Organizza la risposta con Sintesi, Errori/Mancanze, Zone da controllare, Correzioni consigliate e Conclusione.`
+        );
+        formData.append("file", drawingReviewFile!.file);
+        formData.append("profile", JSON.stringify({ userName: user.name, focus: interest }));
+        formData.append("messages", JSON.stringify([]));
+
+        const res = await fetch("/api/chat", {
+          method: "POST",
+          body: formData,
+        });
+
+        const raw = await res.text();
+        const data = safeParseJson<any>(raw, null);
+
+        if (!res.ok) throw new Error(data?.error || raw || `Errore HTTP ${res.status}`);
+
+        const answer = data?.answer || data?.message || raw || "Nessuna risposta ricevuta dall'analisi immagine.";
+
+        setDrawingIssues(buildIssuesFromAiAnswer(String(answer)));
+        setDrawingResults([
+          {
+            category: "Analisi AI immagine",
+            status: "⚠️ Da verificare",
+            item: drawingReviewFile!.fileAttachment.name,
+            reason: String(answer),
+            suggestion: "Usa questa analisi come revisione preliminare: controlla manualmente la tavola originale.",
+          },
+        ]);
+      } catch (error: any) {
+        setDrawingIssues([
+          {
+            id: "ai-error",
+            label: "Errore analisi",
+            severity: "errore",
+            x: 50,
+            y: 50,
+            detail: error?.message || "Errore durante l'analisi immagine.",
+          },
+        ]);
+
+        setDrawingResults([
+          {
+            category: "Errore analisi immagine",
+            status: "❌ Errore",
+            item: drawingReviewFile?.fileAttachment.name || "immagine",
+            reason: error?.message || "Non sono riuscito ad analizzare l'immagine.",
+            suggestion: "Controlla OPENROUTER_API_KEY, OPENROUTER_VISION_MODEL e redeploy Vercel.",
+          },
+        ]);
+      } finally {
+        setDrawingAiLoading(false);
+      }
+
+      return;
+    }
+
+    const issues: DrawingIssue[] = [];
+    const results: DrawingResult[] = [];
+    const text = `${f.partType} ${f.mainFeatures} ${f.holesThreads} ${f.fits}`.toLowerCase();
+
+    if (!f.functionalSurfaces.trim()) {
+      issues.push({
+        id: "funzionali",
+        label: "Superfici funzionali",
+        severity: "errore",
+        x: 24,
+        y: 28,
+        detail: "Mancano superfici funzionali: indica sedi, appoggi, scorrimenti, battute o riferimenti.",
+      });
+    }
+
+    if (!f.tolerances.trim() && !f.fits.trim()) {
+      issues.push({
+        id: "tolleranze",
+        label: "Tolleranze",
+        severity: "errore",
+        x: 66,
+        y: 35,
+        detail: "Mancano tolleranze o accoppiamenti sulle quote importanti.",
+      });
+    }
+
+    if (!f.roughness.trim()) {
+      issues.push({
+        id: "rugosita",
+        label: "Rugosità",
+        severity: "attenzione",
+        x: 44,
+        y: 62,
+        detail: "Manca rugosità generale o specifica sulle superfici funzionali.",
+      });
+    }
+
+    if (!f.material.trim() || !f.manufacturing.trim()) {
+      issues.push({
+        id: "cartiglio",
+        label: "Cartiglio",
+        severity: "attenzione",
+        x: 78,
+        y: 78,
+        detail: "Controlla materiale, lavorazione, trattamento, scala, unità e note generali nel cartiglio.",
+      });
+    }
+
+    if (text.includes("foro") || text.includes("filett") || text.includes("lamatura")) {
+      issues.push({
+        id: "fori",
+        label: "Fori/filetti",
+        severity: "info",
+        x: 58,
+        y: 22,
+        detail: "Verifica diametri, profondità, posizioni, lamature/svasature e tolleranze dei fori.",
+      });
+    }
+
+    if (issues.length === 0) {
+      issues.push({
+        id: "ok",
+        label: "Controllo base OK",
+        severity: "info",
+        x: 50,
+        y: 50,
+        detail: "Non emergono mancanze principali dai dati inseriti.",
+      });
+    }
+
+    results.push(
+      {
+        category: "Viste",
+        status: "✅ Necessaria",
+        item: "Vista principale",
+        reason: "Serve per mostrare la forma più riconoscibile e le quote principali.",
+        suggestion: "Scegli la vista più rappresentativa del pezzo.",
+      },
+      {
+        category: "Sezioni",
+        status: "🟦 Consigliata",
+        item: "Sezione A-A",
+        reason: "Utile se ci sono fori, cave, lamature o geometrie interne.",
+        suggestion: "Aggiungi sezioni solo dove chiariscono dettagli nascosti.",
+      },
+      {
+        category: "Quote",
+        status: "⚠️ Da verificare",
+        item: "Quote funzionali",
+        reason: "Le quote devono descrivere funzione e producibilità, non solo ingombri.",
+        suggestion: "Evita catene chiuse e quota da riferimenti funzionali.",
+      },
+      {
+        category: "Cartiglio",
+        status: f.material.trim() ? "⚠️ Da verificare" : "❌ Mancante",
+        item: "Materiale/note",
+        reason: f.material.trim() ? `Materiale indicato: ${f.material}.` : "Materiale non indicato.",
+        suggestion: "Riporta materiale, trattamento, scala, unità, tolleranze generali e note.",
+      }
+    );
+
+    setDrawingIssues(issues);
+    setDrawingResults(results);
   };
 
   const renderFormattedText = (text: string) => {
     const blocks = text.split(/(```[\s\S]*?```)/g);
+
     return blocks.map((block, index) => {
       if (!block) return null;
+
       if (block.startsWith("```") && block.endsWith("```")) {
         return (
           <pre key={index} style={s.codeBlock}>
@@ -810,11 +997,13 @@ export default function App() {
       return block.split("\n").map((line, lineIndex) => {
         const trimmed = line.trim();
         const key = `${index}-${lineIndex}`;
+
         if (!trimmed) return <div key={key} style={{ height: 8 }} />;
         if (trimmed.startsWith("### ")) return <h3 key={key} style={{ color: theme.primary }}>{trimmed.slice(4)}</h3>;
         if (trimmed.startsWith("## ")) return <h2 key={key} style={{ color: theme.primary }}>{trimmed.slice(3)}</h2>;
         if (/^\d+\.\s/.test(trimmed)) return <div key={key} style={s.numberedLine}>{trimmed}</div>;
         if (trimmed.startsWith("- ") || trimmed.startsWith("* ")) return <div key={key} style={s.bulletLine}>• {trimmed.slice(2)}</div>;
+
         return <div key={key} style={s.messageLine}>{line}</div>;
       });
     });
@@ -839,7 +1028,14 @@ export default function App() {
 
   const renderInputBar = (placeholder: string) => (
     <div style={{ ...s.inputComposer, background: theme.surface, border: `1px solid ${theme.border}` }}>
-      <input ref={fileInputRef} type="file" accept=".txt,.md,.csv,.json,.xml,.html,.css,.js,.jsx,.ts,.tsx,.py,.java,.cpp,.c,.h,.sql,.yaml,.yml,.pdf,.docx,.xlsx,image/*" style={{ display: "none" }} onChange={handleFileUpload} />
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".txt,.md,.csv,.json,.xml,.html,.css,.js,.jsx,.ts,.tsx,.py,.java,.cpp,.c,.h,.sql,.yaml,.yml,.pdf,.docx,.xlsx,image/*"
+        style={{ display: "none" }}
+        onChange={handleFileUpload}
+      />
+
       {pendingFile && (
         <div style={{ ...s.pendingFileChip, border: `1px solid ${theme.border}` }}>
           <div style={{ ...s.fileIcon, background: theme.primary }}>📄</div>
@@ -850,8 +1046,10 @@ export default function App() {
           <button style={s.roundBtn} onClick={removePendingFile} type="button">×</button>
         </div>
       )}
+
       <div style={s.searchBarInner}>
         <button style={{ ...s.fileBtn, color: theme.primary }} onClick={() => fileInputRef.current?.click()} type="button">📎</button>
+
         <textarea
           style={{ ...s.textarea, color: theme.text }}
           rows={1}
@@ -865,7 +1063,10 @@ export default function App() {
             }
           }}
         />
-        <button style={{ ...s.sendBtn, color: theme.primary }} onClick={callAI} disabled={loading || (!query.trim() && !pendingFile)} type="button">➤</button>
+
+        <button style={{ ...s.sendBtn, color: theme.primary }} onClick={callAI} disabled={loading || (!query.trim() && !pendingFile)} type="button">
+          ➤
+        </button>
       </div>
     </div>
   );
@@ -874,13 +1075,37 @@ export default function App() {
     <div style={{ ...s.loginCard, background: isDark ? "#111" : "#fff", color: theme.text, border: `1px solid ${theme.border}` }}>
       <h1>TECH<span style={{ color: theme.primary }}>AI</span></h1>
       <p style={s.muted}>Login grafico locale. Per login reale serve backend/database.</p>
+
       <label style={s.label}>Email</label>
-      <input style={{ ...s.input, background: isDark ? "#050505" : "#fff", color: theme.text, border: `1px solid ${theme.border}` }} value={loginEmail} onChange={e => setLoginEmail(e.target.value)} />
+      <input
+        style={{ ...s.input, background: isDark ? "#050505" : "#fff", color: theme.text, border: `1px solid ${theme.border}` }}
+        value={loginEmail}
+        onChange={e => setLoginEmail(e.target.value)}
+      />
+
       <label style={s.label}>Password</label>
-      <input style={{ ...s.input, background: isDark ? "#050505" : "#fff", color: theme.text, border: `1px solid ${theme.border}` }} value={loginPassword} onChange={e => setLoginPassword(e.target.value)} type="password" />
+      <input
+        style={{ ...s.input, background: isDark ? "#050505" : "#fff", color: theme.text, border: `1px solid ${theme.border}` }}
+        value={loginPassword}
+        onChange={e => setLoginPassword(e.target.value)}
+        type="password"
+      />
+
       {loginError && <div style={s.errorBox}>{loginError}</div>}
+
       <button style={{ ...s.primaryBtn, background: theme.primary }} onClick={handleLogin} type="button">Accedi</button>
-      <button style={{ ...s.secondaryBtn, color: theme.text, border: `1px solid ${theme.border}` }} onClick={() => { setUser({ name: "Ospite", email: "ospite@techai.local" }); setIsLoggedIn(true); setShowLoginPanel(false); }} type="button">Continua come ospite</button>
+
+      <button
+        style={{ ...s.secondaryBtn, color: theme.text, border: `1px solid ${theme.border}` }}
+        onClick={() => {
+          setUser({ name: "Ospite", email: "ospite@techai.local" });
+          setIsLoggedIn(true);
+          setShowLoginPanel(false);
+        }}
+        type="button"
+      >
+        Continua come ospite
+      </button>
     </div>
   );
 
@@ -888,14 +1113,35 @@ export default function App() {
     <div style={{ ...s.app, background: theme.bg, color: theme.text }}>
       {!isLoggedIn && !showLoginPanel && <div style={s.loginScreen}>{renderLoginCard()}</div>}
 
-      <aside style={{ ...s.sidebar, width: sidebarOpen ? 280 : 74, minWidth: sidebarOpen ? 280 : 74, background: isDark ? "#050505" : theme.bg, borderRight: `1px solid ${theme.border}` }}>
+      <aside
+        style={{
+          ...s.sidebar,
+          width: sidebarOpen ? 280 : 74,
+          minWidth: sidebarOpen ? 280 : 74,
+          background: isDark ? "#050505" : theme.bg,
+          borderRight: `1px solid ${theme.border}`,
+        }}
+      >
         <div style={s.sidebarTop}>
-          {sidebarOpen && <div style={s.logoWrap}><div style={{ ...s.logoMark, background: theme.primary }}>T</div><div style={s.logoText}>TECH<span style={{ color: theme.primary }}>AI</span></div></div>}
-          <button style={{ ...s.collapseBtn, color: theme.text, border: `1px solid ${theme.border}` }} onClick={() => setSidebarOpen(prev => !prev)} type="button">☰</button>
+          {sidebarOpen && (
+            <div style={s.logoWrap}>
+              <div style={{ ...s.logoMark, background: theme.primary }}>T</div>
+              <div style={s.logoText}>TECH<span style={{ color: theme.primary }}>AI</span></div>
+            </div>
+          )}
+
+          <button
+            style={{ ...s.collapseBtn, color: theme.text, border: `1px solid ${theme.border}` }}
+            onClick={() => setSidebarOpen(prev => !prev)}
+            type="button"
+          >
+            ☰
+          </button>
         </div>
 
         <div style={s.iconNav}>
           {iconBtn("＋", "Nuova", createNewChat)}
+
           <div style={{ ...s.toolsGroup, background: theme.surface, border: `1px solid ${theme.border}` }}>
             {sidebarOpen && <div style={{ ...s.toolsTitle, color: theme.primary }}>Strumenti tecnici</div>}
             {iconBtn("✓", "Checklist", () => setShowChecklist(true))}
@@ -909,26 +1155,62 @@ export default function App() {
           <div style={s.chatHistory}>
             <div style={s.historyHeaderRow}>
               <span style={s.historyHeader}>Cronologia</span>
-              {chats.length > 0 && <button style={{ ...s.clearChatsBtn, color: theme.primary, border: `1px solid ${theme.border}` }} onClick={clearAllChats} type="button">Svuota</button>}
+              {chats.length > 0 && (
+                <button
+                  style={{ ...s.clearChatsBtn, color: theme.primary, border: `1px solid ${theme.border}` }}
+                  onClick={clearAllChats}
+                  type="button"
+                >
+                  Svuota
+                </button>
+              )}
             </div>
+
             {chats.length === 0 && <div style={s.emptyText}>Nessuna chat salvata</div>}
+
             {chats.map(chat => (
-              <div key={chat.id} style={{ ...s.historyItem, background: chat.id === activeChatId ? theme.surface : "transparent", border: `1px solid ${chat.id === activeChatId ? theme.border : "transparent"}` }}>
+              <div
+                key={chat.id}
+                style={{
+                  ...s.historyItem,
+                  background: chat.id === activeChatId ? theme.surface : "transparent",
+                  border: `1px solid ${chat.id === activeChatId ? theme.border : "transparent"}`,
+                }}
+              >
                 <div style={s.historyTitle} onClick={() => setActiveChatId(chat.id)}>{chat.title}</div>
-                <button style={{ ...s.deleteBtn, color: theme.text, border: `1px solid ${theme.border}` }} onClick={() => deleteChat(chat.id)} type="button">×</button>
+                <button
+                  style={{ ...s.deleteBtn, color: theme.text, border: `1px solid ${theme.border}` }}
+                  onClick={() => deleteChat(chat.id)}
+                  type="button"
+                >
+                  ×
+                </button>
               </div>
             ))}
           </div>
         )}
 
         <div style={s.sidebarBottomActions}>
-          {iconBtn("⚙", "Impostazioni", () => { setActiveTab("Aspetto"); setShowSettings(true); })}
+          {iconBtn("⚙", "Impostazioni", () => {
+            setActiveTab("Aspetto");
+            setShowSettings(true);
+          })}
         </div>
       </aside>
 
       <main style={s.main}>
         {!sidebarOpen && <div style={s.collapsedBrand}>TECH<span style={{ color: theme.primary }}>AI</span></div>}
-        <button style={{ ...s.floatingAccountBtn, background: theme.surface, color: theme.text, border: `1px solid ${theme.border}` }} onClick={() => { setActiveTab("Account"); setShowSettings(true); }} type="button">👤</button>
+
+        <button
+          style={{ ...s.floatingAccountBtn, background: theme.surface, color: theme.text, border: `1px solid ${theme.border}` }}
+          onClick={() => {
+            setActiveTab("Account");
+            setShowSettings(true);
+          }}
+          type="button"
+        >
+          👤
+        </button>
 
         <section style={{ ...s.content, justifyContent: currentMessages.length === 0 ? "center" : "flex-start" }}>
           {currentMessages.length === 0 ? (
@@ -943,90 +1225,99 @@ export default function App() {
                 {currentMessages.map((message, index) => (
                   <div key={index} style={message.role === "utente" ? s.uRow : s.aRow}>
                     {message.role === "AI" && <div style={{ ...s.aiAvatar, background: theme.primary }}>T</div>}
-                    <div style={message.role === "utente" ? { ...s.uBox, background: theme.surface, border: `1px solid ${theme.border}` } : { ...s.aBox, background: isDark ? "#0b0b0b" : "#fff", border: `1px solid ${theme.border}` }}>
-                      {message.role === "AI" && <div style={s.aiHeader}><strong>TechAI</strong><span style={s.muted}>Risposta tecnica dal backend</span></div>}
+
+                    <div
+                      style={
+                        message.role === "utente"
+                          ? { ...s.uBox, background: theme.surface, border: `1px solid ${theme.border}` }
+                          : { ...s.aBox, background: isDark ? "#0b0b0b" : "#fff", border: `1px solid ${theme.border}` }
+                      }
+                    >
+                      {message.role === "AI" && (
+                        <div style={s.aiHeader}>
+                          <strong>TechAI</strong>
+                          <span style={s.muted}>Risposta tecnica dal backend</span>
+                        </div>
+                      )}
+
                       {renderFormattedText(message.text)}
-                      {message.fileAttachment && <div style={s.attachmentBox}>📄 {message.fileAttachment.name} · {(message.fileAttachment.size / 1024).toFixed(1)} KB</div>}
+
+                      {message.fileAttachment && (
+                        <div style={s.attachmentBox}>
+                          📄 {message.fileAttachment.name} · {(message.fileAttachment.size / 1024).toFixed(1)} KB
+                        </div>
+                      )}
                     </div>
                   </div>
                 ))}
+
                 {loading && <div style={{ textAlign: "center", color: theme.primary }}>✨ TechAI sta elaborando...</div>}
                 <div ref={chatEndRef} />
               </div>
+
               <div style={s.bottomInput}>{renderInputBar("Scrivi qui o carica un file...")}</div>
             </div>
           )}
         </section>
       </main>
 
-      {showLoginPanel && <div style={s.overlay}><div style={s.loginModalWrap}>{renderLoginCard()}<button style={s.closeFloatingBtn} onClick={() => setShowLoginPanel(false)} type="button">×</button></div></div>}
+      {showLoginPanel && (
+        <div style={s.overlay}>
+          <div style={s.loginModalWrap}>
+            {renderLoginCard()}
+            <button style={s.closeFloatingBtn} onClick={() => setShowLoginPanel(false)} type="button">×</button>
+          </div>
+        </div>
+      )}
 
       {showChecklist && (
-        <Modal title="Checklist tecnica progetto" subtitle="Controllo preliminare automatico per componenti meccanici." theme={theme} isDark={isDark} onClose={() => setShowChecklist(false)} wide>
+        <Modal
+          title="Checklist tecnica progetto"
+          subtitle="Controllo preliminare automatico per componenti meccanici."
+          theme={theme}
+          isDark={isDark}
+          onClose={() => setShowChecklist(false)}
+          wide
+        >
           <div style={s.checklistLayout}>
             <div style={s.checklistFormArea}>
               <div style={s.checklistGrid}>
-                <Field label="Tipo componente" value={{showQuickCalc && (
-        <Modal title="Verifica dimensionale rapida" subtitle="Modulo preliminare per alberi, perni, staffe e componenti semplici." theme={theme} isDark={isDark} onClose={() => setShowQuickCalc(false)} wide>
-          <div style={s.quickCalcLayout}>
-            <div style={s.checklistFormArea}>
-              <div style={s.checklistGrid}>
-                <Field label="Tipo componente" value={quickCalcForm.componentType} onChange={v => updateQuickCalcField("componentType", v)} placeholder="Perno, albero, staffa..." theme={theme} isDark={isDark} />
-                <div>
-                  <label style={s.label}>Tipo verifica</label>
-                  <select style={{ ...s.input, background: isDark ? "#050505" : "#fff", color: theme.text, border: `1px solid ${theme.border}` }} value={quickCalcForm.stressType} onChange={e => updateQuickCalcField("stressType", e.target.value)}>
-                    <option value="flessione">Flessione</option>
-                    <option value="taglio">Taglio</option>
-                    <option value="torsione">Torsione</option>
-                    <option value="assiale">Trazione / compressione</option>
-                  </select>
-                </div>
-                <Field label="Materiale" value={quickCalcForm.material} onChange={v => updateQuickCalcField("material", v)} placeholder="C45" theme={theme} isDark={isDark} />
-                <Field label="Carico F [N]" value={quickCalcForm.load} onChange={v => updateQuickCalcField("load", v)} placeholder="2500" theme={theme} isDark={isDark} />
-                <Field label="Distanza / braccio L [mm]" value={quickCalcForm.distance} onChange={v => updateQuickCalcField("distance", v)} placeholder="120" theme={theme} isDark={isDark} />
-                <Field label="Diametro d [mm]" value={quickCalcForm.diameter} onChange={v => updateQuickCalcField("diameter", v)} placeholder="20" theme={theme} isDark={isDark} />
+                <Field label="Tipo componente" value={checklistForm.componentType} onChange={v => updateChecklistField("componentType", v)} placeholder="Albero, perno, staffa, flangia..." theme={theme} isDark={isDark} />
+                <Field label="Materiale" value={checklistForm.material} onChange={v => updateChecklistField("material", v)} placeholder="C45, S235JR, 42CrMo4..." theme={theme} isDark={isDark} />
+                <Field label="Carico indicativo [N]" value={checklistForm.load} onChange={v => updateChecklistField("load", v)} placeholder="2500" theme={theme} isDark={isDark} />
+                <Field label="Coefficiente sicurezza" value={checklistForm.safetyFactor} onChange={v => updateChecklistField("safetyFactor", v)} placeholder="2" theme={theme} isDark={isDark} />
               </div>
-              <Field label="Coefficiente sicurezza richiesto" value={quickCalcForm.safetyFactorRequired} onChange={v => updateQuickCalcField("safetyFactorRequired", v)} placeholder="2" theme={theme} isDark={isDark} />
-              <button style={{ ...s.primaryBtn, background: theme.primary }} onClick={runQuickCalc} type="button">Calcola verifica</button>
-              <div style={{ ...s.warningBox, border: `1px solid ${theme.border}` }}>Calcolo preliminare: non sostituisce verifica normativa, FEM o relazione firmata.</div>
-            </div>
 
-            <div style={s.checklistResultsArea}>
-              {!quickCalcResult ? (
-                <div style={{ ...s.emptyChecklist, border: `1px dashed ${theme.border}` }}>Inserisci i dati e premi “Calcola verifica”.</div>
-              ) : (
-                <div style={{ ...s.resultCard, background: isDark ? "#050505" : "#f8fafc", border: `1px solid ${theme.border}` }}>
-                  <div style={s.resultTop}><strong>{quickCalcResult.title}</strong><span style={{ color: quickCalcResult.outcome === "OK" ? "#16a34a" : "#dc2626", fontWeight: 950 }}>{quickCalcResult.outcome}</span></div>
-                  <p style={s.resultDetail}>{quickCalcResult.scheme}</p>
-                  <div style={s.formulaBlock}>{quickCalcResult.formulas.map((formula, index) => <div key={index}>• {formula}</div>)}</div>
-                  {quickCalcResult.values.map((value, index) => <div key={index} style={s.valueRow}>• {value}</div>)}
-                  <div style={{ ...s.finalBox, borderLeft: `4px solid ${quickCalcResult.outcome === "OK" ? "#16a34a" : "#dc2626"}` }}>Esito: {quickCalcResult.outcome}. Coefficiente calcolato n = {quickCalcResult.safetyFactor.toFixed(2)}.</div>
-                  {quickCalcResult.notes.map((note, index) => <p key={index} style={s.resultSuggestion}>{note}</p>)}
-                </div>
-              )}
-            </div>
-          </div>
-        </Modal>
-      )}
-
-      {showMaterials && (          <Field label="Coefficiente sicurezza" value={checklistForm.safetyFactor} onChange={v => updateChecklistField("safetyFactor", v)} placeholder="2" theme={theme} isDark={isDark} />
-              </div>
               <Field label="Ambiente d'uso" value={checklistForm.environment} onChange={v => updateChecklistField("environment", v)} placeholder="Interno, esterno, umido, corrosivo, olio..." theme={theme} isDark={isDark} />
               <Field label="Lavorazione prevista" value={checklistForm.machining} onChange={v => updateChecklistField("machining", v)} placeholder="Tornitura, fresatura, saldatura, rettifica..." theme={theme} isDark={isDark} />
               <Field label="Tolleranze / accoppiamenti presenti" value={checklistForm.tolerances} onChange={v => updateChecklistField("tolerances", v)} placeholder="Ø20 h6, foro Ø10 H7..." theme={theme} isDark={isDark} />
               <Field label="Rugosità" value={checklistForm.roughness} onChange={v => updateChecklistField("roughness", v)} placeholder="Ra 3.2 generale, Ra 1.6 sedi..." theme={theme} isDark={isDark} />
+
               <label style={s.label}>Note tecniche</label>
-              <textarea style={{ ...s.checklistTextarea, background: isDark ? "#050505" : "#fff", color: theme.text, border: `1px solid ${theme.border}` }} value={checklistForm.notes} onChange={e => updateChecklistField("notes", e.target.value)} placeholder="Smussi, raggi, filetti, trattamenti..." />
-              <button style={{ ...s.primaryBtn, background: theme.primary }} onClick={runProjectChecklist} type="button">Esegui checklist</button>
+              <textarea
+                style={{ ...s.checklistTextarea, background: isDark ? "#050505" : "#fff", color: theme.text, border: `1px solid ${theme.border}` }}
+                value={checklistForm.notes}
+                onChange={e => updateChecklistField("notes", e.target.value)}
+                placeholder="Smussi, raggi, filetti, trattamenti..."
+              />
+
+              <button style={{ ...s.primaryBtn, background: theme.primary }} onClick={runProjectChecklist} type="button">
+                Esegui checklist
+              </button>
             </div>
 
             <div style={s.checklistResultsArea}>
               {checklistResults.length === 0 ? (
-                <div style={{ ...s.emptyChecklist, border: `1px dashed ${theme.border}` }}>Inserisci i dati del pezzo e premi “Esegui checklist”.</div>
+                <div style={{ ...s.emptyChecklist, border: `1px dashed ${theme.border}` }}>
+                  Inserisci i dati del pezzo e premi “Esegui checklist”.
+                </div>
               ) : (
                 checklistResults.map((item, index) => (
                   <div key={index} style={{ ...s.resultCard, background: isDark ? "#050505" : "#f8fafc", border: `1px solid ${theme.border}` }}>
-                    <div style={s.resultTop}><strong>{item.area}</strong><span>{item.status}</span></div>
+                    <div style={s.resultTop}>
+                      <strong>{item.area}</strong>
+                      <span>{item.status}</span>
+                    </div>
                     <p style={s.resultDetail}>{item.detail}</p>
                     <p style={{ ...s.resultSuggestion, borderLeft: `3px solid ${theme.primary}` }}>{item.suggestion}</p>
                   </div>
@@ -1038,19 +1329,111 @@ export default function App() {
       )}
 
       {showQuickCalc && (
-        <Modal title="Verifica dimensionale rapida" subtitle="Modulo preliminare per componenti semplici." theme={theme} isDark={isDark} onClose={() => setShowQuickCalc(false)}>
-          <button style={{ ...s.primaryBtn, background: theme.primary }} onClick={runQuickCalc} type="button">Calcola verifica demo</button>
-          {quickCalcResult && <div style={s.resultCard}><strong>{quickCalcResult.title}</strong>{quickCalcResult.values.map(v => <p key={v}>{v}</p>)}</div>}
+        <Modal
+          title="Verifica dimensionale rapida"
+          subtitle="Modulo preliminare per alberi, perni, staffe e componenti semplici."
+          theme={theme}
+          isDark={isDark}
+          onClose={() => setShowQuickCalc(false)}
+          wide
+        >
+          <div style={s.quickCalcLayout}>
+            <div style={s.checklistFormArea}>
+              <div style={s.checklistGrid}>
+                <Field label="Tipo componente" value={quickCalcForm.componentType} onChange={v => updateQuickCalcField("componentType", v)} placeholder="Perno, albero, staffa..." theme={theme} isDark={isDark} />
+
+                <div>
+                  <label style={s.label}>Tipo verifica</label>
+                  <select
+                    style={{ ...s.input, background: isDark ? "#050505" : "#fff", color: theme.text, border: `1px solid ${theme.border}` }}
+                    value={quickCalcForm.stressType}
+                    onChange={e => updateQuickCalcField("stressType", e.target.value)}
+                  >
+                    <option value="flessione">Flessione</option>
+                    <option value="taglio">Taglio</option>
+                    <option value="torsione">Torsione</option>
+                    <option value="assiale">Trazione / compressione</option>
+                  </select>
+                </div>
+
+                <Field label="Materiale" value={quickCalcForm.material} onChange={v => updateQuickCalcField("material", v)} placeholder="C45" theme={theme} isDark={isDark} />
+                <Field label="Carico F [N]" value={quickCalcForm.load} onChange={v => updateQuickCalcField("load", v)} placeholder="2500" theme={theme} isDark={isDark} />
+                <Field label="Distanza / braccio L [mm]" value={quickCalcForm.distance} onChange={v => updateQuickCalcField("distance", v)} placeholder="120" theme={theme} isDark={isDark} />
+                <Field label="Diametro d [mm]" value={quickCalcForm.diameter} onChange={v => updateQuickCalcField("diameter", v)} placeholder="20" theme={theme} isDark={isDark} />
+              </div>
+
+              <Field label="Coefficiente sicurezza richiesto" value={quickCalcForm.safetyFactorRequired} onChange={v => updateQuickCalcField("safetyFactorRequired", v)} placeholder="2" theme={theme} isDark={isDark} />
+
+              <button style={{ ...s.primaryBtn, background: theme.primary }} onClick={runQuickCalc} type="button">
+                Calcola verifica
+              </button>
+
+              <div style={{ ...s.warningBox, border: `1px solid ${theme.border}` }}>
+                Calcolo preliminare: non sostituisce verifica normativa, FEM o relazione firmata.
+              </div>
+            </div>
+
+            <div style={s.checklistResultsArea}>
+              {!quickCalcResult ? (
+                <div style={{ ...s.emptyChecklist, border: `1px dashed ${theme.border}` }}>
+                  Inserisci i dati e premi “Calcola verifica”.
+                </div>
+              ) : (
+                <div style={{ ...s.resultCard, background: isDark ? "#050505" : "#f8fafc", border: `1px solid ${theme.border}` }}>
+                  <div style={s.resultTop}>
+                    <strong>{quickCalcResult.title}</strong>
+                    <span style={{ color: quickCalcResult.outcome === "OK" ? "#16a34a" : "#dc2626", fontWeight: 950 }}>
+                      {quickCalcResult.outcome}
+                    </span>
+                  </div>
+
+                  <p style={s.resultDetail}>{quickCalcResult.scheme}</p>
+
+                  <div style={s.formulaBlock}>
+                    {quickCalcResult.formulas.map((formula, index) => (
+                      <div key={index}>• {formula}</div>
+                    ))}
+                  </div>
+
+                  {quickCalcResult.values.map((value, index) => (
+                    <div key={index} style={s.valueRow}>• {value}</div>
+                  ))}
+
+                  <div style={{ ...s.finalBox, borderLeft: `4px solid ${quickCalcResult.outcome === "OK" ? "#16a34a" : "#dc2626"}` }}>
+                    Esito: {quickCalcResult.outcome}. Coefficiente calcolato n = {quickCalcResult.safetyFactor.toFixed(2)}.
+                  </div>
+
+                  {quickCalcResult.notes.map((note, index) => (
+                    <p key={index} style={s.resultSuggestion}>{note}</p>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
         </Modal>
       )}
 
       {showMaterials && (
-        <Modal title="Libreria materiali" subtitle="Conversioni normative e proprietà meccaniche indicative." theme={theme} isDark={isDark} onClose={() => setShowMaterials(false)} wide>
-          <input style={{ ...s.input, background: isDark ? "#050505" : "#fff", color: theme.text, border: `1px solid ${theme.border}` }} value={materialSearch} onChange={e => setMaterialSearch(e.target.value)} placeholder="Cerca materiale, EN, DIN, AISI, JIS..." />
+        <Modal
+          title="Libreria materiali"
+          subtitle="Conversioni normative e proprietà meccaniche indicative."
+          theme={theme}
+          isDark={isDark}
+          onClose={() => setShowMaterials(false)}
+          wide
+        >
+          <input
+            style={{ ...s.input, background: isDark ? "#050505" : "#fff", color: theme.text, border: `1px solid ${theme.border}` }}
+            value={materialSearch}
+            onChange={e => setMaterialSearch(e.target.value)}
+            placeholder="Cerca materiale, EN, DIN, AISI, JIS..."
+          />
+
           <div style={s.materialGrid}>
             {filteredMaterials.map((m: MaterialInfo) => (
               <div key={m.key} style={{ ...s.materialCard, background: isDark ? "#050505" : "#f8fafc", border: `1px solid ${theme.border}` }}>
                 <h3 style={{ marginTop: 0 }}>{m.name}</h3>
+
                 <div style={s.materialCodes}>
                   <span><strong>EN:</strong> {m.en}</span>
                   <span><strong>UNI:</strong> {m.uni}</span>
@@ -1059,9 +1442,23 @@ export default function App() {
                   <span><strong>JIS:</strong> {m.jis}</span>
                   <span><strong>ISO:</strong> {m.iso}</span>
                 </div>
-                <div style={s.materialProps}><strong>Rm:</strong> {m.rm} MPa · <strong>Re:</strong> {m.re} MPa · <strong>Durezza:</strong> {m.hardness}</div>
+
+                <div style={s.materialProps}>
+                  <strong>Rm:</strong> {m.rm} MPa · <strong>Re:</strong> {m.re} MPa · <strong>Durezza:</strong> {m.hardness}
+                </div>
+
                 <p><strong>Trattamenti:</strong> {m.treatments}</p>
-                <p><strong>Saldabilità:</strong> {m.weldabili
+                <p><strong>Saldabilità:</strong> {m.weldability}</p>
+                <p><strong>Lavorabilità:</strong> {m.machinability}</p>
+                <p><strong>Impieghi:</strong> {m.uses}</p>
+                <p style={{ opacity: 0.72 }}><strong>Nota:</strong> {m.notes}</p>
+              </div>
+            ))}
+          </div>
+        </Modal>
+      )}
+
+      {showDrawingGenerator && (
         <Modal
           title="Generatore tavole tecniche controllate"
           subtitle="Carica un'immagine della tavola per analisi AI o compila i dati per controllo base."
@@ -1080,10 +1477,9 @@ export default function App() {
                 onChange={handleDrawingReviewUpload}
               />
 
-
               <div style={{ ...s.drawingUploadPanel, background: isDark ? "#050505" : "#f8fafc", border: `1px solid ${theme.border}` }}>
-                <strong>Revisione tavola / idea di tavola</strong>
-                <p style={s.muted}>Carica solo un'immagine della tavola: PNG, JPG, JPEG o WebP. PDF, DWG, DXF e STEP sono stati rimossi da questa funzione.</p>
+                <strong>Revisione tavola</strong>
+                <p style={s.muted}>Carica solo un'immagine della tavola: PNG, JPG, JPEG o WebP.</p>
 
                 <div style={s.drawingUploadGridSingle}>
                   <button
@@ -1097,7 +1493,7 @@ export default function App() {
                 </div>
 
                 {drawingReviewFile && (
-                  <FileCard upload={drawingReviewFile} icon="📄" theme={theme} isDark={isDark} onRemove={removeDrawingReviewFile} />
+                  <FileCard upload={drawingReviewFile} icon="🖼️" theme={theme} isDark={isDark} onRemove={removeDrawingReviewFile} />
                 )}
               </div>
 
@@ -1118,7 +1514,7 @@ export default function App() {
               <Field label="Rugosità già previste" value={drawingForm.roughness} onChange={v => updateDrawingField("roughness", v)} placeholder="Ra 3.2, Ra 1.6..." theme={theme} isDark={isDark} />
 
               <button style={{ ...s.primaryBtn, background: theme.primary }} onClick={runDrawingGenerator} disabled={drawingAiLoading} type="button">
-                {drawingAiLoading ? "Analisi immagine in corso..." : "Analizza immagine tavola"}
+                {drawingAiLoading ? "Analisi immagine in corso..." : isImageUpload(drawingReviewFile) ? "Analizza immagine tavola" : "Genera controllo tavola"}
               </button>
             </div>
 
@@ -1157,7 +1553,12 @@ export default function App() {
           <div style={{ ...s.modal, background: isDark ? "#111" : "#fff", color: theme.text, border: `1px solid ${theme.border}` }}>
             <div style={{ ...s.modalSide, background: isDark ? "#050505" : "#f8fafc", borderRight: `1px solid ${theme.border}` }}>
               {["Account", "Aspetto", "AI Focus"].map(tab => (
-                <button key={tab} style={{ ...s.tabBtn, color: activeTab === tab ? theme.primary : theme.text }} onClick={() => setActiveTab(tab)} type="button">
+                <button
+                  key={tab}
+                  style={{ ...s.tabBtn, color: activeTab === tab ? theme.primary : theme.text }}
+                  onClick={() => setActiveTab(tab)}
+                  type="button"
+                >
                   {tab}
                 </button>
               ))}
@@ -1173,22 +1574,37 @@ export default function App() {
                 <>
                   <Field label="Nome" value={user.name} onChange={v => setUser(prev => ({ ...prev, name: v }))} theme={theme} isDark={isDark} />
                   <Field label="Email" value={user.email} onChange={v => setUser(prev => ({ ...prev, email: v }))} theme={theme} isDark={isDark} />
-                  <button style={{ ...s.secondaryBtn, color: theme.text, border: `1px solid ${theme.border}` }} onClick={() => setShowLoginPanel(true)} type="button">Apri login</button>
+                  <button style={{ ...s.secondaryBtn, color: theme.text, border: `1px solid ${theme.border}` }} onClick={() => setShowLoginPanel(true)} type="button">
+                    Apri login
+                  </button>
                 </>
               )}
 
               {activeTab === "Aspetto" && (
                 <div style={s.themeGrid}>
                   {THEMES.map(t => (
-                    <button key={t.name} style={{ ...s.themeOption, color: theme.text, border: `1px solid ${theme.name === t.name ? t.primary : theme.border}` }} onClick={() => setTheme(t)} type="button">
-                      <span style={{ ...s.themeDot, background: t.name === "Dark Black" ? "#050505" : t.primary, border: t.name === "Dark Black" ? "1px solid #fff" : "none" }} />
+                    <button
+                      key={t.name}
+                      style={{ ...s.themeOption, color: theme.text, border: `1px solid ${theme.name === t.name ? t.primary : theme.border}` }}
+                      onClick={() => setTheme(t)}
+                      type="button"
+                    >
+                      <span
+                        style={{
+                          ...s.themeDot,
+                          background: t.name === "Dark Black" ? "#050505" : t.primary,
+                          border: t.name === "Dark Black" ? "1px solid #fff" : "none",
+                        }}
+                      />
                       {t.name}
                     </button>
                   ))}
                 </div>
               )}
 
-              {activeTab === "AI Focus" && <Field label="Ambito tecnico principale" value={interest} onChange={setInterest} theme={theme} isDark={isDark} />}
+              {activeTab === "AI Focus" && (
+                <Field label="Ambito tecnico principale" value={interest} onChange={setInterest} theme={theme} isDark={isDark} />
+              )}
             </div>
           </div>
         </div>
@@ -1208,41 +1624,107 @@ export default function App() {
   );
 }
 
-function Modal({ title, subtitle, children, theme, isDark, onClose, wide = false }: { title: string; subtitle?: string; children: React.ReactNode; theme: Theme; isDark: boolean; onClose: () => void; wide?: boolean }) {
+function Modal({
+  title,
+  subtitle,
+  children,
+  theme,
+  isDark,
+  onClose,
+  wide = false,
+}: {
+  title: string;
+  subtitle?: string;
+  children: React.ReactNode;
+  theme: Theme;
+  isDark: boolean;
+  onClose: () => void;
+  wide?: boolean;
+}) {
   return (
     <div style={s.overlay}>
-      <div style={{ ...s.checklistModal, width: wide ? "min(1120px, calc(100vw - 32px))" : "min(760px, calc(100vw - 32px))", background: isDark ? "#111" : "#fff", color: theme.text, border: `1px solid ${theme.border}` }}>
+      <div
+        style={{
+          ...s.checklistModal,
+          width: wide ? "min(1120px, calc(100vw - 32px))" : "min(760px, calc(100vw - 32px))",
+          background: isDark ? "#111" : "#fff",
+          color: theme.text,
+          border: `1px solid ${theme.border}`,
+        }}
+      >
         <div style={s.modalHeader}>
           <div>
             <h2 style={{ margin: 0 }}>{title}</h2>
             {subtitle && <p style={s.muted}>{subtitle}</p>}
           </div>
-          <button style={{ ...s.backBtn, color: theme.text, border: `1px solid ${theme.border}` }} onClick={onClose} type="button">×</button>
+
+          <button style={{ ...s.backBtn, color: theme.text, border: `1px solid ${theme.border}` }} onClick={onClose} type="button">
+            ×
+          </button>
         </div>
+
         {children}
       </div>
     </div>
   );
 }
 
-function Field({ label, value, onChange, placeholder = "", theme, isDark }: { label: string; value: string; onChange: (value: string) => void; placeholder?: string; theme: Theme; isDark: boolean }) {
+function Field({
+  label,
+  value,
+  onChange,
+  placeholder = "",
+  theme,
+  isDark,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  placeholder?: string;
+  theme: Theme;
+  isDark: boolean;
+}) {
   return (
     <div>
       <label style={s.label}>{label}</label>
-      <input style={{ ...s.input, background: isDark ? "#050505" : "#fff", color: theme.text, border: `1px solid ${theme.border}` }} value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder} />
+      <input
+        style={{
+          ...s.input,
+          background: isDark ? "#050505" : "#fff",
+          color: theme.text,
+          border: `1px solid ${theme.border}`,
+        }}
+        value={value}
+        onChange={e => onChange(e.target.value)}
+        placeholder={placeholder}
+      />
     </div>
   );
 }
 
-function FileCard({ upload, icon, theme, isDark, onRemove }: { upload: DrawingUpload; icon: string; theme: Theme; isDark: boolean; onRemove: () => void }) {
+function FileCard({
+  upload,
+  icon,
+  theme,
+  isDark,
+  onRemove,
+}: {
+  upload: DrawingUpload;
+  icon: string;
+  theme: Theme;
+  isDark: boolean;
+  onRemove: () => void;
+}) {
   return (
     <div style={{ ...s.drawingFileCard, background: isDark ? "#111" : "#fff", border: `1px solid ${theme.border}` }}>
       <div style={{ ...s.fileIcon, background: theme.primary }}>{icon}</div>
+
       <div style={{ flex: 1, minWidth: 0 }}>
         <strong>{upload.fileAttachment.name}</strong>
         <div style={s.muted}>{(upload.fileAttachment.size / 1024).toFixed(1)} KB</div>
         {upload.previewUrl && <img src={upload.previewUrl} alt="Anteprima tavola" style={s.drawingPreviewImage} />}
       </div>
+
       <button style={s.roundBtn} onClick={onRemove} type="button">×</button>
     </div>
   );
@@ -1275,8 +1757,13 @@ function DrawingPreview({
       <div style={s.drawingPreviewTop}>
         <div>
           <strong>Anteprima controllo tavola</strong>
-          <p style={s.muted}>{previewUrl ? `Anteprima reale: ${fileName || "tavola caricata"}` : "Carica un'immagine PNG/JPG/WebP per vedere la tavola a destra."}</p>
+          <p style={s.muted}>
+            {previewUrl
+              ? `Anteprima reale: ${fileName || "tavola caricata"}`
+              : "Carica un'immagine PNG/JPG/WebP per vedere la tavola a destra."}
+          </p>
         </div>
+
         <span style={{ ...s.previewBadge, background: badgeColor }}>{issues.length}</span>
       </div>
 
@@ -1309,7 +1796,12 @@ function DrawingPreview({
         ) : (
           issues.map(issue => (
             <div key={issue.id} style={s.issueRow}>
-              <span style={{ ...s.issueDot, background: issue.severity === "errore" ? "#dc2626" : issue.severity === "attenzione" ? "#f59e0b" : "#16a34a" }} />
+              <span
+                style={{
+                  ...s.issueDot,
+                  background: issue.severity === "errore" ? "#dc2626" : issue.severity === "attenzione" ? "#f59e0b" : "#16a34a",
+                }}
+              />
               <div>
                 <strong>{issue.label}</strong>
                 <p>{issue.detail}</p>
@@ -1328,6 +1820,7 @@ const s: Record<string, React.CSSProperties> = {
   loginCard: { borderRadius: 28, padding: 34, width: "min(520px, calc(100vw - 32px))", boxShadow: "0 30px 90px rgba(0,0,0,0.25)" },
   loginModalWrap: { position: "relative" },
   closeFloatingBtn: { position: "absolute", top: -12, right: -12, width: 38, height: 38, borderRadius: "50%", border: "none", cursor: "pointer", fontSize: 22, fontWeight: 900 },
+
   sidebar: { height: "100dvh", padding: 10, display: "flex", flexDirection: "column", gap: 12, overflow: "hidden", flexShrink: 0 },
   sidebarTop: { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, minHeight: 50 },
   logoWrap: { display: "flex", alignItems: "center", gap: 10, minWidth: 0 },
@@ -1347,12 +1840,14 @@ const s: Record<string, React.CSSProperties> = {
   historyTitle: { overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis", flex: 1, cursor: "pointer" },
   deleteBtn: { width: 24, height: 24, borderRadius: "50%", background: "rgba(120,120,120,0.10)", cursor: "pointer", fontSize: 16, display: "flex", alignItems: "center", justifyContent: "center" },
   sidebarBottomActions: { marginTop: "auto", display: "flex", flexDirection: "column", gap: 8 },
+
   main: { flex: 1, minWidth: 0, height: "100dvh", display: "flex", flexDirection: "column", position: "relative", overflow: "hidden" },
   collapsedBrand: { position: "absolute", top: 22, left: 28, zIndex: 20, fontSize: 24, fontWeight: 950, letterSpacing: 2, pointerEvents: "none" },
   floatingAccountBtn: { position: "absolute", top: 18, right: 28, zIndex: 30, width: 44, height: 44, borderRadius: 14, cursor: "pointer", fontSize: 18, display: "flex", alignItems: "center", justifyContent: "center" },
   content: { flex: 1, minHeight: 0, width: "100%", display: "flex", flexDirection: "column", alignItems: "center", overflow: "hidden" },
   homeWrapper: { width: "100%", maxWidth: 720, textAlign: "center", padding: "0 22px" },
   welcomeText: { fontSize: "clamp(25px, 4vw, 38px)", fontWeight: 700, marginBottom: 30, letterSpacing: -1 },
+
   inputComposer: { display: "flex", flexDirection: "column", gap: 8, borderRadius: 28, padding: "8px 12px", width: "100%", minHeight: 56, boxShadow: "0 8px 24px rgba(0,0,0,0.05)" },
   searchBarInner: { display: "flex", alignItems: "center", width: "100%" },
   fileBtn: { width: 34, height: 34, background: "none", border: "none", cursor: "pointer", fontSize: 18 },
@@ -1363,6 +1858,7 @@ const s: Record<string, React.CSSProperties> = {
   fileIcon: { width: 36, height: 44, borderRadius: 10, color: "white", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, fontWeight: 900, flexShrink: 0 },
   roundBtn: { width: 30, height: 30, borderRadius: "50%", border: "none", background: "rgba(120,120,120,0.16)", cursor: "pointer", fontSize: 18, lineHeight: 1 },
   muted: { fontSize: 12, opacity: 0.65, margin: "4px 0 0", lineHeight: 1.45 },
+
   chatView: { width: "100%", maxWidth: 940, flex: 1, minHeight: 0, display: "flex", flexDirection: "column", padding: "14px 22px", overflow: "hidden" },
   msgList: { flex: 1, minHeight: 0, overflowY: "auto", display: "flex", flexDirection: "column", gap: 18, padding: "10px 0" },
   uRow: { display: "flex", justifyContent: "flex-end", width: "100%" },
@@ -1377,6 +1873,7 @@ const s: Record<string, React.CSSProperties> = {
   bulletLine: { margin: "6px 0", lineHeight: 1.65 },
   codeBlock: { borderRadius: 16, padding: "16px 18px", margin: "14px 0", overflowX: "auto", fontSize: 13, lineHeight: 1.55, whiteSpace: "pre-wrap", background: "#0f172a", color: "#e5e7eb" },
   attachmentBox: { marginTop: 10, padding: "10px 12px", borderRadius: 12, background: "rgba(120,120,120,0.10)", fontSize: 13 },
+
   overlay: { position: "fixed", inset: 0, background: "rgba(0,0,0,0.55)", display: "flex", justifyContent: "center", alignItems: "center", zIndex: 1000, padding: 16 },
   checklistModal: { borderRadius: 24, height: "min(760px, calc(100dvh - 32px))", display: "flex", flexDirection: "column", overflow: "hidden", boxShadow: "0 30px 70px rgba(0,0,0,0.28)", padding: 28 },
   modalHeader: { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 20 },
@@ -1385,32 +1882,40 @@ const s: Record<string, React.CSSProperties> = {
   modalSide: { width: 170, padding: 24, display: "flex", flexDirection: "column", gap: 15, flexShrink: 0 },
   modalMain: { flex: 1, minWidth: 0, padding: 32, display: "flex", flexDirection: "column", overflowY: "auto" },
   tabBtn: { textAlign: "left", border: "none", background: "transparent", cursor: "pointer", fontSize: 14, fontWeight: 850, padding: "8px 0" },
+
   label: { fontSize: 11, fontWeight: 800, color: "#94a3b8", textTransform: "uppercase", marginBottom: 8, display: "block" },
   input: { width: "100%", padding: 12, borderRadius: 12, marginBottom: 14, outline: "none", fontSize: 14 },
   primaryBtn: { width: "100%", padding: 15, border: "none", borderRadius: 14, color: "white", fontWeight: 850, cursor: "pointer", fontSize: 15, marginTop: 8 },
   secondaryBtn: { width: "100%", padding: 13, borderRadius: 14, background: "transparent", fontWeight: 850, cursor: "pointer", marginTop: 10 },
   errorBox: { marginTop: 12, padding: "10px 12px", borderRadius: 12, color: "#b91c1c", background: "#fee2e2", fontSize: 13, fontWeight: 700 },
-  simplePanel: { borderRadius: 18, padding: 18, background: "rgba(120,120,120,0.1)", lineHeight: 1.6 },
-  resultCard: { borderRadius: 18, padding: 16, marginTop: 12 },
-  resultTop: { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, marginBottom: 8, fontSize: 14 },
-  resultSuggestion: { marginTop: 12, paddingLeft: 10, lineHeight: 1.5, fontSize: 13, fontWeight: 650 },
-  materialGrid: { flex: 1, overflowY: "auto", display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 14, paddingRight: 4 },
-  materialCard: { borderRadius: 18, padding: 18, lineHeight: 1.45, fontSize: 1  resultSuggestion: { marginTop: 12, paddingLeft: 10, lineHeight: 1.5, fontSize: 13, fontWeight: 650 },
-  resultDetail: { margin: "0 0 10px", lineHeight: 1.5, fontSize: 13, opacity: 0.82 },
-  checklistTextarea: { width: "100%", minHeight: 92, padding: 12, borderRadius: 12, marginBottom: 14, outline: "none", fontSize: 14, resize: "vertical" },
-  warningBox: { marginTop: 14, borderRadius: 14, padding: 12, fontSize: 12, lineHeight: 1.5, opacity: 0.74 },
-  formulaBlock: { borderRadius: 16, padding: 14, background: "rgba(120,120,120,0.08)", margin: "14px 0", overflowX: "auto", fontSize: 14, lineHeight: 1.6 },
-  valueRow: { fontSize: 13, lineHeight: 1.45, margin: "6px 0" },
-  finalBox: { marginTop: 16, padding: "12px 14px", borderRadius: 14, background: "rgba(120,120,120,0.08)", fontWeight: 850 },10 },
-  themeOption: { padding: 12, borderRadius: 14, cursor: "pointer", display: "flex", alignItems: "center", gap: 12, fontSize: 13, fontWeight: 800, b  materialCard: { borderRadius:%" },
-  drawingLayout: { flex: 1, minHeight: 0, display: "grid", gridTemplateColumns: "minmax(380px, 0.95fr) minmax(430px, 1.05fr)", gap: 22, overflow: "hidden" },
+
+  checklistLayout: { flex: 1, minHeight: 0, display: "grid", gridTemplateColumns: "minmax(340px, 0.9fr) minmax(360px, 1.1fr)", gap: 22, overflow: "hidden" },
+  quickCalcLayout: { flex: 1, minHeight: 0, display: "grid", gridTemplateColumns: "minmax(340px, 0.85fr) minmax(400px, 1.15fr)", gap: 22, overflow: "hidden" },
   checklistFormArea: { overflowY: "auto", paddingRight: 6 },
   checklistResultsArea: { overflowY: "auto", display: "flex", flexDirection: "column", gap: 12, paddingRight: 6 },
   checklistGrid: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 },
+  checklistTextarea: { width: "100%", minHeight: 92, padding: 12, borderRadius: 12, marginBottom: 14, outline: "none", fontSize: 14, resize: "vertical" },
+  emptyChecklist: { borderRadius: 18, minHeight: 160, display: "flex", alignItems: "center", justifyContent: "center", textAlign: "center", opacity: 0.68, padding: 18, fontSize: 14 },
+  resultCard: { borderRadius: 18, padding: 16, marginTop: 12 },
+  resultTop: { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, marginBottom: 8, fontSize: 14 },
+  resultDetail: { margin: "0 0 10px", lineHeight: 1.5, fontSize: 13, opacity: 0.82 },
+  resultSuggestion: { marginTop: 12, paddingLeft: 10, lineHeight: 1.5, fontSize: 13, fontWeight: 650 },
+  warningBox: { marginTop: 14, borderRadius: 14, padding: 12, fontSize: 12, lineHeight: 1.5, opacity: 0.74 },
+  formulaBlock: { borderRadius: 16, padding: 14, background: "rgba(120,120,120,0.08)", margin: "14px 0", overflowX: "auto", fontSize: 14, lineHeight: 1.6 },
+  valueRow: { fontSize: 13, lineHeight: 1.45, margin: "6px 0" },
+  finalBox: { marginTop: 16, padding: "12px 14px", borderRadius: 14, background: "rgba(120,120,120,0.08)", fontWeight: 850 },
+
+  materialGrid: { flex: 1, overflowY: "auto", display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(330px, 1fr))", gap: 14, paddingRight: 4 },
+  materialCard: { borderRadius: 18, padding: 18, lineHeight: 1.45, fontSize: 13 },
+  materialCodes: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6, fontSize: 12, marginBottom: 12, opacity: 0.82 },
+  materialProps: { padding: 10, borderRadius: 12, background: "rgba(120,120,120,0.08)", marginBottom: 10, lineHeight: 1.5 },
+
+  themeGrid: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 10 },
+  themeOption: { padding: 12, borderRadius: 14, cursor: "pointer", display: "flex", alignItems: "center", gap: 12, fontSize: 13, fontWeight: 800, background: "transparent" },
+  themeDot: { width: 12, height: 12, borderRadius: "50%" },
+
+  drawingLayout: { flex: 1, minHeight: 0, display: "grid", gridTemplateColumns: "minmax(380px, 0.95fr) minmax(430px, 1.05fr)", gap: 22, overflow: "hidden" },
   drawingUploadPanel: { borderRadius: 18, padding: 16, marginBottom: 18 },
-  dr  checklistLayout: { flex: 1, minHeight: 0, display: "grid", gridTemplateColumns: "minmax(340px, 0.9fr) minmax(360px, 1.1fr)", gap: 22, overflow: "hidden" },
-  quickCalcLayout: { flex: 1, minHeight: 0, display: "grid", gridTemplateColumns: "minmax(340px, 0.85fr) minmax(400px, 1.15fr)", gap: 22, overflow: "hidden" },
-  checklistFormArea: { overflowY: "auto", paddingRight: 6 },r 1fr", gap: 10, marginTop: 12 },
   drawingUploadGridSingle: { display: "grid", gridTemplateColumns: "1fr", gap: 10, marginTop: 12 },
   drawingUploadBtn: { minHeight: 72, borderRadius: 16, background: "transparent", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 4, fontWeight: 850, fontSize: 14 },
   drawingFileCard: { display: "flex", alignItems: "flex-start", gap: 10, borderRadius: 16, padding: 12, marginTop: 12 },
@@ -1425,6 +1930,6 @@ const s: Record<string, React.CSSProperties> = {
   issueList: { display: "flex", flexDirection: "column", gap: 8 },
   issueRow: { display: "flex", alignItems: "flex-start", gap: 8, fontSize: 12, lineHeight: 1.35 },
   issueDot: { width: 9, height: 9, borderRadius: "50%", marginTop: 5, flexShrink: 0 },
+
   emptyText: { fontSize: 12, opacity: 0.6, padding: 8 },
-  emptyChecklist: { borderRadius: 18, minHeight: 160, display: "flex", alignItems: "center", justifyContent: "center", textAlign: "center", opacity: 0.68, padding: 18, fontSize: 14 },
 };

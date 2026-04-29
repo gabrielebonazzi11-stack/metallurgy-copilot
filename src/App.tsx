@@ -115,6 +115,12 @@ interface DrawingResult {
   suggestion: string;
 }
 
+interface DrawingUpload {
+  file: File;
+  fileAttachment: FileAttachment;
+  previewUrl?: string;
+}
+
 const defaultUser: UserProfile = {
   name: "Mario Rossi",
   email: "mario.rossi@tech.it",
@@ -213,9 +219,13 @@ export default function App() {
     productionQuantity: "",
   });
   const [drawingResults, setDrawingResults] = useState<DrawingResult[]>([]);
+  const [drawingReviewFile, setDrawingReviewFile] = useState<DrawingUpload | null>(null);
+  const [drawingStepFile, setDrawingStepFile] = useState<DrawingUpload | null>(null);
 
   const chatEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const drawingReviewInputRef = useRef<HTMLInputElement>(null);
+  const drawingStepInputRef = useRef<HTMLInputElement>(null);
 
   const activeChat = chats.find(c => c.id === activeChatId);
   const currentMessages = activeChat?.messages || [];
@@ -443,6 +453,86 @@ export default function App() {
 
   const updateDrawingField = (field: keyof DrawingForm, value: string) => {
     setDrawingForm(prev => ({ ...prev, [field]: value }));
+  };
+
+  const isDrawingReviewFile = (file: File) => {
+    const name = file.name.toLowerCase();
+    return (
+      file.type.startsWith("image/") ||
+      name.endsWith(".pdf") ||
+      name.endsWith(".dwg") ||
+      name.endsWith(".dxf") ||
+      name.endsWith(".png") ||
+      name.endsWith(".jpg") ||
+      name.endsWith(".jpeg") ||
+      name.endsWith(".webp")
+    );
+  };
+
+  const isStepFile = (file: File) => {
+    const name = file.name.toLowerCase();
+    return name.endsWith(".step") || name.endsWith(".stp") || name.endsWith(".stl") || name.endsWith(".iges") || name.endsWith(".igs");
+  };
+
+  const handleDrawingReviewUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    if (!isDrawingReviewFile(file)) {
+      alert("Per la revisione tavola carica PDF, immagine, DWG o DXF.");
+      if (event.target) event.target.value = "";
+      return;
+    }
+
+    if (drawingReviewFile?.previewUrl) URL.revokeObjectURL(drawingReviewFile.previewUrl);
+
+    setDrawingReviewFile({
+      file,
+      fileAttachment: {
+        name: file.name,
+        type: file.type || "disegno tecnico",
+        size: file.size,
+      },
+      previewUrl: file.type.startsWith("image/") ? URL.createObjectURL(file) : undefined,
+    });
+
+    if (event.target) event.target.value = "";
+  };
+
+  const handleDrawingStepUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    if (!isStepFile(file)) {
+      alert("Per l'idea tavola carica un file STEP/STP, STL o IGES.");
+      if (event.target) event.target.value = "";
+      return;
+    }
+
+    if (drawingStepFile?.previewUrl) URL.revokeObjectURL(drawingStepFile.previewUrl);
+
+    setDrawingStepFile({
+      file,
+      fileAttachment: {
+        name: file.name,
+        type: file.type || "modello 3D",
+        size: file.size,
+      },
+    });
+
+    if (event.target) event.target.value = "";
+  };
+
+  const removeDrawingReviewFile = () => {
+    if (drawingReviewFile?.previewUrl) URL.revokeObjectURL(drawingReviewFile.previewUrl);
+    setDrawingReviewFile(null);
+    if (drawingReviewInputRef.current) drawingReviewInputRef.current.value = "";
+  };
+
+  const removeDrawingStepFile = () => {
+    if (drawingStepFile?.previewUrl) URL.revokeObjectURL(drawingStepFile.previewUrl);
+    setDrawingStepFile(null);
+    if (drawingStepInputRef.current) drawingStepInputRef.current.value = "";
   };
 
   const normalizeMaterialKey = (value?: string) => String(value || "").toLowerCase().replaceAll(" ", "").replaceAll("-", "");
@@ -748,6 +838,26 @@ export default function App() {
     const hasSlot = text.includes("asola") || text.includes("cava") || text.includes("linguetta");
 
     const results: DrawingResult[] = [];
+
+    if (drawingReviewFile) {
+      results.push({
+        category: "File tavola caricato",
+        status: "⚠️ Da verificare",
+        item: drawingReviewFile.fileAttachment.name,
+        reason: "È stato caricato un file tavola/disegno per la revisione. In questa versione il controllo automatico analizza soprattutto i dati inseriti nel modulo; la lettura tecnica completa del file richiede backend dedicato o revisione manuale.",
+        suggestion: "Usa questo caricamento come riferimento visivo: controlla viste, sezioni, quote, tolleranze, rugosità, cartiglio, note e coerenza con funzione del pezzo.",
+      });
+    }
+
+    if (drawingStepFile) {
+      results.push({
+        category: "File 3D / STEP caricato",
+        status: "🟦 Consigliata",
+        item: drawingStepFile.fileAttachment.name,
+        reason: "Il modello 3D può aiutare a proporre un'idea di tavola: vista principale, viste ausiliarie, sezioni, dettagli e possibili quote funzionali.",
+        suggestion: "Per una vera anteprima 3D serve integrare un viewer STEP/STL oppure convertire il modello lato backend. Per ora il file viene registrato come riferimento per impostare la tavola.",
+      });
+    }
 
     results.push({ category: "Viste", status: "✅ Necessaria", item: "Vista principale/frontale", reason: "Serve per rappresentare la forma più riconoscibile e la maggior parte delle quote principali del pezzo.", suggestion: "Scegli come vista frontale quella che mostra meglio funzione, fori principali, ingombri e simmetrie." });
     results.push({ category: "Viste", status: hasShaft ? "✅ Necessaria" : "🟦 Consigliata", item: hasShaft ? "Vista longitudinale dell'albero/perno" : "Vista laterale o superiore", reason: hasShaft ? "Per alberi e perni è essenziale mostrare diametri, spallamenti, gole, smussi e lunghezze." : "Una seconda vista evita ambiguità su spessori, profondità e posizione dei dettagli.", suggestion: hasShaft ? "Quota diametri e lunghezze in sequenza, aggiungendo assi tratto-punto e dettagli su gole/cave." : "Aggiungi una vista laterale/superiore se la geometria non è completamente definita dalla vista frontale." });
@@ -1194,7 +1304,61 @@ export default function App() {
 
         {showChecklist && <div style={s.overlay}><div style={{ ...s.checklistModal, background: isDark ? "#111111" : "white", color: theme.text, border: `1px solid ${theme.border}` }}><div style={s.modalHeader}><div><h2 style={{ fontSize: "20px", margin: 0 }}>Checklist tecnica progetto</h2><p style={s.checklistSubtitle}>Controllo preliminare automatico per componenti meccanici.</p></div><button style={{ ...s.backBtn, color: theme.text, border: `1px solid ${theme.border}` }} onClick={() => setShowChecklist(false)}>← Indietro</button></div><div style={s.checklistLayout}><div style={s.checklistFormArea}><div style={s.checklistGrid}><div><label style={s.label}>Tipo componente</label><input style={{ ...s.input, background: isDark ? "#050505" : "#ffffff", color: theme.text, border: `1px solid ${theme.border}` }} value={checklistForm.componentType} onChange={e => updateChecklistField("componentType", e.target.value)} placeholder="Albero, perno, staffa, flangia..." /></div><div><label style={s.label}>Materiale</label><input style={{ ...s.input, background: isDark ? "#050505" : "#ffffff", color: theme.text, border: `1px solid ${theme.border}` }} value={checklistForm.material} onChange={e => updateChecklistField("material", e.target.value)} placeholder="C45, S235, 42CrMo4..." /></div><div><label style={s.label}>Carico indicativo [N]</label><input style={{ ...s.input, background: isDark ? "#050505" : "#ffffff", color: theme.text, border: `1px solid ${theme.border}` }} value={checklistForm.load} onChange={e => updateChecklistField("load", e.target.value)} placeholder="2500" /></div><div><label style={s.label}>Coefficiente sicurezza</label><input style={{ ...s.input, background: isDark ? "#050505" : "#ffffff", color: theme.text, border: `1px solid ${theme.border}` }} value={checklistForm.safetyFactor} onChange={e => updateChecklistField("safetyFactor", e.target.value)} placeholder="2" /></div></div><label style={s.label}>Ambiente d'uso</label><input style={{ ...s.input, background: isDark ? "#050505" : "#ffffff", color: theme.text, border: `1px solid ${theme.border}` }} value={checklistForm.environment} onChange={e => updateChecklistField("environment", e.target.value)} placeholder="Interno, esterno, umido, corrosivo, olio..." /><label style={s.label}>Lavorazione prevista</label><input style={{ ...s.input, background: isDark ? "#050505" : "#ffffff", color: theme.text, border: `1px solid ${theme.border}` }} value={checklistForm.machining} onChange={e => updateChecklistField("machining", e.target.value)} placeholder="Tornitura, fresatura, saldatura, rettifica..." /><label style={s.label}>Tolleranze / accoppiamenti presenti</label><input style={{ ...s.input, background: isDark ? "#050505" : "#ffffff", color: theme.text, border: `1px solid ${theme.border}` }} value={checklistForm.tolerances} onChange={e => updateChecklistField("tolerances", e.target.value)} placeholder="Ø20 h6, foro Ø10 H7..." /><label style={s.label}>Rugosità</label><input style={{ ...s.input, background: isDark ? "#050505" : "#ffffff", color: theme.text, border: `1px solid ${theme.border}` }} value={checklistForm.roughness} onChange={e => updateChecklistField("roughness", e.target.value)} placeholder="Ra 3.2 generale, Ra 1.6 sedi..." /><label style={s.label}>Note tecniche</label><textarea style={{ ...s.checklistTextarea, background: isDark ? "#050505" : "#ffffff", color: theme.text, border: `1px solid ${theme.border}` }} value={checklistForm.notes} onChange={e => updateChecklistField("notes", e.target.value)} placeholder="Smussi, raggi, filetti, trattamenti..." /><button style={{ ...s.checkBtn, background: theme.primary }} onClick={runProjectChecklist}>Esegui checklist</button></div><div style={s.checklistResultsArea}>{checklistResults.length === 0 ? <div style={{ ...s.emptyChecklist, border: `1px dashed ${theme.border}` }}>Inserisci i dati del pezzo e premi “Esegui checklist”.</div> : checklistResults.map((item, index) => <div key={index} style={{ ...s.resultCard, background: isDark ? "#050505" : "#f8fafc", border: `1px solid ${theme.border}` }}><div style={s.resultTop}><strong>{item.area}</strong><span style={s.resultStatus}>{item.status}</span></div><p style={s.resultDetail}>{item.detail}</p><p style={{ ...s.resultSuggestion, borderLeft: `3px solid ${theme.primary}` }}>{item.suggestion}</p></div>)}</div></div></div></div>}
 
-        {showDrawingGenerator && <div style={s.overlay}><div style={{ ...s.checklistModal, background: isDark ? "#111111" : "white", color: theme.text, border: `1px solid ${theme.border}` }}><div style={s.modalHeader}><div><h2 style={{ fontSize: "20px", margin: 0 }}>Generatore tavole tecniche controllate</h2><p style={s.checklistSubtitle}>Suggerisce viste, sezioni, quote, tolleranze, rugosità e note di cartiglio.</p></div><button style={{ ...s.backBtn, color: theme.text, border: `1px solid ${theme.border}` }} onClick={() => setShowDrawingGenerator(false)}>← Indietro</button></div><div style={s.drawingLayout}><div style={s.checklistFormArea}><div style={s.checklistGrid}><div><label style={s.label}>Nome pezzo</label><input style={{ ...s.input, background: isDark ? "#050505" : "#ffffff", color: theme.text, border: `1px solid ${theme.border}` }} value={drawingForm.partName} onChange={e => updateDrawingField("partName", e.target.value)} placeholder="Es. Albero intermedio" /></div><div><label style={s.label}>Tipo pezzo</label><input style={{ ...s.input, background: isDark ? "#050505" : "#ffffff", color: theme.text, border: `1px solid ${theme.border}` }} value={drawingForm.partType} onChange={e => updateDrawingField("partType", e.target.value)} placeholder="Albero, perno, staffa..." /></div><div><label style={s.label}>Materiale</label><input style={{ ...s.input, background: isDark ? "#050505" : "#ffffff", color: theme.text, border: `1px solid ${theme.border}` }} value={drawingForm.material} onChange={e => updateDrawingField("material", e.target.value)} placeholder="C45, S235..." /></div><div><label style={s.label}>Quantità / lotto</label><input style={{ ...s.input, background: isDark ? "#050505" : "#ffffff", color: theme.text, border: `1px solid ${theme.border}` }} value={drawingForm.productionQuantity} onChange={e => updateDrawingField("productionQuantity", e.target.value)} placeholder="1 pezzo, 100 pezzi..." /></div></div><label style={s.label}>Lavorazione prevista</label><input style={{ ...s.input, background: isDark ? "#050505" : "#ffffff", color: theme.text, border: `1px solid ${theme.border}` }} value={drawingForm.manufacturing} onChange={e => updateDrawingField("manufacturing", e.target.value)} placeholder="Tornitura, fresatura..." /><label style={s.label}>Geometrie principali</label><textarea style={{ ...s.checklistTextarea, background: isDark ? "#050505" : "#ffffff", color: theme.text, border: `1px solid ${theme.border}` }} value={drawingForm.mainFeatures} onChange={e => updateDrawingField("mainFeatures", e.target.value)} placeholder="Fori, cave, asole..." /><label style={s.label}>Funzione del pezzo nell'assieme</label><textarea style={{ ...s.checklistTextarea, background: isDark ? "#050505" : "#ffffff", color: theme.text, border: `1px solid ${theme.border}` }} value={drawingForm.assemblyFunction} onChange={e => updateDrawingField("assemblyFunction", e.target.value)} placeholder="Cosa fa il pezzo?" />{(["functionalSurfaces", "holesThreads", "fits", "tolerances", "roughness"] as (keyof DrawingForm)[]).map(field => <div key={field}><label style={s.label}>{field === "functionalSurfaces" ? "Superfici funzionali" : field === "holesThreads" ? "Fori / filetti / lamature" : field === "fits" ? "Accoppiamenti" : field === "tolerances" ? "Tolleranze già previste" : "Rugosità già previste"}</label><input style={{ ...s.input, background: isDark ? "#050505" : "#ffffff", color: theme.text, border: `1px solid ${theme.border}` }} value={drawingForm[field]} onChange={e => updateDrawingField(field, e.target.value)} /></div>)}<button style={{ ...s.checkBtn, background: theme.primary }} onClick={runDrawingGenerator}>Genera controllo tavola</button></div><div style={s.checklistResultsArea}>{drawingResults.length === 0 ? <div style={{ ...s.emptyChecklist, border: `1px dashed ${theme.border}` }}>Inserisci i dati del pezzo e premi “Genera controllo tavola”.</div> : drawingResults.map((item, index) => <div key={index} style={{ ...s.resultCard, background: isDark ? "#050505" : "#f8fafc", border: `1px solid ${theme.border}` }}><div style={s.resultTop}><strong>{item.category}: {item.item}</strong><span style={s.resultStatus}>{item.status}</span></div><p style={s.resultDetail}>{item.reason}</p><p style={{ ...s.resultSuggestion, borderLeft: `3px solid ${theme.primary}` }}>{item.suggestion}</p></div>)}</div></div></div></div>}
+        {showDrawingGenerator && <div style={s.overlay}><div style={{ ...s.checklistModal, background: isDark ? "#111111" : "white", color: theme.text, border: `1px solid ${theme.border}` }}><div style={s.modalHeader}><div><h2 style={{ fontSize: "20px", margin: 0 }}>Generatore tavole tecniche controllate</h2><p style={s.checklistSubtitle}>Suggerisce viste, sezioni, quote, tolleranze, rugosità e note di cartiglio.</p></div><button style={{ ...s.backBtn, color: theme.text, border: `1px solid ${theme.border}` }} onClick={() => setShowDrawingGenerator(false)}>← Indietro</button></div><div style={s.drawingLayout}><div style={s.checklistFormArea}>
+                  <input ref={drawingReviewInputRef} type="file" accept=".pdf,.dwg,.dxf,.png,.jpg,.jpeg,.webp,image/*" style={{ display: "none" }} onChange={handleDrawingReviewUpload} />
+                  <input ref={drawingStepInputRef} type="file" accept=".step,.stp,.stl,.iges,.igs" style={{ display: "none" }} onChange={handleDrawingStepUpload} />
+
+                  <div style={{ ...s.drawingUploadPanel, border: `1px solid ${theme.border}`, background: isDark ? "#050505" : "#f8fafc" }}>
+                    <div style={s.drawingUploadHeader}>
+                      <div>
+                        <strong>Revisione tavola / idea di tavola</strong>
+                        <p style={{ margin: "4px 0 0", opacity: 0.68, fontSize: 12, lineHeight: 1.45 }}>
+                          Carica una tavola già fatta per farla controllare, oppure un file STEP/STP per impostare un'idea di tavola con possibile anteprima futura.
+                        </p>
+                      </div>
+                    </div>
+
+                    <div style={s.drawingUploadGrid}>
+                      <button style={{ ...s.drawingUploadBtn, border: `1px solid ${theme.border}`, color: theme.text }} onClick={() => drawingReviewInputRef.current?.click()} type="button">
+                        📄 Carica tavola
+                        <small>PDF, immagine, DWG, DXF</small>
+                      </button>
+                      <button style={{ ...s.drawingUploadBtn, border: `1px solid ${theme.border}`, color: theme.text }} onClick={() => drawingStepInputRef.current?.click()} type="button">
+                        🧊 Carica STEP/3D
+                        <small>STEP, STP, STL, IGES</small>
+                      </button>
+                    </div>
+
+                    {(drawingReviewFile || drawingStepFile) && (
+                      <div style={s.drawingUploadedList}>
+                        {drawingReviewFile && (
+                          <div style={{ ...s.drawingFileCard, border: `1px solid ${theme.border}`, background: isDark ? "#111" : "#fff" }}>
+                            <div style={{ ...s.drawingFileIcon, background: theme.primary }}>📄</div>
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <strong style={s.drawingFileName}>{drawingReviewFile.fileAttachment.name}</strong>
+                              <span style={s.drawingFileSub}>{(drawingReviewFile.fileAttachment.size / 1024).toFixed(1)} KB · tavola da revisionare</span>
+                              {drawingReviewFile.previewUrl && <img src={drawingReviewFile.previewUrl} alt="Anteprima tavola" style={s.drawingPreviewImage} />}
+                            </div>
+                            <button style={s.drawingRemoveBtn} onClick={removeDrawingReviewFile} type="button">×</button>
+                          </div>
+                        )}
+
+                        {drawingStepFile && (
+                          <div style={{ ...s.drawingFileCard, border: `1px solid ${theme.border}`, background: isDark ? "#111" : "#fff" }}>
+                            <div style={{ ...s.drawingFileIcon, background: theme.primary }}>🧊</div>
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <strong style={s.drawingFileName}>{drawingStepFile.fileAttachment.name}</strong>
+                              <span style={s.drawingFileSub}>{(drawingStepFile.fileAttachment.size / 1024).toFixed(1)} KB · modello per idea tavola</span>
+                              <div style={{ fontSize: 11, opacity: 0.65, marginTop: 4 }}>Anteprima 3D: predisposta per futura integrazione viewer/backend.</div>
+                            </div>
+                            <button style={s.drawingRemoveBtn} onClick={removeDrawingStepFile} type="button">×</button>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                  <div style={s.checklistGrid}><div><label style={s.label}>Nome pezzo</label><input style={{ ...s.input, background: isDark ? "#050505" : "#ffffff", color: theme.text, border: `1px solid ${theme.border}` }} value={drawingForm.partName} onChange={e => updateDrawingField("partName", e.target.value)} placeholder="Es. Albero intermedio" /></div><div><label style={s.label}>Tipo pezzo</label><input style={{ ...s.input, background: isDark ? "#050505" : "#ffffff", color: theme.text, border: `1px solid ${theme.border}` }} value={drawingForm.partType} onChange={e => updateDrawingField("partType", e.target.value)} placeholder="Albero, perno, staffa..." /></div><div><label style={s.label}>Materiale</label><input style={{ ...s.input, background: isDark ? "#050505" : "#ffffff", color: theme.text, border: `1px solid ${theme.border}` }} value={drawingForm.material} onChange={e => updateDrawingField("material", e.target.value)} placeholder="C45, S235..." /></div><div><label style={s.label}>Quantità / lotto</label><input style={{ ...s.input, background: isDark ? "#050505" : "#ffffff", color: theme.text, border: `1px solid ${theme.border}` }} value={drawingForm.productionQuantity} onChange={e => updateDrawingField("productionQuantity", e.target.value)} placeholder="1 pezzo, 100 pezzi..." /></div></div><label style={s.label}>Lavorazione prevista</label><input style={{ ...s.input, background: isDark ? "#050505" : "#ffffff", color: theme.text, border: `1px solid ${theme.border}` }} value={drawingForm.manufacturing} onChange={e => updateDrawingField("manufacturing", e.target.value)} placeholder="Tornitura, fresatura..." /><label style={s.label}>Geometrie principali</label><textarea style={{ ...s.checklistTextarea, background: isDark ? "#050505" : "#ffffff", color: theme.text, border: `1px solid ${theme.border}` }} value={drawingForm.mainFeatures} onChange={e => updateDrawingField("mainFeatures", e.target.value)} placeholder="Fori, cave, asole..." /><label style={s.label}>Funzione del pezzo nell'assieme</label><textarea style={{ ...s.checklistTextarea, background: isDark ? "#050505" : "#ffffff", color: theme.text, border: `1px solid ${theme.border}` }} value={drawingForm.assemblyFunction} onChange={e => updateDrawingField("assemblyFunction", e.target.value)} placeholder="Cosa fa il pezzo?" />{(["functionalSurfaces", "holesThreads", "fits", "tolerances", "roughness"] as (keyof DrawingForm)[]).map(field => <div key={field}><label style={s.label}>{field === "functionalSurfaces" ? "Superfici funzionali" : field === "holesThreads" ? "Fori / filetti / lamature" : field === "fits" ? "Accoppiamenti" : field === "tolerances" ? "Tolleranze già previste" : "Rugosità già previste"}</label><input style={{ ...s.input, background: isDark ? "#050505" : "#ffffff", color: theme.text, border: `1px solid ${theme.border}` }} value={drawingForm[field]} onChange={e => updateDrawingField(field, e.target.value)} /></div>)}<button style={{ ...s.checkBtn, background: theme.primary }} onClick={runDrawingGenerator}>Genera controllo tavola</button></div><div style={s.checklistResultsArea}>{drawingResults.length === 0 ? <div style={{ ...s.emptyChecklist, border: `1px dashed ${theme.border}` }}>Inserisci i dati del pezzo e premi “Genera controllo tavola”.</div> : drawingResults.map((item, index) => <div key={index} style={{ ...s.resultCard, background: isDark ? "#050505" : "#f8fafc", border: `1px solid ${theme.border}` }}><div style={s.resultTop}><strong>{item.category}: {item.item}</strong><span style={s.resultStatus}>{item.status}</span></div><p style={s.resultDetail}>{item.reason}</p><p style={{ ...s.resultSuggestion, borderLeft: `3px solid ${theme.primary}` }}>{item.suggestion}</p></div>)}</div></div></div></div>}
 
         {showMaterials && <div style={s.overlay}><div style={{ ...s.checklistModal, background: isDark ? "#111111" : "white", color: theme.text, border: `1px solid ${theme.border}` }}><div style={s.modalHeader}><div><h2 style={{ fontSize: "20px", margin: 0 }}>Libreria materiali</h2><p style={s.checklistSubtitle}>Conversioni normative e proprietà meccaniche indicative.</p></div><button style={{ ...s.backBtn, color: theme.text, border: `1px solid ${theme.border}` }} onClick={() => setShowMaterials(false)}>← Indietro</button></div><div style={s.materialToolbar}><input style={{ ...s.materialSearch, background: isDark ? "#050505" : "#ffffff", color: theme.text, border: `1px solid ${theme.border}` }} value={materialSearch} onChange={e => setMaterialSearch(e.target.value)} placeholder="Cerca materiale, EN, DIN, AISI, JIS..." /><button style={{ ...s.addMaterialBtn, background: theme.primary }} onClick={() => setShowAddMaterial(prev => !prev)}>{showAddMaterial ? "Chiudi" : "+ Aggiungi materiale"}</button></div>{showAddMaterial && <div style={{ ...s.addMaterialPanel, background: isDark ? "#050505" : "#f8fafc", border: `1px solid ${theme.border}` }}><div style={s.addMaterialHeader}><strong>Nuovo materiale personalizzato</strong><span>Compila i dati che conosci. Gli altri resteranno “Non specificato”.</span></div><div style={s.addMaterialGrid}>{(["name", "key", "en", "uni", "din", "aisi", "jis", "iso", "rm", "re"] as (keyof MaterialInfo)[]).map(field => <div key={String(field)}><label style={s.label}>{String(field).toUpperCase()}</label><input style={{ ...s.input, background: isDark ? "#111" : "#fff", color: theme.text, border: `1px solid ${theme.border}` }} value={(newMaterial as any)[field] || ""} onChange={e => updateNewMaterialField(field, e.target.value)} /></div>)}</div>{(["hardness", "treatments", "weldability", "machinability", "uses"] as (keyof MaterialInfo)[]).map(field => <div key={String(field)}><label style={s.label}>{String(field)}</label><input style={{ ...s.input, background: isDark ? "#111" : "#fff", color: theme.text, border: `1px solid ${theme.border}` }} value={(newMaterial as any)[field] || ""} onChange={e => updateNewMaterialField(field, e.target.value)} /></div>)}<label style={s.label}>Note</label><textarea style={{ ...s.addMaterialTextarea, background: isDark ? "#111" : "#fff", color: theme.text, border: `1px solid ${theme.border}` }} value={newMaterial.notes} onChange={e => updateNewMaterialField("notes", e.target.value)} /><button style={{ ...s.saveMaterialBtn, background: theme.primary }} onClick={addCustomMaterial}>Salva materiale</button></div>}<div style={s.materialGrid}>{allMaterials.filter(m => { const q = materialSearch.toLowerCase().trim(); if (!q) return true; return `${m.name} ${m.en} ${m.uni} ${m.din} ${m.aisi} ${m.jis} ${m.iso} ${m.uses}`.toLowerCase().includes(q); }).map(material => <div key={material.key} style={{ ...s.materialCard, background: isDark ? "#050505" : "#f8fafc", border: `1px solid ${theme.border}` }}><div style={s.materialHead}><div><h3 style={{ margin: 0 }}>{material.name}</h3>{customMaterials.some(item => item.key === material.key) && <span style={s.customTag}>Personalizzato</span>}</div><div style={s.materialActions}><button style={{ ...s.smallUseBtn, background: theme.primary }} onClick={() => { setQuickCalcForm(prev => ({ ...prev, material: material.name })); setShowMaterials(false); setShowQuickCalc(true); }}>Usa in verifica</button>{customMaterials.some(item => item.key === material.key) && <button style={s.smallDeleteMaterialBtn} onClick={() => deleteCustomMaterial(material.key)}>Elimina</button>}</div></div><div style={s.materialCodes}><span>EN: {material.en}</span><span>UNI: {material.uni}</span><span>DIN: {material.din}</span><span>AISI/SAE: {material.aisi}</span><span>JIS: {material.jis}</span><span>ISO: {material.iso}</span></div><div style={s.materialProps}><strong>Rm:</strong> {material.rm} MPa · <strong>Re:</strong> {material.re} MPa · <strong>Durezza:</strong> {material.hardness}</div><p><strong>Trattamenti:</strong> {material.treatments}</p><p><strong>Saldabilità:</strong> {material.weldability}</p><p><strong>Lavorabilità:</strong> {material.machinability}</p><p><strong>Impieghi:</strong> {material.uses}</p><p style={{ opacity: 0.68 }}><strong>Nota:</strong> {material.notes}</p></div>)}</div></div></div>}
 
@@ -1325,6 +1489,17 @@ const s: any = {
   checklistLayout: { flex: 1, minHeight: 0, display: "grid", gridTemplateColumns: "minmax(340px, 0.9fr) minmax(360px, 1.1fr)", gap: 22, overflow: "hidden" },
   quickCalcLayout: { flex: 1, minHeight: 0, display: "grid", gridTemplateColumns: "minmax(340px, 0.85fr) minmax(400px, 1.15fr)", gap: 22, overflow: "hidden" },
   drawingLayout: { flex: 1, minHeight: 0, display: "grid", gridTemplateColumns: "minmax(380px, 0.95fr) minmax(430px, 1.05fr)", gap: 22, overflow: "hidden" },
+  drawingUploadPanel: { borderRadius: 18, padding: 16, marginBottom: 18 },
+  drawingUploadHeader: { display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, marginBottom: 12 },
+  drawingUploadGrid: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 },
+  drawingUploadBtn: { minHeight: 72, borderRadius: 16, background: "transparent", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 4, fontWeight: 850, fontSize: 14 },
+  drawingUploadedList: { display: "flex", flexDirection: "column", gap: 10, marginTop: 12 },
+  drawingFileCard: { display: "flex", alignItems: "flex-start", gap: 10, borderRadius: 16, padding: 12 },
+  drawingFileIcon: { width: 36, height: 44, borderRadius: 10, color: "white", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, fontWeight: 900, flexShrink: 0 },
+  drawingFileName: { display: "block", fontSize: 13, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" },
+  drawingFileSub: { display: "block", fontSize: 11, opacity: 0.65, marginTop: 2 },
+  drawingPreviewImage: { width: "100%", maxHeight: 160, objectFit: "contain", borderRadius: 12, marginTop: 10, background: "rgba(120,120,120,0.08)" },
+  drawingRemoveBtn: { width: 28, height: 28, borderRadius: "50%", border: "none", background: "rgba(120,120,120,0.16)", cursor: "pointer", fontSize: 18, lineHeight: 1, flexShrink: 0 },
   checklistFormArea: { overflowY: "auto", paddingRight: 6 },
   checklistResultsArea: { overflowY: "auto", display: "flex", flexDirection: "column", gap: 12, paddingRight: 6 },
   checklistGrid: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 },

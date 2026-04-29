@@ -95,7 +95,7 @@ const THEMES: Theme[] = [
   { name: "Dark Black", primary: "#60a5fa", bg: "#050505", surface: "#111111", text: "#f8fafc", border: "#262626" },
 ];
 
-const STORAGE_KEY = "techai_backend_ready_fixed_v2";
+const STORAGE_KEY = "techai_backend_ready_fixed_v3";
 const DEFAULT_USER: UserProfile = { name: "Utente", email: "utente@techai.local" };
 
 function createId() {
@@ -172,14 +172,18 @@ function buildIssuesFromAiAnswer(answer: string): DrawingIssue[] {
 }
 
 function runClientTests() {
-  const png = new File(["x"], "tavola.png", { type: "image/png" });
-  const step = new File(["x"], "pezzo.step", { type: "application/octet-stream" });
-  const txt = new File(["x"], "note.txt", { type: "text/plain" });
+  try {
+    const png = new File(["x"], "tavola.png", { type: "image/png" });
+    const step = new File(["x"], "pezzo.step", { type: "application/octet-stream" });
+    const txt = new File(["x"], "note.txt", { type: "text/plain" });
 
-  console.assert(isDrawingReviewFile(png) === true, "TEST: PNG should be valid drawing review file");
-  console.assert(isStepFile(step) === true, "TEST: STEP should be valid 3D file");
-  console.assert(isDrawingReviewFile(txt) === false, "TEST: TXT should not be a drawing review file");
-  console.assert(buildIssuesFromAiAnswer("mancano quote e tolleranze").length >= 2, "TEST: AI issue extraction should detect quote/tolleranze");
+    console.assert(isDrawingReviewFile(png) === true, "TEST: PNG should be valid drawing review file");
+    console.assert(isStepFile(step) === true, "TEST: STEP should be valid 3D file");
+    console.assert(isDrawingReviewFile(txt) === false, "TEST: TXT should not be a drawing review file");
+    console.assert(buildIssuesFromAiAnswer("mancano quote e tolleranze").length >= 2, "TEST: AI issue extraction should detect quote/tolleranze");
+  } catch {
+    // I test usano File, disponibile nel browser. Nessun blocco in ambienti strani.
+  }
 }
 
 export default function App() {
@@ -857,7 +861,13 @@ export default function App() {
             </div>
 
             <div style={s.checklistResultsArea}>
-              <DrawingPreview issues={drawingIssues} theme={theme} isDark={isDark} />
+              <DrawingPreview
+                issues={drawingIssues}
+                previewUrl={drawingReviewFile?.previewUrl}
+                fileName={drawingReviewFile?.fileAttachment.name}
+                theme={theme}
+                isDark={isDark}
+              />
 
               {drawingResults.length === 0 ? (
                 <div style={{ ...s.emptyChecklist, border: `1px dashed ${theme.border}` }}>
@@ -976,27 +986,58 @@ function FileCard({ upload, icon, theme, isDark, onRemove }: { upload: DrawingUp
   );
 }
 
-function DrawingPreview({ issues, theme, isDark }: { issues: DrawingIssue[]; theme: Theme; isDark: boolean }) {
-  const badgeColor = issues.length === 0 ? "#64748b" : issues.some(i => i.severity === "errore") ? "#dc2626" : issues.some(i => i.severity === "attenzione") ? "#f59e0b" : "#16a34a";
+function DrawingPreview({
+  issues,
+  previewUrl,
+  fileName,
+  theme,
+  isDark,
+}: {
+  issues: DrawingIssue[];
+  previewUrl?: string;
+  fileName?: string;
+  theme: Theme;
+  isDark: boolean;
+}) {
+  const badgeColor =
+    issues.length === 0
+      ? "#64748b"
+      : issues.some(i => i.severity === "errore")
+      ? "#dc2626"
+      : issues.some(i => i.severity === "attenzione")
+      ? "#f59e0b"
+      : "#16a34a";
 
   return (
     <div style={{ ...s.drawingPreviewPanel, background: isDark ? "#050505" : "#f8fafc", border: `1px solid ${theme.border}` }}>
       <div style={s.drawingPreviewTop}>
         <div>
           <strong>Anteprima controllo tavola</strong>
-          <p style={s.muted}>{issues.length === 0 ? "Carica una tavola e premi Analizza immagine tavola." : "I marker indicano zone da controllare."}</p>
+          <p style={s.muted}>{previewUrl ? `Anteprima reale: ${fileName || "tavola caricata"}` : "Carica un'immagine PNG/JPG/WebP per vedere la tavola a destra."}</p>
         </div>
         <span style={{ ...s.previewBadge, background: badgeColor }}>{issues.length}</span>
       </div>
 
-      <div style={{ ...s.drawingSheetMock, background: isDark ? "#0b0b0b" : "#fff", border: `1px solid ${theme.border}` }}>
-        <div style={s.sheetViewLarge}>Vista principale</div>
-        <div style={s.sheetViewSmallA}>Sezione A-A</div>
-        <div style={s.sheetViewSmallB}>Dettaglio</div>
-        <div style={s.sheetCartiglio}>Cartiglio</div>
-        {issues.length === 0 && <div style={s.noIssuesOverlay}>Nessuna analisi eseguita</div>}
+      <div style={{ ...s.realDrawingPreviewBox, background: isDark ? "#0b0b0b" : "#ffffff", border: `1px solid ${theme.border}` }}>
+        {previewUrl ? (
+          <img src={previewUrl} alt={fileName || "Anteprima tavola"} style={s.realDrawingPreviewImage} />
+        ) : (
+          <div style={s.noIssuesOverlay}>Nessuna anteprima immagine disponibile</div>
+        )}
+
         {issues.map(issue => (
-          <div key={issue.id} title={issue.detail} style={{ ...s.issueMarker, left: `${issue.x}%`, top: `${issue.y}%`, background: issue.severity === "errore" ? "#dc2626" : issue.severity === "attenzione" ? "#f59e0b" : "#16a34a" }}>!</div>
+          <div
+            key={issue.id}
+            title={issue.detail}
+            style={{
+              ...s.issueMarker,
+              left: `${issue.x}%`,
+              top: `${issue.y}%`,
+              background: issue.severity === "errore" ? "#dc2626" : issue.severity === "attenzione" ? "#f59e0b" : "#16a34a",
+            }}
+          >
+            !
+          </div>
         ))}
       </div>
 
@@ -1108,12 +1149,9 @@ const s: Record<string, React.CSSProperties> = {
   drawingPreviewPanel: { borderRadius: 18, padding: 16, marginBottom: 12 },
   drawingPreviewTop: { display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, marginBottom: 12 },
   previewBadge: { minWidth: 28, height: 28, borderRadius: 999, color: "white", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 900 },
-  drawingSheetMock: { position: "relative", height: 260, borderRadius: 14, overflow: "hidden", marginBottom: 12 },
-  sheetViewLarge: { position: "absolute", left: "8%", top: "12%", width: "42%", height: "42%", border: "1px solid rgba(120,120,120,0.35)", borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, opacity: 0.75 },
-  sheetViewSmallA: { position: "absolute", right: "10%", top: "14%", width: "28%", height: "24%", border: "1px solid rgba(120,120,120,0.35)", borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, opacity: 0.75 },
-  sheetViewSmallB: { position: "absolute", left: "20%", bottom: "16%", width: "26%", height: "20%", border: "1px solid rgba(120,120,120,0.35)", borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, opacity: 0.75 },
-  sheetCartiglio: { position: "absolute", right: "6%", bottom: "6%", width: "34%", height: "18%", border: "1px solid rgba(120,120,120,0.35)", borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, opacity: 0.75 },
-  noIssuesOverlay: { position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 800, opacity: 0.55, pointerEvents: "none" },
+  realDrawingPreviewBox: { position: "relative", width: "100%", minHeight: 360, maxHeight: 520, borderRadius: 14, overflow: "hidden", marginBottom: 12, display: "flex", alignItems: "center", justifyContent: "center" },
+  realDrawingPreviewImage: { width: "100%", height: "100%", maxHeight: 520, objectFit: "contain", display: "block" },
+  noIssuesOverlay: { position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 800, opacity: 0.55, pointerEvents: "none", textAlign: "center", padding: 20 },
   issueMarker: { position: "absolute", transform: "translate(-50%, -50%)", width: 26, height: 26, borderRadius: "50%", color: "white", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 950, fontSize: 15, boxShadow: "0 8px 22px rgba(0,0,0,0.28)", border: "2px solid rgba(255,255,255,0.85)" },
   issueList: { display: "flex", flexDirection: "column", gap: 8 },
   issueRow: { display: "flex", alignItems: "flex-start", gap: 8, fontSize: 12, lineHeight: 1.35 },
@@ -1121,3 +1159,4 @@ const s: Record<string, React.CSSProperties> = {
   emptyText: { fontSize: 12, opacity: 0.6, padding: 8 },
   emptyChecklist: { borderRadius: 18, minHeight: 160, display: "flex", alignItems: "center", justifyContent: "center", textAlign: "center", opacity: 0.68, padding: 18, fontSize: 14 },
 };
+

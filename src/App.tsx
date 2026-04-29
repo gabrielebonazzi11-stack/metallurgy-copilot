@@ -1273,14 +1273,6 @@ export default function App() {
         <div style={{ ...s.sidebarTop, justifyContent: sidebarOpen ? "space-between" : "center" }}>
           {sidebarOpen && <div style={s.logoWrap}><div style={{ ...s.logoMark, backgroundColor: theme.primary }}>T</div><div style={s.logoText}>TECH<span style={{ color: theme.primary }}>AI</span></div></div>}
           <div style={s.topActions}>
-            <button
-              style={{ ...s.topAccountBtn, color: theme.text, border: `1px solid ${theme.border || theme.surface}`, backgroundColor: theme.surface }}
-              onClick={openLoginInsideApp}
-              title={isLoggedIn ? "Account" : "Login"}
-              type="button"
-            >
-              🔐
-            </button>
             <button style={{ ...s.collapseBtn, color: theme.text, backgroundColor: sidebarOpen ? "transparent" : theme.surface, border: `1px solid ${theme.border || theme.surface}` }} onClick={() => setSidebarOpen(prev => !prev)} title={sidebarOpen ? "Chiudi barra laterale" : "Apri barra laterale"}>☰</button>
           </div>
         </div>
@@ -1299,10 +1291,24 @@ export default function App() {
 
         {sidebarOpen && <div style={s.chatHistory}><div style={s.historyHeader}>Cronologia</div>{chats.length === 0 && <div style={{ fontSize: 12, opacity: 0.6, padding: "8px" }}>Nessuna chat salvata</div>}{chats.map(chat => <div key={chat.id} style={{ ...s.historyItem, backgroundColor: chat.id === activeChatId ? theme.surface : "transparent", color: chat.id === activeChatId ? theme.primary : theme.text, border: `1px solid ${chat.id === activeChatId ? theme.border || theme.surface : "transparent"}` }}><div style={s.historyTitle} onClick={() => setActiveChatId(chat.id)}>{chat.title}</div><button style={s.deleteBtn} onClick={() => deleteChat(chat.id)} title="Elimina chat">×</button></div>)}</div>}
         <div style={s.sidebarBottomActions}>{iconBtn("⚙", "Impostazioni", () => { setActiveTab("Aspetto"); setShowSettings(true); })}</div>
-        <div style={{ ...s.sidebarAccount, justifyContent: sidebarOpen ? "flex-start" : "center" }} onClick={() => { setActiveTab("Account"); setShowSettings(true); }}><div style={{ ...s.avatar, backgroundColor: theme.primary }}>{user.name.charAt(0)}</div>{sidebarOpen && <div style={s.accountText}><div style={{ fontWeight: 700, fontSize: "13px" }}>{user.name}</div><div style={{ fontSize: "11px", opacity: 0.7 }}>{isLoggedIn ? "Online · Frontend" : "Non connesso"}</div></div>}</div>
+        
       </aside>
 
       <main style={{ ...s.main, backgroundColor: theme.bg }}>
+        {!sidebarOpen && (
+          <div style={{ ...s.collapsedBrand, color: theme.text }}>
+            TECH<span style={{ color: theme.primary }}>AI</span>
+          </div>
+        )}
+
+        <button
+          style={{ ...s.floatingAccountBtn, color: theme.text, backgroundColor: theme.surface, border: `1px solid ${theme.border || theme.surface}` }}
+          onClick={() => { setActiveTab("Account"); setShowSettings(true); }}
+          title={isLoggedIn ? "Account" : "Login"}
+          type="button"
+        >
+          👤
+        </button>
         <section style={{ ...s.content, justifyContent: currentMessages.length === 0 ? "center" : "flex-start" }}>
           {currentMessages.length === 0 ? <div style={s.homeWrapper}><h1 style={s.welcomeText}>Benvenuto {user.name.split(" ")[0]}, come posso aiutarti?</h1>{renderInputBar("Chiedi a TechAI o carica un file...")}<p style={s.fileHint}>Il file viene mandato al backend. La chiave AI non è nel frontend.</p></div> : <div style={s.chatView}><div style={s.msgList}>{currentMessages.map((m, i) => <div key={i} style={m.role === "utente" ? s.uRow : s.aRow}>{m.role === "AI" && <div style={{ ...s.aiAvatar, background: theme.primary }}>T</div>}<div style={m.role === "utente" ? { ...s.uBox, backgroundColor: theme.surface, border: `1px solid ${theme.border || theme.surface}`, boxShadow: isDark ? "0 8px 20px rgba(0,0,0,0.20)" : "0 8px 22px rgba(15,23,42,0.06)" } : { ...s.aBox, color: theme.text, background: isDark ? "#0b0b0b" : "#ffffff", border: `1px solid ${theme.border || theme.surface}`, boxShadow: isDark ? "0 12px 28px rgba(0,0,0,0.32)" : "0 14px 34px rgba(15,23,42,0.08)" }}>{m.role === "AI" && <div style={s.aiHeader}><div><div style={s.aiName}>TechAI</div><div style={s.aiSubName}>Risposta tecnica dal backend</div></div></div>}{formatText(m.text)}{m.fileAttachment && <div style={{ marginTop: 10, display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", borderRadius: 12, background: "rgba(120,120,120,0.10)", border: `1px solid ${theme.border}`, maxWidth: 320 }}><div style={{ width: 34, height: 42, borderRadius: 6, background: theme.primary, color: "white", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 900, fontSize: 18 }}>📄</div><div style={{ minWidth: 0 }}><div style={{ fontWeight: 800, fontSize: 13, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{m.fileAttachment.name}</div><div style={{ fontSize: 11, opacity: 0.65 }}>{(m.fileAttachment.size / 1024).toFixed(1)} KB · inviato al backend</div></div></div>}</div></div>)}{fileLoading && <div style={{ color: theme.primary, textAlign: "center" }}>📎 Preparazione file...</div>}{loading && <div style={{ color: theme.primary, textAlign: "center" }}>✨ TechAI sta elaborando...</div>}<div ref={chatEndRef} /></div><div style={s.bottomInput}>{renderInputBar("Scrivi qui o carica un file...")}</div></div>}
         </section>
@@ -1422,7 +1428,8 @@ const s: any = {
   logoText: { fontSize: 21, fontWeight: 900, letterSpacing: "-1px", whiteSpace: "nowrap" },
   collapseBtn: { width: 44, height: 44, borderRadius: 14, cursor: "pointer", fontSize: 22, lineHeight: 1, display: "flex", alignItems: "center", justifyContent: "center" },
   topActions: { display: "flex", alignItems: "center", gap: 8, flexShrink: 0 },
-  topAccountBtn: { width: 44, height: 44, borderRadius: 14, cursor: "pointer", fontSize: 16, lineHeight: 1, display: "flex", alignItems: "center", justifyContent: "center" },
+  collapsedBrand: { position: "absolute", top: 22, left: 28, zIndex: 20, fontSize: 24, fontWeight: 950, letterSpacing: "2px", pointerEvents: "none" },
+  floatingAccountBtn: { position: "absolute", top: 18, right: 28, zIndex: 30, width: 44, height: 44, borderRadius: 14, cursor: "pointer", fontSize: 18, lineHeight: 1, display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 8px 22px rgba(0,0,0,0.12)" },
   iconNav: { display: "flex", flexDirection: "column", gap: 10, flexShrink: 0 },
   toolsGroup: { display: "flex", flexDirection: "column", gap: 6, borderRadius: 18, padding: 8, margin: "8px 0" },
   toolsTitle: { fontSize: 11, textTransform: "uppercase", fontWeight: 950, letterSpacing: "0.6px", opacity: 0.95, padding: "5px 8px 7px", borderBottom: "1px solid rgba(120,120,120,0.18)", marginBottom: 3 },

@@ -1272,13 +1272,22 @@ export default function App() {
       <aside style={{ ...s.sidebar, width: sidebarOpen ? 280 : 74, minWidth: sidebarOpen ? 280 : 74, backgroundColor: isDark ? "#050505" : theme.bg, borderRight: `1px solid ${theme.border || theme.surface}`, filter: !isLoggedIn ? "blur(1px)" : "none", pointerEvents: !isLoggedIn ? "none" : "auto" }}>
         <div style={{ ...s.sidebarTop, justifyContent: sidebarOpen ? "space-between" : "center" }}>
           {sidebarOpen && <div style={s.logoWrap}><div style={{ ...s.logoMark, backgroundColor: theme.primary }}>T</div><div style={s.logoText}>TECH<span style={{ color: theme.primary }}>AI</span></div></div>}
-          <button style={{ ...s.collapseBtn, color: theme.text, backgroundColor: sidebarOpen ? "transparent" : theme.surface, border: `1px solid ${theme.border || theme.surface}` }} onClick={() => setSidebarOpen(prev => !prev)} title={sidebarOpen ? "Chiudi barra laterale" : "Apri barra laterale"}>☰</button>
+          <div style={s.topActions}>
+            <button
+              style={{ ...s.topAccountBtn, color: theme.text, border: `1px solid ${theme.border || theme.surface}`, backgroundColor: theme.surface }}
+              onClick={openLoginInsideApp}
+              title={isLoggedIn ? "Account" : "Login"}
+              type="button"
+            >
+              🔐
+            </button>
+            <button style={{ ...s.collapseBtn, color: theme.text, backgroundColor: sidebarOpen ? "transparent" : theme.surface, border: `1px solid ${theme.border || theme.surface}` }} onClick={() => setSidebarOpen(prev => !prev)} title={sidebarOpen ? "Chiudi barra laterale" : "Apri barra laterale"}>☰</button>
+          </div>
         </div>
 
         <div style={{ ...s.iconNav, alignItems: sidebarOpen ? "stretch" : "center" }}>
           {iconBtn("＋", "Nuova", createNewChat)}
           {iconBtn("≡", "Chat", () => setSidebarOpen(true), sidebarOpen)}
-          {iconBtn("🔐", isLoggedIn ? "Account" : "Login", openLoginInsideApp)}
           <div style={{ ...s.toolsGroup, backgroundColor: isDark ? "#111111" : theme.surface, border: `1px solid ${theme.border || theme.surface}`, boxShadow: isDark ? "0 0 0 1px rgba(255,255,255,0.04) inset" : "0 8px 20px rgba(0,0,0,0.04)" }}>
             {sidebarOpen && <div style={{ ...s.toolsTitle, color: theme.primary }}>Strumenti tecnici</div>}
             {iconBtn("✓", "Checklist", () => setShowChecklist(true))}
@@ -1412,6 +1421,8 @@ const s: any = {
   logoMark: { width: 34, height: 34, borderRadius: 12, color: "white", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 900 },
   logoText: { fontSize: 21, fontWeight: 900, letterSpacing: "-1px", whiteSpace: "nowrap" },
   collapseBtn: { width: 44, height: 44, borderRadius: 14, cursor: "pointer", fontSize: 22, lineHeight: 1, display: "flex", alignItems: "center", justifyContent: "center" },
+  topActions: { display: "flex", alignItems: "center", gap: 8, flexShrink: 0 },
+  topAccountBtn: { width: 44, height: 44, borderRadius: 14, cursor: "pointer", fontSize: 16, lineHeight: 1, display: "flex", alignItems: "center", justifyContent: "center" },
   iconNav: { display: "flex", flexDirection: "column", gap: 10, flexShrink: 0 },
   toolsGroup: { display: "flex", flexDirection: "column", gap: 6, borderRadius: 18, padding: 8, margin: "8px 0" },
   toolsTitle: { fontSize: 11, textTransform: "uppercase", fontWeight: 950, letterSpacing: "0.6px", opacity: 0.95, padding: "5px 8px 7px", borderBottom: "1px solid rgba(120,120,120,0.18)", marginBottom: 3 },

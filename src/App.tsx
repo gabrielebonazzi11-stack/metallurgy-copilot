@@ -1090,33 +1090,21 @@ export default function App() {
         ...updatedMessages,
         {
           role: "AI",
-          text:
-            "⚠️ Backend non collegato correttamente.
+          text: `⚠️ Backend non collegato correttamente.
 
-" +
-            "La grafica dell'app funziona, ma la risposta AI richiede una rotta `/api/chat` attiva.
+La grafica dell'app funziona, ma la risposta AI richiede una rotta \`/api/chat\` attiva.
 
-" +
-            "Cosa significa:
-" +
-            "- il frontend è ok;
-" +
-            "- la chat prova a chiamare `/api/chat`;
-" +
-            "- online, quella rotta non sta restituendo una risposta valida.
+Cosa significa:
+- il frontend è ok;
+- la chat prova a chiamare \`/api/chat\`;
+- online, quella rotta non sta restituendo una risposta valida.
 
-" +
-            "Soluzione consigliata:
-" +
-            "1. se vuoi usare Vercel, dobbiamo creare una cartella `api/chat.ts` nella root del progetto;
-" +
-            "2. se vuoi usare backend separato, devi avviarlo e collegarlo al frontend;
-" +
-            "3. la key deve restare solo nel backend, mai in `App.tsx`.
+Soluzione consigliata:
+1. se vuoi usare Vercel, dobbiamo creare una cartella \`api/chat.ts\` nella root del progetto;
+2. se vuoi usare backend separato, devi avviarlo e collegarlo al frontend;
+3. la key deve restare solo nel backend, mai in \`App.tsx\`.
 
-" +
-            `Dettaglio tecnico: ${error?.message || "errore sconosciuto"}` +
-            (isBackendMissing ? "" : ""),
+Dettaglio tecnico: ${error?.message || "errore sconosciuto"}`,
         },
       ]);
     } finally {
@@ -1719,3 +1707,4 @@ const s: any = {
   miniPrimaryBtn: { border: "none", color: "white", padding: 12, borderRadius: 12, cursor: "pointer", fontWeight: 800 },
   miniDangerBtn: { border: "none", color: "#991b1b", background: "#fee2e2", padding: 12, borderRadius: 12, cursor: "pointer", fontWeight: 800 },
 };
+

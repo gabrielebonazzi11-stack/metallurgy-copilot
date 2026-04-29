@@ -884,7 +884,7 @@ export default function App() {
               role: "system",
               content:
                 `Sei TechAI. Utente: ${user.name}. Focus: ${interest}. ` +
-                "Rispondi in italiano, in modo tecnico ma chiaro. Puoi usare emoji nelle risposte quando aiutano la leggibilità, ad esempio ✅ per conferme, ⚠️ per attenzioni, 📌 per punti importanti, 🔧 per parti tecniche, 📐 per disegni/tavole, 🧮 per calcoli e 🧠 per spiegazioni. Non esagerare: usa poche emoji mirate e professionali. Usa titoli Markdown con ## e ### quando la risposta è lunga. Usa liste ordinate per procedimenti. Quando scrivi formule, calcoli o passaggi matematici usa LaTeX leggibile: frazioni con \\frac{}, moltiplicazioni con \\cdot, radici con \\sqrt{}, potenze con ^{}. Per formule importanti usa blocchi \\[ ... \\]. Se l'utente carica un file, analizza il contenuto testuale presente in chat. Evidenzia sempre Conclusione:, Nota: o Risultato: quando utile.",
+                "Rispondi in italiano, in modo tecnico ma chiaro. Puoi usare emoji nelle risposte quando aiutano la leggibilità, ad esempio ✅ per conferme, ⚠️ per attenzioni, 📌 per punti importanti, 🔧 per parti tecniche, 📐 per disegni/tavole, 🧮 per calcoli e 🧠 per spiegazioni. Non esagerare: usa poche emoji mirate e professionali. Usa titoli Markdown con ## e ### quando la risposta è lunga. Usa liste ordinate per procedimenti. Quando scrivi formule, calcoli o passaggi matematici usa LaTeX leggibile: frazioni con \frac{}, moltiplicazioni con \cdot, radici con \sqrt{}, potenze con ^{}. Per formule importanti usa blocchi \[ ... \]. Se l'utente carica un file, analizza il contenuto testuale presente in chat. Evidenzia sempre Conclusione:, Nota: o Risultato: quando utile.",
             },
             ...updatedMessages.map(m => ({
               role: m.role === "utente" ? "user" : "assistant",
@@ -1474,7 +1474,17 @@ export default function App() {
               <div style={s.modalMain}>
                 <div style={s.modalHeader}><h2 style={{ fontSize: "18px", margin: 0 }}>{activeTab}</h2><button style={{ ...s.backBtn, color: theme.text, border: `1px solid ${theme.border}` }} onClick={() => setShowSettings(false)}>← Indietro</button></div>
                 {activeTab === "Account" && <div><label style={s.label}>Nome Visualizzato</label><input style={{ ...s.input, background: isDark ? "#050505" : "#ffffff", color: theme.text, border: `1px solid ${theme.border}` }} value={user.name} onChange={e => setUser({ ...user, name: e.target.value })} /><label style={s.label}>Email</label><input style={{ ...s.input, background: isDark ? "#050505" : "#ffffff", color: theme.text, border: `1px solid ${theme.border}` }} value={user.email} onChange={e => setUser({ ...user, email: e.target.value })} /><div style={s.accountButtonRow}><button style={{ ...s.miniPrimaryBtn, background: theme.primary }} onClick={openLoginInsideApp}>Apri login</button><button style={s.miniDangerBtn} onClick={handleLogout}>Logout</button></div><div style={s.badge}>Stato Account: {isLoggedIn ? "Accesso effettuato ✅" : "Non connesso"}</div></div>}
-                {activeTab === "Aspetto" && <div style={s.themeGrid}>{THEMES.map(t => <div key={t.name} onClick={() => setTheme(t)} style={{ ...s.themeOption, background: theme.name === t.name ? theme.surface : "transparent", color: theme.text, border: theme.name === t.name ? `1px solid ${t.primary}` : `1px solid ${theme.border || "transparent"}` }}><div style={{ width: 12, height: 12, borderRadius: "50%", background: t.primary }} />{t.name}</div>)}</div>}
+                {activeTab === "Aspetto" && <div style={s.themeGrid}>{THEMES.map(t => <div key={t.name} onClick={() => setTheme(t)} style={{ ...s.themeOption, background: theme.name === t.name ? theme.surface : "transparent", color: theme.text, border: theme.name === t.name ? `1px solid ${t.primary}` : `1px solid ${theme.border || "transparent"}` }}><div
+                    style={{
+                      width: 12,
+                      height: 12,
+                      borderRadius: "50%",
+                      background: t.name === "Dark Black" ? "#050505" : t.primary,
+                      border: t.name === "Dark Black" ? "1px solid #ffffff" : "none",
+                      boxShadow: t.name === "Dark Black" ? "0 0 0 1px rgba(0,0,0,0.35)" : "none",
+                    }}
+                  />
+                  {t.name}</div>)}</div>}
                 {activeTab === "AI Focus" && <div><label style={s.label}>Ambito Tecnico Principale</label><input style={{ ...s.input, background: isDark ? "#050505" : "#ffffff", color: theme.text, border: `1px solid ${theme.border}` }} value={interest} onChange={e => setInterest(e.target.value)} /></div>}
                 <button style={{ ...s.saveBtn, background: theme.primary }} onClick={saveAll}>Salva modifiche</button>
               </div>

@@ -80,10 +80,47 @@ type DrawingForm = {
   productionQuantity: string;
 };
 
+type ChecklistStatus = "✅ Conforme" | "⚠️ Da verificare" | "❌ Errore critico";
+
+type ChecklistForm = {
+  componentType: string;
+  material: string;
+  load: string;
+  environment: string;
+  machining: string;
+  safetyFactor: string;
+  tolerances: string;
+  roughness: string;
+  notes: string;
+};
+
+type ChecklistResult = {
+  area: string;
+  status: ChecklistStatus;
+  detail: string;
+  suggestion: string;
+};
+
+type QuickCalcForm = {
+  componentType: string;
+  stressType: string;
+  material: string;
+  load: string;
+  distance: string;
+  diameter: string;
+  safetyFactorRequired: string;
+};
+
 type QuickCalcResult = {
   title: string;
+  scheme: string;
+  formulas: string[];
   values: string[];
+  sigma: number;
+  deflection: number;
+  safetyFactor: number;
   outcome: "OK" | "NON OK";
+  notes: string[];
 };
 
 const THEMES: Theme[] = [
@@ -202,6 +239,29 @@ export default function App() {
   const [interest, setInterest] = useState("Ingegneria Meccanica");
 
   const [materialSearch, setMaterialSearch] = useState("");
+
+  const [checklistForm, setChecklistForm] = useState<ChecklistForm>({
+    componentType: "",
+    material: "",
+    load: "",
+    environment: "",
+    machining: "",
+    safetyFactor: "",
+    tolerances: "",
+    roughness: "",
+    notes: "",
+  });
+  const [checklistResults, setChecklistResults] = useState<ChecklistResult[]>([]);
+
+  const [quickCalcForm, setQuickCalcForm] = useState<QuickCalcForm>({
+    componentType: "perno",
+    stressType: "flessione",
+    material: "C45",
+    load: "2500",
+    distance: "120",
+    diameter: "20",
+    safetyFactorRequired: "2",
+  });
   const [quickCalcResult, setQuickCalcResult] = useState<QuickCalcResult | null>(null);
 
   const [drawingReviewFile, setDrawingReviewFile] = useState<DrawingUpload | null>(null);
@@ -325,6 +385,36 @@ export default function App() {
 
   const updateDrawingField = (field: keyof DrawingForm, value: string) => {
     setDrawingForm(prev => ({ ...prev, [field]: value }));
+  };
+
+  const updateChecklistField = (field: keyof ChecklistForm, value: string) => {
+    setChecklistForm(prev => ({ ...prev, [field]: value }));
+  };
+
+  const updateQuickCalcField = (field: keyof QuickCalcForm, value: string) => {
+    setQuickCalcForm(prev => ({ ...prev, [field]: value }));
+  };
+
+  const normalizeMaterialKey = (value?: string) => String(value || "").toLowerCase().replaceAll(" ", "").replaceAll("-", "");
+
+  const findMaterial = (value: string) => {
+    const key = normalizeMaterialKey(value);
+    return MATERIALS_DB.find((m: MaterialInfo) =>
+      normalizeMaterialKey(m.key) === key ||
+      normalizeMaterialKey(m.name) === key ||
+      normalizeMaterialKey(m.en) === key ||
+      normalizeMaterialKey(m.din) === key ||
+      normalizeMaterialKey(m.aisi) === key ||
+      normalizeMaterialKey(m.jis) === key
+    );
+  };
+
+  const getYoungModulus = (material?: MaterialInfo) => {
+    if (!material) return 210000;
+    const n = material.name.toLowerCase();
+    if (n.includes("alluminio") || n.includes("aluminium")) return 70000;
+    if (n.includes("rame") || n.includes("ottone")) return 110000;
+    return 210000;
   };
 
   const handleLogin = () => {
@@ -552,17 +642,157 @@ export default function App() {
     setDrawingResults(results);
   };
 
-  const runQuickCalc = () => {
-    const material = MATERIALS_DB[0];
-    setQuickCalcResult({
-      title: "Verifica rapida dimostrativa",
-      outcome: "OK",
-      values: [
-        `Materiale esempio: ${material?.name || "C45"}`,
-        "Modulo pronto per formule più dettagliate.",
-        "Per ora la verifica serve come area tecnica preliminare.",
-      ],
+  const runProjectChecklist = () => {
+    const f = checklistForm;
+    const material = f.material.trim().toLowerCase();
+    const loadValue = Number(String(f.load).replace(",", "."));
+    const safetyValue = Number(String(f.safetyFactor).replace(",", "."));
+    const environment = f.environment.trim().toLowerCase();
+    const tolerances = f.tolerances.trim().toLowerCase();
+    const roughness = f.roughness.trim().toLowerCase();
+    const machining = f.machining.trim().toLowerCase();
+
+    const results: ChecklistResult[] = [];
+
+    results.push({
+      area: "Materiale selezionato",
+      status: material ? "⚠️ Da verificare" : "❌ Errore critico",
+      detail: material ? `Materiale indicato: ${f.material}. Va confrontato con carico, ambiente e lavorazione.` : "Materiale non indicato: non è possibile valutare resistenza, trattamenti e lavorabilità.",
+      suggestion: material ? "Controlla Rm, Re/Rp0.2, durezza, saldabilità e disponibilità commerciale." : "Inserisci una sigla materiale, ad esempio C45, S235JR, 42CrMo4, AISI 304.",
     });
+
+    results.push({
+      area: "Coerenza carico/materiale",
+      status: !f.load.trim() || Number.isNaN(loadValue) || loadValue <= 0 ? "❌ Errore critico" : material ? "⚠️ Da verificare" : "❌ Errore critico",
+      detail: !f.load.trim() || Number.isNaN(loadValue) || loadValue <= 0 ? "Carico non indicato o non numerico." : `Carico indicativo inserito: ${f.load} N. La sola checklist non sostituisce la verifica tensionale.`,
+      suggestion: "Esegui almeno una verifica rapida a trazione/flessione/taglio/torsione in base al componente.",
+    });
+
+    results.push({
+      area: "Ambiente d'uso",
+      status: "⚠️ Da verificare",
+      detail: environment ? `Ambiente indicato: ${f.environment}.` : "Ambiente non specificato: corrosione, temperatura, umidità e polveri possono cambiare la scelta del materiale.",
+      suggestion: environment.includes("corros") || environment.includes("umid") || environment.includes("esterno") ? "Valuta inox, zincatura, verniciatura o altro trattamento superficiale." : "Specifica se il pezzo lavora a secco, in esterno, in olio, in ambiente corrosivo o ad alta temperatura.",
+    });
+
+    results.push({
+      area: "Trattamenti termici/superficiali",
+      status: material ? "⚠️ Da verificare" : "❌ Errore critico",
+      detail: material ? "La necessità di trattamenti dipende da usura, fatica, durezza superficiale e accoppiamenti." : "Senza materiale non si possono proporre trattamenti compatibili.",
+      suggestion: material.includes("c45") ? "Per C45 valuta bonifica o tempra superficiale se servono resistenza e durezza." : material.includes("42crmo4") ? "Per 42CrMo4 valuta bonifica se servono alte prestazioni meccaniche." : "Aggiungi una nota se sono richiesti bonifica, cementazione, nitrurazione, tempra, zincatura o anodizzazione.",
+    });
+
+    results.push({
+      area: "Coefficiente di sicurezza",
+      status: !f.safetyFactor.trim() || Number.isNaN(safetyValue) ? "❌ Errore critico" : safetyValue < 1.5 ? "❌ Errore critico" : safetyValue < 2 ? "⚠️ Da verificare" : "✅ Conforme",
+      detail: !f.safetyFactor.trim() || Number.isNaN(safetyValue) ? "Coefficiente di sicurezza non indicato." : `Coefficiente di sicurezza indicato: n = ${f.safetyFactor}.`,
+      suggestion: !f.safetyFactor.trim() || Number.isNaN(safetyValue) ? "Inserisci n. Per componenti statici spesso si parte da valori indicativi ≥ 2." : safetyValue < 1.5 ? "Valore molto basso: giustificalo con norma, prove o calcolo accurato." : "Verifica che il coefficiente sia coerente con incertezza del carico e conseguenze del cedimento.",
+    });
+
+    results.push({
+      area: "Tolleranze dimensionali",
+      status: tolerances ? "✅ Conforme" : "⚠️ Da verificare",
+      detail: tolerances ? `Tolleranze indicate: ${f.tolerances}.` : "Non risultano tolleranze o accoppiamenti indicati.",
+      suggestion: tolerances ? "Controlla che siano presenti sulle quote funzionali." : "Aggiungi tolleranze sulle quote funzionali. Esempi: Ø10 H7, Ø20 h6, posizione fori, planarità appoggi.",
+    });
+
+    results.push({
+      area: "Rugosità",
+      status: roughness ? "✅ Conforme" : "⚠️ Da verificare",
+      detail: roughness ? `Rugosità indicata: ${f.roughness}.` : "Rugosità non indicata.",
+      suggestion: roughness ? "Verifica che la rugosità sia assegnata alle superfici funzionali e non solo come valore generale." : "Aggiungi rugosità generale e rugosità specifiche per sedi, scorrimenti, appoggi, tenute e accoppiamenti.",
+    });
+
+    results.push({
+      area: "Note di lavorazione",
+      status: machining || f.notes.trim() ? "⚠️ Da verificare" : "⚠️ Da verificare",
+      detail: machining ? `Lavorazione indicata: ${f.machining}.` : "Lavorazione non specificata.",
+      suggestion: "Indica se il pezzo è tornito, fresato, saldato, piegato, tagliato laser, rettificato o trattato. Aggiungi note per sbavatura e protezione superficiale.",
+    });
+
+    setChecklistResults(results);
+  };
+
+  const runQuickCalc = () => {
+    const F = Number(quickCalcForm.load.replace(",", "."));
+    const L = Number(quickCalcForm.distance.replace(",", "."));
+    const d = Number(quickCalcForm.diameter.replace(",", "."));
+    const nRequired = Number(quickCalcForm.safetyFactorRequired.replace(",", ".")) || 2;
+    const material = findMaterial(quickCalcForm.material);
+    const Re = material?.re || 300;
+    const E = getYoungModulus(material);
+
+    if (!F || !L || !d || F <= 0 || L <= 0 || d <= 0) {
+      setQuickCalcResult({
+        title: "Dati insufficienti",
+        scheme: "Inserisci carico, distanza e diametro numerici e maggiori di zero.",
+        formulas: [],
+        values: [],
+        sigma: 0,
+        deflection: 0,
+        safetyFactor: 0,
+        outcome: "NON OK",
+        notes: ["Controlla i dati di input: usa N per il carico, mm per lunghezza e diametro."],
+      });
+      return;
+    }
+
+    const A = Math.PI * d * d / 4;
+    const I = Math.PI * Math.pow(d, 4) / 64;
+    const Wf = Math.PI * Math.pow(d, 3) / 32;
+    const Wt = Math.PI * Math.pow(d, 3) / 16;
+    const M = F * L;
+
+    let sigma = 0;
+    let deflection = 0;
+    let formulas: string[] = [];
+    let scheme = "";
+    let title = "";
+    let notes: string[] = [];
+
+    if (quickCalcForm.stressType === "flessione") {
+      sigma = M / Wf;
+      deflection = F * Math.pow(L, 3) / (3 * E * I);
+      title = "Verifica rapida a flessione";
+      scheme = "Schema statico semplificato: perno/albero assimilato a mensola con carico concentrato all'estremità.";
+      formulas = ["Mf = F · L", "Wf = π · d³ / 32", "σf = Mf / Wf", "f = F · L³ / (3 · E · I)", "n = Re / σf"];
+      notes = ["Modello conservativo per mensola semplice.", "Per un perno reale controllare anche taglio, pressione specifica e condizioni di vincolo."];
+    } else if (quickCalcForm.stressType === "taglio") {
+      sigma = (4 * F) / (3 * A);
+      title = "Verifica rapida a taglio";
+      scheme = "Schema statico semplificato: sezione circolare soggetta a taglio trasversale.";
+      formulas = ["A = π · d² / 4", "τmax ≈ 4F / 3A", "n = Re / τmax"];
+      notes = ["Per taglio su spine o perni verificare se il taglio è singolo o doppio.", "Per criteri più corretti usare tensione ammissibile a taglio o Von Mises."];
+    } else if (quickCalcForm.stressType === "torsione") {
+      sigma = M / Wt;
+      title = "Verifica rapida a torsione";
+      scheme = "Schema statico semplificato: albero circolare pieno soggetto a momento torcente.";
+      formulas = ["Mt = F · L", "Wt = π · d³ / 16", "τt = Mt / Wt", "n = Re / τt"];
+      notes = ["Il braccio inserito viene usato come leva per generare il momento torcente.", "Per alberi reali verificare anche fatica, cave linguetta e concentrazioni di tensione."];
+    } else {
+      sigma = F / A;
+      deflection = F * L / (E * A);
+      title = "Verifica rapida a trazione/compressione";
+      scheme = "Schema statico semplificato: barra circolare caricata assialmente.";
+      formulas = ["A = π · d² / 4", "σ = F / A", "ΔL = F · L / (E · A)", "n = Re / σ"];
+      notes = ["Per compressione controllare anche instabilità di punta se il pezzo è snello."];
+    }
+
+    const n = Re / sigma;
+    const outcome = n >= nRequired ? "OK" : "NON OK";
+    const values = [
+      `Materiale usato: ${material ? `${material.name} (${material.en})` : `${quickCalcForm.material} non trovato: usato Re indicativo = ${Re} MPa`}`,
+      `Carico: F = ${F.toFixed(2)} N`,
+      `Distanza/braccio: L = ${L.toFixed(2)} mm`,
+      `Diametro: d = ${d.toFixed(2)} mm`,
+      `Momento indicativo: M = ${M.toFixed(2)} Nmm`,
+      `Tensione calcolata: ${sigma.toFixed(2)} MPa`,
+      `Deformazione indicativa: ${deflection > 0 ? deflection.toFixed(4) + " mm" : "non calcolata per questo modello"}`,
+      `Coefficiente di sicurezza: n = ${n.toFixed(2)}`,
+      `Re materiale indicativo: ${Re} MPa`,
+    ];
+
+    setQuickCalcResult({ title, scheme, formulas, values, sigma, deflection, safetyFactor: n, outcome, notes });
   };
 
   const renderFormattedText = (text: string) => {
@@ -732,8 +962,78 @@ export default function App() {
       {showLoginPanel && <div style={s.overlay}><div style={s.loginModalWrap}>{renderLoginCard()}<button style={s.closeFloatingBtn} onClick={() => setShowLoginPanel(false)} type="button">×</button></div></div>}
 
       {showChecklist && (
-        <Modal title="Checklist tecnica progetto" subtitle="Controllo preliminare automatico per componenti meccanici." theme={theme} isDark={isDark} onClose={() => setShowChecklist(false)}>
-          <div style={s.simplePanel}>Modulo checklist pronto. In questa versione stabile la priorità è sistemare backend, upload file e analisi tavole.</div>
+        <Modal title="Checklist tecnica progetto" subtitle="Controllo preliminare automatico per componenti meccanici." theme={theme} isDark={isDark} onClose={() => setShowChecklist(false)} wide>
+          <div style={s.checklistLayout}>
+            <div style={s.checklistFormArea}>
+              <div style={s.checklistGrid}>
+                <Field label="Tipo componente" value={{showQuickCalc && (
+        <Modal title="Verifica dimensionale rapida" subtitle="Modulo preliminare per alberi, perni, staffe e componenti semplici." theme={theme} isDark={isDark} onClose={() => setShowQuickCalc(false)} wide>
+          <div style={s.quickCalcLayout}>
+            <div style={s.checklistFormArea}>
+              <div style={s.checklistGrid}>
+                <Field label="Tipo componente" value={quickCalcForm.componentType} onChange={v => updateQuickCalcField("componentType", v)} placeholder="Perno, albero, staffa..." theme={theme} isDark={isDark} />
+                <div>
+                  <label style={s.label}>Tipo verifica</label>
+                  <select style={{ ...s.input, background: isDark ? "#050505" : "#fff", color: theme.text, border: `1px solid ${theme.border}` }} value={quickCalcForm.stressType} onChange={e => updateQuickCalcField("stressType", e.target.value)}>
+                    <option value="flessione">Flessione</option>
+                    <option value="taglio">Taglio</option>
+                    <option value="torsione">Torsione</option>
+                    <option value="assiale">Trazione / compressione</option>
+                  </select>
+                </div>
+                <Field label="Materiale" value={quickCalcForm.material} onChange={v => updateQuickCalcField("material", v)} placeholder="C45" theme={theme} isDark={isDark} />
+                <Field label="Carico F [N]" value={quickCalcForm.load} onChange={v => updateQuickCalcField("load", v)} placeholder="2500" theme={theme} isDark={isDark} />
+                <Field label="Distanza / braccio L [mm]" value={quickCalcForm.distance} onChange={v => updateQuickCalcField("distance", v)} placeholder="120" theme={theme} isDark={isDark} />
+                <Field label="Diametro d [mm]" value={quickCalcForm.diameter} onChange={v => updateQuickCalcField("diameter", v)} placeholder="20" theme={theme} isDark={isDark} />
+              </div>
+              <Field label="Coefficiente sicurezza richiesto" value={quickCalcForm.safetyFactorRequired} onChange={v => updateQuickCalcField("safetyFactorRequired", v)} placeholder="2" theme={theme} isDark={isDark} />
+              <button style={{ ...s.primaryBtn, background: theme.primary }} onClick={runQuickCalc} type="button">Calcola verifica</button>
+              <div style={{ ...s.warningBox, border: `1px solid ${theme.border}` }}>Calcolo preliminare: non sostituisce verifica normativa, FEM o relazione firmata.</div>
+            </div>
+
+            <div style={s.checklistResultsArea}>
+              {!quickCalcResult ? (
+                <div style={{ ...s.emptyChecklist, border: `1px dashed ${theme.border}` }}>Inserisci i dati e premi “Calcola verifica”.</div>
+              ) : (
+                <div style={{ ...s.resultCard, background: isDark ? "#050505" : "#f8fafc", border: `1px solid ${theme.border}` }}>
+                  <div style={s.resultTop}><strong>{quickCalcResult.title}</strong><span style={{ color: quickCalcResult.outcome === "OK" ? "#16a34a" : "#dc2626", fontWeight: 950 }}>{quickCalcResult.outcome}</span></div>
+                  <p style={s.resultDetail}>{quickCalcResult.scheme}</p>
+                  <div style={s.formulaBlock}>{quickCalcResult.formulas.map((formula, index) => <div key={index}>• {formula}</div>)}</div>
+                  {quickCalcResult.values.map((value, index) => <div key={index} style={s.valueRow}>• {value}</div>)}
+                  <div style={{ ...s.finalBox, borderLeft: `4px solid ${quickCalcResult.outcome === "OK" ? "#16a34a" : "#dc2626"}` }}>Esito: {quickCalcResult.outcome}. Coefficiente calcolato n = {quickCalcResult.safetyFactor.toFixed(2)}.</div>
+                  {quickCalcResult.notes.map((note, index) => <p key={index} style={s.resultSuggestion}>{note}</p>)}
+                </div>
+              )}
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {showMaterials && (          <Field label="Coefficiente sicurezza" value={checklistForm.safetyFactor} onChange={v => updateChecklistField("safetyFactor", v)} placeholder="2" theme={theme} isDark={isDark} />
+              </div>
+              <Field label="Ambiente d'uso" value={checklistForm.environment} onChange={v => updateChecklistField("environment", v)} placeholder="Interno, esterno, umido, corrosivo, olio..." theme={theme} isDark={isDark} />
+              <Field label="Lavorazione prevista" value={checklistForm.machining} onChange={v => updateChecklistField("machining", v)} placeholder="Tornitura, fresatura, saldatura, rettifica..." theme={theme} isDark={isDark} />
+              <Field label="Tolleranze / accoppiamenti presenti" value={checklistForm.tolerances} onChange={v => updateChecklistField("tolerances", v)} placeholder="Ø20 h6, foro Ø10 H7..." theme={theme} isDark={isDark} />
+              <Field label="Rugosità" value={checklistForm.roughness} onChange={v => updateChecklistField("roughness", v)} placeholder="Ra 3.2 generale, Ra 1.6 sedi..." theme={theme} isDark={isDark} />
+              <label style={s.label}>Note tecniche</label>
+              <textarea style={{ ...s.checklistTextarea, background: isDark ? "#050505" : "#fff", color: theme.text, border: `1px solid ${theme.border}` }} value={checklistForm.notes} onChange={e => updateChecklistField("notes", e.target.value)} placeholder="Smussi, raggi, filetti, trattamenti..." />
+              <button style={{ ...s.primaryBtn, background: theme.primary }} onClick={runProjectChecklist} type="button">Esegui checklist</button>
+            </div>
+
+            <div style={s.checklistResultsArea}>
+              {checklistResults.length === 0 ? (
+                <div style={{ ...s.emptyChecklist, border: `1px dashed ${theme.border}` }}>Inserisci i dati del pezzo e premi “Esegui checklist”.</div>
+              ) : (
+                checklistResults.map((item, index) => (
+                  <div key={index} style={{ ...s.resultCard, background: isDark ? "#050505" : "#f8fafc", border: `1px solid ${theme.border}` }}>
+                    <div style={s.resultTop}><strong>{item.area}</strong><span>{item.status}</span></div>
+                    <p style={s.resultDetail}>{item.detail}</p>
+                    <p style={{ ...s.resultSuggestion, borderLeft: `3px solid ${theme.primary}` }}>{item.suggestion}</p>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
         </Modal>
       )}
 
@@ -750,17 +1050,18 @@ export default function App() {
           <div style={s.materialGrid}>
             {filteredMaterials.map((m: MaterialInfo) => (
               <div key={m.key} style={{ ...s.materialCard, background: isDark ? "#050505" : "#f8fafc", border: `1px solid ${theme.border}` }}>
-                <h3>{m.name}</h3>
-                <p><strong>EN:</strong> {m.en} · <strong>UNI:</strong> {m.uni}</p>
-                <p><strong>Rm:</strong> {m.rm} MPa · <strong>Re:</strong> {m.re} MPa</p>
-                <p>{m.uses}</p>
-              </div>
-            ))}
-          </div>
-        </Modal>
-      )}
-
-      {showDrawingGenerator && (
+                <h3 style={{ marginTop: 0 }}>{m.name}</h3>
+                <div style={s.materialCodes}>
+                  <span><strong>EN:</strong> {m.en}</span>
+                  <span><strong>UNI:</strong> {m.uni}</span>
+                  <span><strong>DIN:</strong> {m.din}</span>
+                  <span><strong>AISI/SAE:</strong> {m.aisi}</span>
+                  <span><strong>JIS:</strong> {m.jis}</span>
+                  <span><strong>ISO:</strong> {m.iso}</span>
+                </div>
+                <div style={s.materialProps}><strong>Rm:</strong> {m.rm} MPa · <strong>Re:</strong> {m.re} MPa · <strong>Durezza:</strong> {m.hardness}</div>
+                <p><strong>Trattamenti:</strong> {m.treatments}</p>
+                <p><strong>Saldabilità:</strong> {m.weldabili
         <Modal
           title="Generatore tavole tecniche controllate"
           subtitle="Carica un'immagine della tavola per analisi AI o compila i dati per controllo base."
@@ -1094,16 +1395,22 @@ const s: Record<string, React.CSSProperties> = {
   resultTop: { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, marginBottom: 8, fontSize: 14 },
   resultSuggestion: { marginTop: 12, paddingLeft: 10, lineHeight: 1.5, fontSize: 13, fontWeight: 650 },
   materialGrid: { flex: 1, overflowY: "auto", display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 14, paddingRight: 4 },
-  materialCard: { borderRadius: 18, padding: 18, lineHeight: 1.45, fontSize: 13 },
-  themeGrid: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 10 },
-  themeOption: { padding: 12, borderRadius: 14, cursor: "pointer", display: "flex", alignItems: "center", gap: 12, fontSize: 13, fontWeight: 800, background: "transparent" },
-  themeDot: { width: 12, height: 12, borderRadius: "50%" },
+  materialCard: { borderRadius: 18, padding: 18, lineHeight: 1.45, fontSize: 1  resultSuggestion: { marginTop: 12, paddingLeft: 10, lineHeight: 1.5, fontSize: 13, fontWeight: 650 },
+  resultDetail: { margin: "0 0 10px", lineHeight: 1.5, fontSize: 13, opacity: 0.82 },
+  checklistTextarea: { width: "100%", minHeight: 92, padding: 12, borderRadius: 12, marginBottom: 14, outline: "none", fontSize: 14, resize: "vertical" },
+  warningBox: { marginTop: 14, borderRadius: 14, padding: 12, fontSize: 12, lineHeight: 1.5, opacity: 0.74 },
+  formulaBlock: { borderRadius: 16, padding: 14, background: "rgba(120,120,120,0.08)", margin: "14px 0", overflowX: "auto", fontSize: 14, lineHeight: 1.6 },
+  valueRow: { fontSize: 13, lineHeight: 1.45, margin: "6px 0" },
+  finalBox: { marginTop: 16, padding: "12px 14px", borderRadius: 14, background: "rgba(120,120,120,0.08)", fontWeight: 850 },10 },
+  themeOption: { padding: 12, borderRadius: 14, cursor: "pointer", display: "flex", alignItems: "center", gap: 12, fontSize: 13, fontWeight: 800, b  materialCard: { borderRadius:%" },
   drawingLayout: { flex: 1, minHeight: 0, display: "grid", gridTemplateColumns: "minmax(380px, 0.95fr) minmax(430px, 1.05fr)", gap: 22, overflow: "hidden" },
   checklistFormArea: { overflowY: "auto", paddingRight: 6 },
   checklistResultsArea: { overflowY: "auto", display: "flex", flexDirection: "column", gap: 12, paddingRight: 6 },
   checklistGrid: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 },
   drawingUploadPanel: { borderRadius: 18, padding: 16, marginBottom: 18 },
-  drawingUploadGrid: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginTop: 12 },
+  dr  checklistLayout: { flex: 1, minHeight: 0, display: "grid", gridTemplateColumns: "minmax(340px, 0.9fr) minmax(360px, 1.1fr)", gap: 22, overflow: "hidden" },
+  quickCalcLayout: { flex: 1, minHeight: 0, display: "grid", gridTemplateColumns: "minmax(340px, 0.85fr) minmax(400px, 1.15fr)", gap: 22, overflow: "hidden" },
+  checklistFormArea: { overflowY: "auto", paddingRight: 6 },r 1fr", gap: 10, marginTop: 12 },
   drawingUploadGridSingle: { display: "grid", gridTemplateColumns: "1fr", gap: 10, marginTop: 12 },
   drawingUploadBtn: { minHeight: 72, borderRadius: 16, background: "transparent", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 4, fontWeight: 850, fontSize: 14 },
   drawingFileCard: { display: "flex", alignItems: "flex-start", gap: 10, borderRadius: 16, padding: 12, marginTop: 12 },
@@ -1121,4 +1428,3 @@ const s: Record<string, React.CSSProperties> = {
   emptyText: { fontSize: 12, opacity: 0.6, padding: 8 },
   emptyChecklist: { borderRadius: 18, minHeight: 160, display: "flex", alignItems: "center", justifyContent: "center", textAlign: "center", opacity: 0.68, padding: 18, fontSize: 14 },
 };
-

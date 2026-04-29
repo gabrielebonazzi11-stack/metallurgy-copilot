@@ -132,7 +132,7 @@ const THEMES: Theme[] = [
   { name: "Dark Black", primary: "#60a5fa", bg: "#050505", surface: "#111111", text: "#f8fafc", border: "#262626" },
 ];
 
-const STORAGE_KEY = "techai_stable_app_v4";
+const STORAGE_KEY = "techai_stable_app_v5_materials";
 const DEFAULT_USER: UserProfile = { name: "Utente", email: "utente@techai.local" };
 
 function createId() {
@@ -264,6 +264,26 @@ export default function App() {
   const [interest, setInterest] = useState("Ingegneria Meccanica");
 
   const [materialSearch, setMaterialSearch] = useState("");
+  const [customMaterials, setCustomMaterials] = useState<MaterialInfo[]>([]);
+  const [showAddMaterial, setShowAddMaterial] = useState(false);
+  const [newMaterial, setNewMaterial] = useState<MaterialInfo>({
+    key: "",
+    name: "",
+    en: "",
+    uni: "",
+    din: "",
+    aisi: "",
+    jis: "",
+    iso: "",
+    rm: 0,
+    re: 0,
+    hardness: "",
+    treatments: "",
+    weldability: "",
+    machinability: "",
+    uses: "",
+    notes: "Materiale aggiunto dall'utente. Verificare sempre i dati prima di usarlo in calcoli reali.",
+  });
 
   const [checklistForm, setChecklistForm] = useState<ChecklistForm>({
     componentType: "",
@@ -316,13 +336,17 @@ export default function App() {
   const activeChat = chats.find(chat => chat.id === activeChatId);
   const currentMessages = activeChat?.messages || [];
 
+  const allMaterials = useMemo(() => [...MATERIALS_DB, ...customMaterials], [customMaterials]);
+
   const filteredMaterials = useMemo(() => {
     const q = materialSearch.trim().toLowerCase();
-    if (!q) return MATERIALS_DB.slice(0, 80);
-    return MATERIALS_DB.filter((m: MaterialInfo) =>
-      `${m.name} ${m.en} ${m.uni} ${m.din} ${m.aisi} ${m.jis} ${m.iso} ${m.uses}`.toLowerCase().includes(q)
-    ).slice(0, 120);
-  }, [materialSearch]);
+
+    if (!q) return allMaterials.slice(0, 140);
+
+    return allMaterials.filter((m: MaterialInfo) =>
+      `${m.name} ${m.en} ${m.uni} ${m.din} ${m.aisi} ${m.jis} ${m.iso} ${m.uses} ${m.notes}`.toLowerCase().includes(q)
+    ).slice(0, 180);
+  }, [materialSearch, allMaterials]);
 
   useEffect(() => {
     const saved = localStorage.getItem(STORAGE_KEY);
@@ -339,6 +363,7 @@ export default function App() {
     setActiveChatId(data.activeChatId || null);
     setSidebarOpen(data.sidebarOpen ?? true);
     setIsLoggedIn(data.isLoggedIn ?? true);
+    setCustomMaterials(Array.isArray(data.customMaterials) ? data.customMaterials : []);
   }, []);
 
   useEffect(() => {
@@ -361,9 +386,10 @@ export default function App() {
         activeChatId,
         sidebarOpen,
         isLoggedIn,
+        customMaterials,
       })
     );
-  }, [theme, user, interest, chats, activeChatId, sidebarOpen, isLoggedIn]);
+  }, [theme, user, interest, chats, activeChatId, sidebarOpen, isLoggedIn, customMaterials]);
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -403,7 +429,9 @@ export default function App() {
     setChats(prev =>
       prev.map(chat => {
         if (chat.id !== chatId) return chat;
+
         const first = messages.find(m => m.role === "utente")?.text || chat.title;
+
         return {
           ...chat,
           messages,
@@ -438,12 +466,13 @@ export default function App() {
   };
 
   const normalizeMaterialKey = (value?: string) => {
-    return String(value || "").toLowerCase().replaceAll(" ", "").replaceAll("-", "");
+    return String(value || "").toLowerCase().replaceAll(" ", "").replaceAll("-", "").replaceAll("_", "");
   };
 
   const findMaterial = (value: string) => {
     const key = normalizeMaterialKey(value);
-    return MATERIALS_DB.find((m: MaterialInfo) =>
+
+    return allMaterials.find((m: MaterialInfo) =>
       normalizeMaterialKey(m.key) === key ||
       normalizeMaterialKey(m.name) === key ||
       normalizeMaterialKey(m.en) === key ||
@@ -453,8 +482,86 @@ export default function App() {
     );
   };
 
+  const updateNewMaterialField = (field: keyof MaterialInfo, value: string) => {
+    setNewMaterial(prev => ({
+      ...prev,
+      [field]: field === "rm" || field === "re" ? Number(value.replace(",", ".")) || 0 : value,
+    }));
+  };
+
+  const addCustomMaterial = () => {
+    const materialName = newMaterial.name.trim();
+
+    if (!materialName) {
+      alert("Inserisci almeno il nome del materiale.");
+      return;
+    }
+
+    const generatedKey = normalizeMaterialKey(newMaterial.key || materialName);
+
+    const exists = allMaterials.some(
+      m =>
+        normalizeMaterialKey(m.key) === generatedKey ||
+        normalizeMaterialKey(m.name) === normalizeMaterialKey(materialName)
+    );
+
+    if (exists) {
+      alert("Questo materiale sembra già presente nella libreria.");
+      return;
+    }
+
+    const materialToSave: MaterialInfo = {
+      ...newMaterial,
+      key: generatedKey,
+      name: materialName,
+      en: newMaterial.en || "Non specificato",
+      uni: newMaterial.uni || "Non specificato",
+      din: newMaterial.din || "Non specificato",
+      aisi: newMaterial.aisi || "Non specificato",
+      jis: newMaterial.jis || "Non specificato",
+      iso: newMaterial.iso || "Non specificato",
+      rm: newMaterial.rm || 0,
+      re: newMaterial.re || 0,
+      hardness: newMaterial.hardness || "Non specificato",
+      treatments: newMaterial.treatments || "Non specificato",
+      weldability: newMaterial.weldability || "Non specificato",
+      machinability: newMaterial.machinability || "Non specificato",
+      uses: newMaterial.uses || "Non specificato",
+      notes: newMaterial.notes || "Materiale aggiunto dall'utente. Verificare sempre i dati prima di usarlo in calcoli reali.",
+    };
+
+    setCustomMaterials(prev => [...prev, materialToSave]);
+
+    setNewMaterial({
+      key: "",
+      name: "",
+      en: "",
+      uni: "",
+      din: "",
+      aisi: "",
+      jis: "",
+      iso: "",
+      rm: 0,
+      re: 0,
+      hardness: "",
+      treatments: "",
+      weldability: "",
+      machinability: "",
+      uses: "",
+      notes: "Materiale aggiunto dall'utente. Verificare sempre i dati prima di usarlo in calcoli reali.",
+    });
+
+    setShowAddMaterial(false);
+    setMaterialSearch(materialName);
+  };
+
+  const deleteCustomMaterial = (key: string) => {
+    setCustomMaterials(prev => prev.filter(material => material.key !== key));
+  };
+
   const getYoungModulus = (material?: MaterialInfo) => {
     if (!material) return 210000;
+
     const name = material.name.toLowerCase();
 
     if (name.includes("alluminio")) return 70000;
@@ -522,6 +629,7 @@ export default function App() {
       formData.append("message", text);
       formData.append("messages", JSON.stringify(updatedMessages.map(m => ({ role: m.role, text: m.text }))));
       formData.append("profile", JSON.stringify({ userName: user.name, focus: interest }));
+
       if (fileToSend?.file) formData.append("file", fileToSend.file);
 
       const res = await fetch("/api/chat", {
@@ -1422,38 +1530,105 @@ Guarda davvero l'immagine. Non fare una checklist generica. Se qualcosa non è l
           onClose={() => setShowMaterials(false)}
           wide
         >
-          <input
-            style={{ ...s.input, background: isDark ? "#050505" : "#fff", color: theme.text, border: `1px solid ${theme.border}` }}
-            value={materialSearch}
-            onChange={e => setMaterialSearch(e.target.value)}
-            placeholder="Cerca materiale, EN, DIN, AISI, JIS..."
-          />
+          <div style={s.materialToolbar}>
+            <input
+              style={{ ...s.input, background: isDark ? "#050505" : "#fff", color: theme.text, border: `1px solid ${theme.border}`, marginBottom: 0 }}
+              value={materialSearch}
+              onChange={e => setMaterialSearch(e.target.value)}
+              placeholder="Cerca materiale, EN, DIN, AISI, JIS..."
+            />
+
+            <button
+              style={{ ...s.addMaterialBtn, background: theme.primary }}
+              onClick={() => setShowAddMaterial(prev => !prev)}
+              type="button"
+            >
+              {showAddMaterial ? "Chiudi" : "+ Aggiungi materiale"}
+            </button>
+          </div>
+
+          {showAddMaterial && (
+            <div style={{ ...s.addMaterialPanel, background: isDark ? "#050505" : "#f8fafc", border: `1px solid ${theme.border}` }}>
+              <h3 style={{ marginTop: 0 }}>Nuovo materiale personalizzato</h3>
+              <p style={s.muted}>Compila i dati che conosci. Gli altri resteranno “Non specificato”.</p>
+
+              <div style={s.addMaterialGrid}>
+                {(["name", "key", "en", "uni", "din", "aisi", "jis", "iso", "rm", "re"] as (keyof MaterialInfo)[]).map(field => (
+                  <div key={String(field)}>
+                    <label style={s.label}>{String(field).toUpperCase()}</label>
+                    <input
+                      style={{ ...s.input, background: isDark ? "#111" : "#fff", color: theme.text, border: `1px solid ${theme.border}` }}
+                      value={(newMaterial as any)[field] || ""}
+                      onChange={e => updateNewMaterialField(field, e.target.value)}
+                    />
+                  </div>
+                ))}
+              </div>
+
+              {(["hardness", "treatments", "weldability", "machinability", "uses"] as (keyof MaterialInfo)[]).map(field => (
+                <div key={String(field)}>
+                  <label style={s.label}>{String(field)}</label>
+                  <input
+                    style={{ ...s.input, background: isDark ? "#111" : "#fff", color: theme.text, border: `1px solid ${theme.border}` }}
+                    value={(newMaterial as any)[field] || ""}
+                    onChange={e => updateNewMaterialField(field, e.target.value)}
+                  />
+                </div>
+              ))}
+
+              <label style={s.label}>Note</label>
+              <textarea
+                style={{ ...s.addMaterialTextarea, background: isDark ? "#111" : "#fff", color: theme.text, border: `1px solid ${theme.border}` }}
+                value={newMaterial.notes}
+                onChange={e => updateNewMaterialField("notes", e.target.value)}
+              />
+
+              <button style={{ ...s.primaryBtn, background: theme.primary }} onClick={addCustomMaterial} type="button">
+                Salva materiale
+              </button>
+            </div>
+          )}
 
           <div style={s.materialGrid}>
-            {filteredMaterials.map((m: MaterialInfo) => (
-              <div key={m.key} style={{ ...s.materialCard, background: isDark ? "#050505" : "#f8fafc", border: `1px solid ${theme.border}` }}>
-                <h3 style={{ marginTop: 0 }}>{m.name}</h3>
+            {filteredMaterials.map((m: MaterialInfo) => {
+              const isCustom = customMaterials.some(item => item.key === m.key);
 
-                <div style={s.materialCodes}>
-                  <span><strong>EN:</strong> {m.en}</span>
-                  <span><strong>UNI:</strong> {m.uni}</span>
-                  <span><strong>DIN:</strong> {m.din}</span>
-                  <span><strong>AISI/SAE:</strong> {m.aisi}</span>
-                  <span><strong>JIS:</strong> {m.jis}</span>
-                  <span><strong>ISO:</strong> {m.iso}</span>
+              return (
+                <div key={m.key} style={{ ...s.materialCard, background: isDark ? "#050505" : "#f8fafc", border: `1px solid ${theme.border}` }}>
+                  <div style={s.materialHead}>
+                    <div>
+                      <h3 style={{ marginTop: 0, marginBottom: 4 }}>{m.name}</h3>
+                      {isCustom && <span style={s.customTag}>Personalizzato</span>}
+                    </div>
+
+                    {isCustom && (
+                      <button style={s.smallDeleteMaterialBtn} onClick={() => deleteCustomMaterial(m.key)} type="button">
+                        Elimina
+                      </button>
+                    )}
+                  </div>
+
+                  <div style={s.materialCodes}>
+                    <span><strong>EN:</strong> {m.en}</span>
+                    <span><strong>UNI:</strong> {m.uni}</span>
+                    <span><strong>DIN:</strong> {m.din}</span>
+                    <span><strong>AISI/SAE:</strong> {m.aisi}</span>
+                    <span><strong>JIS:</strong> {m.jis}</span>
+                    <span><strong>ISO:</strong> {m.iso}</span>
+                  </div>
+
+                  <div style={s.materialProps}>
+                    <strong>Rm:</strong> {m.rm} MPa · <strong>Re:</strong> {m.re} MPa · <strong>Durezza:</strong> {m.hardness}
+                  </div>
+
+                  <p><strong>Trattamenti:</strong> {m.treatments}</p>
+                  <p><strong>Saldabilità:</strong> {m.weldability}</p>
+                  <p><strong>Lavorabilità:</strong> {m.machinability}</p>
+                  <p><strong>Impieghi:</strong> {m.uses}</p>
+                  <p style={{ opacity: 0.72 }}><strong>Nota:</strong> {m.notes}</p>
                 </div>
-
-                <div style={s.materialProps}>
-                  <strong>Rm:</strong> {m.rm} MPa · <strong>Re:</strong> {m.re} MPa · <strong>Durezza:</strong> {m.hardness}
-                </div>
-
-                <p><strong>Trattamenti:</strong> {m.treatments}</p>
-                <p><strong>Saldabilità:</strong> {m.weldability}</p>
-                <p><strong>Lavorabilità:</strong> {m.machinability}</p>
-                <p><strong>Impieghi:</strong> {m.uses}</p>
-                <p style={{ opacity: 0.72 }}><strong>Nota:</strong> {m.notes}</p>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </Modal>
       )}
@@ -1905,8 +2080,16 @@ const s: Record<string, React.CSSProperties> = {
   valueRow: { fontSize: 13, lineHeight: 1.45, margin: "6px 0" },
   finalBox: { marginTop: 16, padding: "12px 14px", borderRadius: 14, background: "rgba(120,120,120,0.08)", fontWeight: 850 },
 
+  materialToolbar: { display: "grid", gridTemplateColumns: "1fr auto", gap: 10, alignItems: "center", marginBottom: 18 },
+  addMaterialBtn: { border: "none", color: "white", borderRadius: 14, padding: "14px 16px", cursor: "pointer", fontWeight: 850, whiteSpace: "nowrap" },
+  addMaterialPanel: { borderRadius: 18, padding: 18, marginBottom: 18, overflowY: "auto", maxHeight: 390 },
+  addMaterialGrid: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 12 },
+  addMaterialTextarea: { width: "100%", minHeight: 70, borderRadius: 12, padding: 12, outline: "none", resize: "vertical", marginBottom: 14 },
   materialGrid: { flex: 1, overflowY: "auto", display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(330px, 1fr))", gap: 14, paddingRight: 4 },
   materialCard: { borderRadius: 18, padding: 18, lineHeight: 1.45, fontSize: 13 },
+  materialHead: { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 12 },
+  customTag: { display: "inline-flex", fontSize: 11, fontWeight: 850, opacity: 0.68 },
+  smallDeleteMaterialBtn: { border: "none", color: "#991b1b", background: "#fee2e2", borderRadius: 999, padding: "8px 12px", cursor: "pointer", fontWeight: 850, fontSize: 12, whiteSpace: "nowrap" },
   materialCodes: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6, fontSize: 12, marginBottom: 12, opacity: 0.82 },
   materialProps: { padding: 10, borderRadius: 12, background: "rgba(120,120,120,0.08)", marginBottom: 10, lineHeight: 1.5 },
 

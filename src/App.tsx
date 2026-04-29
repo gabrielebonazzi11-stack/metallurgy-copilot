@@ -113,17 +113,7 @@ function makeAttachment(file: File): FileAttachment {
 
 function isDrawingReviewFile(file: File | null | undefined) {
   if (!file) return false;
-  const name = file.name.toLowerCase();
-  return (
-    file.type.startsWith("image/") ||
-    name.endsWith(".pdf") ||
-    name.endsWith(".dwg") ||
-    name.endsWith(".dxf") ||
-    name.endsWith(".png") ||
-    name.endsWith(".jpg") ||
-    name.endsWith(".jpeg") ||
-    name.endsWith(".webp")
-  );
+  return file.type.startsWith("image/");
 }
 
 function isImageReviewFile(upload: DrawingUpload | null) {
@@ -178,7 +168,7 @@ function runClientTests() {
     const txt = new File(["x"], "note.txt", { type: "text/plain" });
 
     console.assert(isDrawingReviewFile(png) === true, "TEST: PNG should be valid drawing review file");
-    console.assert(isStepFile(step) === true, "TEST: STEP should be valid 3D file");
+    console.assert(isStepFile(step) === true, "TEST: STEP helper still validates STEP files, but STEP upload is hidden in the Tavole UI");
     console.assert(isDrawingReviewFile(txt) === false, "TEST: TXT should not be a drawing review file");
     console.assert(buildIssuesFromAiAnswer("mancano quote e tolleranze").length >= 2, "TEST: AI issue extraction should detect quote/tolleranze");
   } catch {
@@ -414,7 +404,7 @@ export default function App() {
     if (!file) return;
 
     if (!isDrawingReviewFile(file)) {
-      alert("Per la revisione tavola carica PDF, immagine, DWG o DXF.");
+      alert("Per la revisione tavola carica solo immagini: PNG, JPG, JPEG o WebP.");
       event.target.value = "";
       return;
     }
@@ -523,21 +513,11 @@ export default function App() {
 
     if (drawingReviewFile) {
       results.push({
-        category: "File tavola caricato",
+        category: "File immagine tavola caricato",
         status: "⚠️ Da verificare",
         item: drawingReviewFile.fileAttachment.name,
-        reason: "Il file è stato caricato, ma l'analisi automatica visiva funziona direttamente solo con immagini PNG/JPG/WEBP.",
-        suggestion: "Per PDF/DWG/DXF serve conversione lato backend oppure revisione manuale. Per ora usa una schermata/immagine della tavola.",
-      });
-    }
-
-    if (drawingStepFile) {
-      results.push({
-        category: "File 3D / STEP caricato",
-        status: "🟦 Predisposto",
-        item: drawingStepFile.fileAttachment.name,
-        reason: "Il modello 3D è registrato come riferimento per futura anteprima viewer/backend.",
-        suggestion: "Per una vera anteprima 3D servirà integrare un viewer STL/STEP o una conversione lato backend.",
+        reason: "Il file immagine è stato caricato correttamente.",
+        suggestion: "Premi Analizza immagine tavola per inviarlo al backend AI."
       });
     }
 
@@ -783,7 +763,7 @@ export default function App() {
       {showDrawingGenerator && (
         <Modal
           title="Generatore tavole tecniche controllate"
-          subtitle="Carica immagini tavola per analisi AI o compila i dati per controllo base."
+          subtitle="Carica un'immagine della tavola per analisi AI o compila i dati per controllo base."
           theme={theme}
           isDark={isDark}
           onClose={() => setShowDrawingGenerator(false)}
@@ -794,48 +774,29 @@ export default function App() {
               <input
                 ref={drawingReviewInputRef}
                 type="file"
-                accept=".pdf,.dwg,.dxf,.png,.jpg,.jpeg,.webp,image/*"
+                accept=".png,.jpg,.jpeg,.webp,image/*"
                 style={{ display: "none" }}
                 onChange={handleDrawingReviewUpload}
               />
-              <input
-                ref={drawingStepInputRef}
-                type="file"
-                accept=".step,.stp,.stl,.iges,.igs"
-                style={{ display: "none" }}
-                onChange={handleDrawingStepUpload}
-              />
+
 
               <div style={{ ...s.drawingUploadPanel, background: isDark ? "#050505" : "#f8fafc", border: `1px solid ${theme.border}` }}>
                 <strong>Revisione tavola / idea di tavola</strong>
-                <p style={s.muted}>Per analisi immagine usa PNG/JPG/WEBP. PDF/DWG/DXF sono registrati ma richiedono conversione backend.</p>
+                <p style={s.muted}>Carica solo un'immagine della tavola: PNG, JPG, JPEG o WebP. PDF, DWG, DXF e STEP sono stati rimossi da questa funzione.</p>
 
-                <div style={s.drawingUploadGrid}>
+                <div style={s.drawingUploadGridSingle}>
                   <button
                     style={{ ...s.drawingUploadBtn, color: theme.text, border: `1px solid ${theme.border}` }}
                     onClick={() => drawingReviewInputRef.current?.click()}
                     type="button"
                   >
-                    📄 Carica tavola
-                    <small>PDF, immagine, DWG, DXF</small>
-                  </button>
-
-                  <button
-                    style={{ ...s.drawingUploadBtn, color: theme.text, border: `1px solid ${theme.border}` }}
-                    onClick={() => drawingStepInputRef.current?.click()}
-                    type="button"
-                  >
-                    🧊 Carica STEP/3D
-                    <small>STEP, STP, STL, IGES</small>
+                    🖼️ Carica immagine tavola
+                    <small>PNG, JPG, JPEG, WebP</small>
                   </button>
                 </div>
 
                 {drawingReviewFile && (
                   <FileCard upload={drawingReviewFile} icon="📄" theme={theme} isDark={isDark} onRemove={removeDrawingReviewFile} />
-                )}
-
-                {drawingStepFile && (
-                  <FileCard upload={drawingStepFile} icon="🧊" theme={theme} isDark={isDark} onRemove={removeDrawingStepFile} />
                 )}
               </div>
 
@@ -856,7 +817,7 @@ export default function App() {
               <Field label="Rugosità già previste" value={drawingForm.roughness} onChange={v => updateDrawingField("roughness", v)} placeholder="Ra 3.2, Ra 1.6..." theme={theme} isDark={isDark} />
 
               <button style={{ ...s.primaryBtn, background: theme.primary }} onClick={runDrawingGenerator} disabled={drawingAiLoading} type="button">
-                {drawingAiLoading ? "Analisi immagine in corso..." : isImageReviewFile(drawingReviewFile) ? "Analizza immagine tavola" : "Genera controllo tavola"}
+                {drawingAiLoading ? "Analisi immagine in corso..." : "Analizza immagine tavola"}
               </button>
             </div>
 
@@ -1143,6 +1104,7 @@ const s: Record<string, React.CSSProperties> = {
   checklistGrid: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 },
   drawingUploadPanel: { borderRadius: 18, padding: 16, marginBottom: 18 },
   drawingUploadGrid: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginTop: 12 },
+  drawingUploadGridSingle: { display: "grid", gridTemplateColumns: "1fr", gap: 10, marginTop: 12 },
   drawingUploadBtn: { minHeight: 72, borderRadius: 16, background: "transparent", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 4, fontWeight: 850, fontSize: 14 },
   drawingFileCard: { display: "flex", alignItems: "flex-start", gap: 10, borderRadius: 16, padding: 12, marginTop: 12 },
   drawingPreviewImage: { width: "100%", maxHeight: 180, objectFit: "contain", borderRadius: 12, marginTop: 10, background: "rgba(120,120,120,0.08)" },

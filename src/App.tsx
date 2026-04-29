@@ -26,6 +26,11 @@ interface Message {
   fileAttachment?: FileAttachment;
 }
 
+interface PendingFile {
+  hiddenText: string;
+  fileAttachment: FileAttachment;
+}
+
 interface ChatSession {
   id: string;
   title: string;
@@ -126,6 +131,7 @@ export default function App() {
 
   const [loading, setLoading] = useState(false);
   const [fileLoading, setFileLoading] = useState(false);
+  const [pendingFile, setPendingFile] = useState<PendingFile | null>(null);
   const [showSettings, setShowSettings] = useState(false);
   const [showLoginPanel, setShowLoginPanel] = useState(false);
   const [showChecklist, setShowChecklist] = useState(false);
@@ -817,30 +823,36 @@ export default function App() {
     const file = event.target.files?.[0];
     if (!file || fileLoading) return;
 
-    if (!isSupportedTextFile(file)) {
-      alert("Formato file non supportato.");
+    if (!isLoggedIn) {
+      setShowLoginPanel(true);
+      setLoginError("Effettua il login prima di caricare file su TechAI.");
+      if (event.target) event.target.value = "";
       return;
     }
 
-    const chatId = ensureActiveChat(`File: ${file.name}`);
+    if (!isSupportedTextFile(file)) {
+      alert("Formato file non supportato.");
+      if (event.target) event.target.value = "";
+      return;
+    }
+
     setFileLoading(true);
 
     try {
       const extractedText = await readTextFile(file);
       const cleanedText = extractedText.trim();
 
-      addMessageToChat(chatId, {
-        role: "utente",
-        text: `📎 File caricato: ${file.name}`,
-        hiddenText: `CONTENUTO DEL FILE "${file.name}":\n${cleanedText || "Il file risulta vuoto."}`,
+      setPendingFile({
+        hiddenText: `CONTENUTO DEL FILE "${file.name}":
+${cleanedText || "Il file risulta vuoto."}`,
         fileAttachment: {
           name: file.name,
           type: file.type || "sconosciuto",
           size: file.size,
         },
       });
-      setQuery(`Analizza il file "${file.name}" e fammi un riassunto chiaro dei punti principali.`);
     } catch (error: any) {
+      const chatId = ensureActiveChat(`File: ${file.name}`);
       addMessageToChat(chatId, {
         role: "AI",
         text: error?.message || "Non sono riuscito a leggere il file.",
@@ -851,8 +863,13 @@ export default function App() {
     }
   };
 
+  const removePendingFile = () => {
+    setPendingFile(null);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+
   const callAI = async () => {
-    if (!query.trim() || loading) return;
+    if ((!query.trim() && !pendingFile) || loading || fileLoading) return;
 
     if (!isLoggedIn) {
       setShowLoginPanel(true);
@@ -860,13 +877,25 @@ export default function App() {
       return;
     }
 
-    const text = query;
-    const chatId = ensureActiveChat(text.slice(0, 32) + "...");
+    const text = query.trim() || (pendingFile ? `Analizza il file "${pendingFile.fileAttachment.name}" e fammi un riassunto chiaro dei punti principali.` : "");
+    const chatTitle = pendingFile ? `File: ${pendingFile.fileAttachment.name}` : text.slice(0, 32) + "...";
+    const chatId = ensureActiveChat(chatTitle);
+
+    const userMessage: Message = pendingFile
+      ? {
+          role: "utente",
+          text,
+          hiddenText: pendingFile.hiddenText,
+          fileAttachment: pendingFile.fileAttachment,
+        }
+      : { role: "utente", text };
+
     setQuery("");
+    setPendingFile(null);
     setLoading(true);
 
     const oldMessages = chats.find(c => c.id === chatId)?.messages || [];
-    const updatedMessages: Message[] = [...oldMessages, { role: "utente", text }];
+    const updatedMessages: Message[] = [...oldMessages, userMessage];
 
     replaceMessagesInChat(chatId, updatedMessages);
 
@@ -1070,7 +1099,7 @@ export default function App() {
   );
 
   const renderInputBar = (placeholder: string) => (
-    <div style={{ ...s.searchBar, backgroundColor: theme.surface, border: `1px solid ${theme.border || theme.surface}` }}>
+    <div style={{ ...s.inputComposer, backgroundColor: theme.surface, border: `1px solid ${theme.border || theme.surface}` }}>
       <input
         ref={fileInputRef}
         type="file"
@@ -1079,27 +1108,42 @@ export default function App() {
         onChange={handleFileUpload}
       />
 
-      <button style={{ ...s.fileBtn, color: theme.primary }} onClick={() => fileInputRef.current?.click()} title="Carica file" disabled={fileLoading || !isLoggedIn}>
-        {fileLoading ? "…" : "📎"}
-      </button>
+      {pendingFile && (
+        <div style={{ ...s.pendingFileChip, border: `1px solid ${theme.border}`, background: isDark ? "#050505" : "rgba(255,255,255,0.72)" }}>
+          <div style={{ ...s.pendingFileIcon, background: theme.primary }}>📄</div>
+          <div style={s.pendingFileMeta}>
+            <div style={s.pendingFileName}>{pendingFile.fileAttachment.name}</div>
+            <div style={s.pendingFileSub}>{(pendingFile.fileAttachment.size / 1024).toFixed(1)} KB · pronto da inviare insieme al testo</div>
+          </div>
+          <button style={{ ...s.pendingFileRemove, color: theme.text, border: `1px solid ${theme.border}` }} onClick={removePendingFile} title="Rimuovi file" type="button">
+            ×
+          </button>
+        </div>
+      )}
 
-      <textarea
-        style={{ ...s.textarea, color: theme.text }}
-        rows={1}
-        value={query}
-        placeholder={isLoggedIn ? placeholder : "Effettua il login per iniziare a usare TechAI..."}
-        onChange={e => {
-          setQuery(e.target.value);
-          e.target.style.height = "auto";
-          e.target.style.height = Math.min(e.target.scrollHeight, 140) + "px";
-        }}
-        onFocus={() => {
-          if (!isLoggedIn) setShowLoginPanel(true);
-        }}
-        onKeyDown={e => e.key === "Enter" && !e.shiftKey && (e.preventDefault(), callAI())}
-      />
+      <div style={s.searchBarInner}>
+        <button style={{ ...s.fileBtn, color: theme.primary }} onClick={() => fileInputRef.current?.click()} title="Carica file" disabled={fileLoading || !isLoggedIn}>
+          {fileLoading ? "…" : "📎"}
+        </button>
 
-      <button style={{ ...s.sendBtn, color: theme.primary }} onClick={callAI} disabled={loading || fileLoading}>➤</button>
+        <textarea
+          style={{ ...s.textarea, color: theme.text }}
+          rows={1}
+          value={query}
+          placeholder={isLoggedIn ? (pendingFile ? "Scrivi cosa vuoi fare con il file..." : placeholder) : "Effettua il login per iniziare a usare TechAI..."}
+          onChange={e => {
+            setQuery(e.target.value);
+            e.target.style.height = "auto";
+            e.target.style.height = Math.min(e.target.scrollHeight, 140) + "px";
+          }}
+          onFocus={() => {
+            if (!isLoggedIn) setShowLoginPanel(true);
+          }}
+          onKeyDown={e => e.key === "Enter" && !e.shiftKey && (e.preventDefault(), callAI())}
+        />
+
+        <button style={{ ...s.sendBtn, color: theme.primary }} onClick={callAI} disabled={loading || fileLoading || (!query.trim() && !pendingFile)}>➤</button>
+      </div>
     </div>
   );
 
@@ -1560,11 +1604,19 @@ const s: any = {
   content: { flex: 1, minHeight: 0, width: "100%", display: "flex", flexDirection: "column", alignItems: "center", overflow: "hidden" },
   homeWrapper: { width: "100%", maxWidth: 720, textAlign: "center", padding: "0 22px" },
   welcomeText: { fontSize: "clamp(25px, 4vw, 38px)", fontWeight: 600, marginBottom: 30, letterSpacing: "-1px" },
+  inputComposer: { display: "flex", flexDirection: "column", gap: 8, borderRadius: 28, padding: "8px 12px", width: "100%", minHeight: 56, boxShadow: "0 8px 24px rgba(0,0,0,0.04)", backdropFilter: "blur(10px)", flexShrink: 0 },
+  searchBarInner: { display: "flex", alignItems: "center", width: "100%" },
   searchBar: { display: "flex", alignItems: "center", borderRadius: 28, padding: "6px 16px", width: "100%", minHeight: 56, boxShadow: "0 8px 24px rgba(0,0,0,0.04)", backdropFilter: "blur(10px)", flexShrink: 0 },
   fileBtn: { width: 34, height: 34, background: "none", border: "none", cursor: "pointer", marginRight: 6, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", opacity: 0.85, fontSize: 18 },
   textarea: { flex: 1, minWidth: 0, maxHeight: 140, background: "none", border: "none", outline: "none", textAlign: "center", fontSize: 16, resize: "none", padding: "10px 0", overflowY: "auto" },
   sendBtn: { width: 34, height: 34, background: "none", border: "none", cursor: "pointer", fontSize: 20, marginLeft: 6, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", opacity: 0.9 },
   fileHint: { fontSize: 12, opacity: 0.58, marginTop: 12 },
+  pendingFileChip: { display: "flex", alignItems: "center", gap: 10, borderRadius: 18, padding: "10px 12px", width: "100%", boxShadow: "0 8px 20px rgba(0,0,0,0.035)" },
+  pendingFileIcon: { width: 34, height: 42, borderRadius: 9, color: "white", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 900, fontSize: 17, flexShrink: 0 },
+  pendingFileMeta: { minWidth: 0, flex: 1, textAlign: "left" },
+  pendingFileName: { fontWeight: 850, fontSize: 13, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" },
+  pendingFileSub: { fontSize: 11, opacity: 0.62, marginTop: 2 },
+  pendingFileRemove: { width: 30, height: 30, borderRadius: "50%", background: "transparent", cursor: "pointer", fontSize: 20, lineHeight: 1, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 },
 
   chatView: { width: "100%", maxWidth: 940, flex: 1, minHeight: 0, display: "flex", flexDirection: "column", padding: "14px 22px", overflow: "hidden" },
   msgList: { flex: 1, minHeight: 0, overflowY: "auto", overflowX: "hidden", display: "flex", flexDirection: "column", gap: 18, padding: "10px 0" },

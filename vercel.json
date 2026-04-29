@@ -2,10 +2,7 @@
   "version": 2,
   "functions": {
     "api/chat.ts": {
-      "maxDuration": 30
-    },
-    "api/chat.js": {
-      "maxDuration": 30
+      "maxDuration": 60
     }
   },
   "rewrites": [

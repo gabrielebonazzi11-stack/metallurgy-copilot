@@ -675,6 +675,8 @@ export default function App() {
     if (supabase) await supabase.auth.signOut();
     setUser(DEFAULT_USER);
     setIsLoggedIn(false);
+    setLoginDismissed(false);
+    setShowLoginPanel(false);
   };
 
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -1925,7 +1927,7 @@ Guarda davvero l'immagine. Non fare una checklist generica. Se qualcosa non è l
                     onClick={handleLogout}
                     type="button"
                   >
-                    Disconnetti
+                    Logout
                   </button>
                 </>
               )}

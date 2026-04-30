@@ -1,3 +1,5 @@
+import { createClient } from "@supabase/supabase-js";
+
 export const config = {
   runtime: "edge",
 };
@@ -345,6 +347,90 @@ async function callOpenRouterVision(params: {
   );
 }
 
+async function checkAuthAndRateLimit(req: Request): Promise<
+  | { ok: true; userId: string; supabase: ReturnType<typeof createClient> }
+  | { ok: false; response: Response }
+> {
+  const supabaseUrl = process.env.SUPABASE_URL;
+  const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+  // Se le variabili Supabase non sono configurate, si bypassa il controllo
+  if (!supabaseUrl || !supabaseServiceKey) {
+    return { ok: true, userId: "", supabase: null as any };
+  }
+
+  const authHeader = req.headers.get("authorization");
+
+  if (!authHeader) {
+    return {
+      ok: false,
+      response: jsonResponse({ error: "Utente non autenticato" }, 401),
+    };
+  }
+
+  const token = authHeader.replace("Bearer ", "");
+  const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+  const {
+    data: { user },
+    error: userError,
+  } = await supabase.auth.getUser(token);
+
+  if (userError || !user) {
+    return {
+      ok: false,
+      response: jsonResponse({ error: "Sessione non valida" }, 401),
+    };
+  }
+
+  const { data: profile, error: profileError } = await supabase
+    .from("profiles")
+    .select("id, plan, ai_requests_used, ai_requests_limit")
+    .eq("id", user.id)
+    .single();
+
+  if (profileError || !profile) {
+    return {
+      ok: false,
+      response: jsonResponse({ error: "Profilo utente non trovato" }, 404),
+    };
+  }
+
+  if (profile.ai_requests_used >= profile.ai_requests_limit) {
+    return {
+      ok: false,
+      response: jsonResponse(
+        {
+          error: "Limite AI raggiunto",
+          plan: profile.plan,
+          used: profile.ai_requests_used,
+          limit: profile.ai_requests_limit,
+        },
+        403
+      ),
+    };
+  }
+
+  return { ok: true, userId: user.id, supabase };
+}
+
+async function incrementUsage(supabase: ReturnType<typeof createClient>, userId: string) {
+  if (!userId) return;
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("ai_requests_used")
+    .eq("id", userId)
+    .single();
+
+  if (profile) {
+    await supabase
+      .from("profiles")
+      .update({ ai_requests_used: profile.ai_requests_used + 1 })
+      .eq("id", userId);
+  }
+}
+
 export default async function handler(req: Request) {
   if (req.method === "GET") {
     return jsonResponse({
@@ -355,20 +441,22 @@ export default async function handler(req: Request) {
         groqModel: process.env.GROQ_MODEL || "llama-3.1-8b-instant",
         hasOpenRouterKey: Boolean(process.env.OPENROUTER_API_KEY),
         openRouterVisionModel: process.env.OPENROUTER_VISION_MODEL || "openai/gpt-4o-mini",
+        hasSupabase: Boolean(process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY),
       },
     });
   }
 
   if (req.method !== "POST") {
-    return jsonResponse(
-      {
-        error: "Metodo non consentito. Usa POST.",
-      },
-      405
-    );
+    return jsonResponse({ error: "Metodo non consentito. Usa POST." }, 405);
   }
 
   try {
+    const auth = await checkAuthAndRateLimit(req);
+
+    if (!auth.ok) {
+      return auth.response;
+    }
+
     const body = await readRequestBody(req);
 
     const answer = body.imageDataUrl
@@ -386,9 +474,9 @@ export default async function handler(req: Request) {
           fileText: body.fileText,
         });
 
-    return jsonResponse({
-      answer,
-    });
+    await incrementUsage(auth.supabase, auth.userId);
+
+    return jsonResponse({ answer });
   } catch (error: any) {
     return jsonResponse({
       answer:

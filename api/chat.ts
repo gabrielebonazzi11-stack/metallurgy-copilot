@@ -37,6 +37,23 @@ function arrayBufferToBase64(buffer: ArrayBuffer) {
   return btoa(binary);
 }
 
+async function fetchWithTimeout(url: string, options: RequestInit, timeoutMs = 18000) {
+  const controller = new AbortController();
+
+  const timeout = setTimeout(() => {
+    controller.abort();
+  }, timeoutMs);
+
+  try {
+    return await fetch(url, {
+      ...options,
+      signal: controller.signal,
+    });
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 async function readRequestBody(req: Request) {
   const contentType = req.headers.get("content-type") || "";
 
@@ -111,7 +128,7 @@ async function callGroqText(params: {
   fileText: string;
 }) {
   const groqApiKey = process.env.GROQ_API_KEY;
-  const groqModel = process.env.GROQ_MODEL || "llama-3.3-70b-versatile";
+  const groqModel = process.env.GROQ_MODEL || "llama-3.1-8b-instant";
 
   if (!groqApiKey) {
     return (
@@ -119,7 +136,7 @@ async function callGroqText(params: {
       "Su Vercel aggiungi:\n\n" +
       "```env\n" +
       "GROQ_API_KEY=la_tua_chiave_groq\n" +
-      "GROQ_MODEL=llama-3.3-70b-versatile\n" +
+      "GROQ_MODEL=llama-3.1-8b-instant\n" +
       "```"
     );
   }
@@ -128,42 +145,66 @@ async function callGroqText(params: {
   const focus = params.profile?.focus || "Ingegneria Meccanica";
 
   const cleanHistory = Array.isArray(params.messages)
-    ? params.messages.slice(-12).map((m: ChatMessage) => ({
-        role: m.role === "AI" ? "assistant" : "user",
-        content: String(m.text || ""),
-      }))
+    ? params.messages
+        .slice(-12)
+        .filter((m: ChatMessage) => String(m.text || "").trim())
+        .map((m: ChatMessage) => ({
+          role: m.role === "AI" || m.role === "assistant" ? "assistant" : "user",
+          content: String(m.text || ""),
+        }))
     : [];
 
   const finalUserContent =
     `${params.message || "Rispondi all'utente."}` +
     `${params.fileText ? `\n\n${params.fileText}` : ""}`;
 
-  const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${groqApiKey}`,
-    },
-    body: JSON.stringify({
-      model: groqModel,
-      messages: [
-        {
-          role: "system",
-          content:
-            `Sei TechAI. Utente: ${userName}. Focus principale: ${focus}. ` +
-            "Rispondi sempre in italiano, in modo chiaro, tecnico e ordinato. " +
-            "Puoi usare emoji con moderazione. Quando fai calcoli o formule usa LaTeX leggibile.",
+  let response: Response;
+
+  try {
+    response = await fetchWithTimeout(
+      "https://api.groq.com/openai/v1/chat/completions",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${groqApiKey}`,
         },
-        ...cleanHistory,
-        {
-          role: "user",
-          content: finalUserContent,
-        },
-      ],
-      temperature: 0.4,
-      max_tokens: 1800,
-    }),
-  });
+        body: JSON.stringify({
+          model: groqModel,
+          messages: [
+            {
+              role: "system",
+              content:
+                `Sei TechAI. Utente: ${userName}. Focus principale: ${focus}. ` +
+                "Rispondi sempre in italiano, in modo chiaro, tecnico e ordinato. " +
+                "Puoi usare emoji con moderazione. Quando fai calcoli o formule usa LaTeX leggibile.",
+            },
+            ...cleanHistory,
+            {
+              role: "user",
+              content: finalUserContent,
+            },
+          ],
+          temperature: 0.4,
+          max_tokens: 1200,
+        }),
+      },
+      18000
+    );
+  } catch (error: any) {
+    if (error?.name === "AbortError") {
+      return (
+        "⚠️ Timeout Groq.\n\n" +
+        "Il modello testuale non ha risposto entro il limite impostato.\n\n" +
+        "Prova a usare questo modello nelle variabili ambiente:\n\n" +
+        "```env\n" +
+        "GROQ_MODEL=llama-3.1-8b-instant\n" +
+        "```"
+      );
+    }
+
+    throw error;
+  }
 
   const raw = await response.text();
   const data = safeJsonParse<any>(raw, null);
@@ -171,6 +212,7 @@ async function callGroqText(params: {
   if (!response.ok) {
     return (
       "⚠️ Il backend ha chiamato Groq, ma Groq ha restituito un errore.\n\n" +
+      `Modello usato: ${groqModel}\n` +
       `Codice: ${response.status}\n\n` +
       `Dettaglio: ${raw || "nessun dettaglio ricevuto"}`
     );
@@ -190,7 +232,7 @@ async function callOpenRouterVision(params: {
   fileMeta: string;
 }) {
   const openRouterKey = process.env.OPENROUTER_API_KEY;
-  const model = process.env.OPENROUTER_VISION_MODEL || "openrouter/free";
+  const model = process.env.OPENROUTER_VISION_MODEL || "openai/gpt-4o-mini";
 
   if (!openRouterKey) {
     return (
@@ -198,7 +240,7 @@ async function callOpenRouterVision(params: {
       "Su Vercel aggiungi queste variabili ambiente:\n\n" +
       "```env\n" +
       "OPENROUTER_API_KEY=la_tua_chiave_openrouter\n" +
-      "OPENROUTER_VISION_MODEL=openrouter/free\n" +
+      "OPENROUTER_VISION_MODEL=openai/gpt-4o-mini\n" +
       "```\n\n" +
       "Poi fai Redeploy del progetto."
     );
@@ -212,51 +254,74 @@ async function callOpenRouterVision(params: {
     `${params.fileMeta ? `${params.fileMeta}\n` : ""}` +
     "Analizza l'immagine/tavola tecnica. Rispondi in italiano.\n" +
     "Se è una tavola meccanica, controlla: viste, sezioni, quote, tolleranze, rugosità, cartiglio, fori/filetti, riferimenti datum, note tecniche e possibili mancanze.\n" +
-    "Se trovi problemi, organizza la risposta così:\n" +
+    "Se qualcosa non è leggibile, dillo chiaramente e non inventare quote.\n\n" +
+    "Organizza la risposta così:\n" +
     "1. Sintesi generale\n" +
     "2. Errori o mancanze principali\n" +
     "3. Zone da controllare nella tavola\n" +
     "4. Correzioni consigliate\n" +
     "5. Conclusione finale.";
 
-  const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${openRouterKey}`,
-      "HTTP-Referer": "https://project-exdwv.vercel.app",
-      "X-Title": "TechAI Metallurgy Copilot",
-    },
-    body: JSON.stringify({
-      model,
-      messages: [
-        {
-          role: "system",
-          content:
-            `Sei TechAI Vision. Utente: ${userName}. Focus: ${focus}. ` +
-            "Sei specializzato nell'analisi di immagini tecniche, tavole meccaniche, disegni, quote e dettagli di progetto. " +
-            "Non inventare quote non leggibili: se qualcosa non si vede, dillo chiaramente.",
+  let response: Response;
+
+  try {
+    response = await fetchWithTimeout(
+      "https://openrouter.ai/api/v1/chat/completions",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${openRouterKey}`,
+          "HTTP-Referer": "https://project-exdwv.vercel.app",
+          "X-Title": "TechAI Metallurgy Copilot",
         },
-        {
-          role: "user",
-          content: [
+        body: JSON.stringify({
+          model,
+          messages: [
             {
-              type: "text",
-              text: prompt,
+              role: "system",
+              content:
+                `Sei TechAI Vision. Utente: ${userName}. Focus: ${focus}. ` +
+                "Sei specializzato nell'analisi di immagini tecniche, tavole meccaniche, disegni, quote e dettagli di progetto. " +
+                "Non inventare quote non leggibili: se qualcosa non si vede, dillo chiaramente.",
             },
             {
-              type: "image_url",
-              image_url: {
-                url: params.imageDataUrl,
-              },
+              role: "user",
+              content: [
+                {
+                  type: "text",
+                  text: prompt,
+                },
+                {
+                  type: "image_url",
+                  image_url: {
+                    url: params.imageDataUrl,
+                  },
+                },
+              ],
             },
           ],
-        },
-      ],
-      temperature: 0.2,
-      max_tokens: 2200,
-    }),
-  });
+          temperature: 0.2,
+          max_tokens: 1200,
+        }),
+      },
+      18000
+    );
+  } catch (error: any) {
+    if (error?.name === "AbortError") {
+      return (
+        "⚠️ Timeout OpenRouter durante l'analisi immagine.\n\n" +
+        `Modello usato: ${model}\n\n` +
+        "La funzione ha interrotto la chiamata prima del timeout di Vercel.\n\n" +
+        "Controlla che `OPENROUTER_VISION_MODEL` sia un modello vision reale, ad esempio:\n\n" +
+        "```env\n" +
+        "OPENROUTER_VISION_MODEL=openai/gpt-4o-mini\n" +
+        "```"
+      );
+    }
+
+    throw error;
+  }
 
   const raw = await response.text();
   const data = safeJsonParse<any>(raw, null);
@@ -267,7 +332,7 @@ async function callOpenRouterVision(params: {
       `Modello usato: ${model}\n` +
       `Codice: ${response.status}\n\n` +
       `Dettaglio: ${raw || "nessun dettaglio ricevuto"}\n\n` +
-      "Nota: se usi `openrouter/free`, a volte il router gratuito può non avere un modello vision disponibile in quel momento. In quel caso puoi cambiare `OPENROUTER_VISION_MODEL` con un modello free vision specifico."
+      "Controlla che la chiave OpenRouter sia valida e che il modello scelto supporti immagini."
     );
   }
 
@@ -284,8 +349,9 @@ export default async function handler(req: Request) {
       message: "API /api/chat funzionante",
       env: {
         hasGroqKey: Boolean(process.env.GROQ_API_KEY),
+        groqModel: process.env.GROQ_MODEL || "llama-3.1-8b-instant",
         hasOpenRouterKey: Boolean(process.env.OPENROUTER_API_KEY),
-        openRouterVisionModel: process.env.OPENROUTER_VISION_MODEL || "openrouter/free",
+        openRouterVisionModel: process.env.OPENROUTER_VISION_MODEL || "openai/gpt-4o-mini",
       },
     });
   }

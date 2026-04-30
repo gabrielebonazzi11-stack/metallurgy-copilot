@@ -727,15 +727,24 @@ export default function App() {
       const raw = await res.text();
       const data = safeParseJson<any>(raw, null);
 
-      if (res.status === 403 && data?.error === "Limite AI raggiunto") {
-        replaceMessagesInChat(chatId, [
-          ...updatedMessages,
-          { role: "AI", text: `⚠️ **Limite AI raggiunto** (${data.used}/${data.limit} richieste usate).\n\nUpgrada al piano Pro per continuare a usare l'assistente.` },
-        ]);
-        return;
+      if (!res.ok) {
+        const errMsg = data?.error || raw || `Errore HTTP ${res.status}`;
+        if (res.status === 403 && data?.error === "Limite AI raggiunto") {
+          replaceMessagesInChat(chatId, [
+            ...updatedMessages,
+            { role: "AI", text: `⚠️ **Limite AI raggiunto** (${data.used}/${data.limit} richieste usate).\n\nUpgrada al piano Pro per continuare a usare l'assistente.` },
+          ]);
+          return;
+        }
+        if (res.status === 401) {
+          replaceMessagesInChat(chatId, [
+            ...updatedMessages,
+            { role: "AI", text: `⚠️ **Sessione scaduta.** Effettua di nuovo il login per continuare.` },
+          ]);
+          return;
+        }
+        throw new Error(errMsg);
       }
-
-      if (!res.ok) throw new Error(data?.error || raw || `Errore HTTP ${res.status}`);
 
       const answer = data?.answer || data?.message || raw;
       if (!answer) throw new Error("Il backend non ha restituito una risposta valida.");

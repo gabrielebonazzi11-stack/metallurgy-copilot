@@ -1,5 +1,11 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { MATERIALS_DB, MaterialInfo } from "./data/materials";
+import * as pdfjsLib from "pdfjs-dist";
+
+pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
+  "pdfjs-dist/build/pdf.worker.min.mjs",
+  import.meta.url
+).href;
 
 type Role = "utente" | "AI";
 type IssueSeverity = "errore" | "attenzione" | "info";
@@ -163,6 +169,21 @@ function isImageFile(file: File | null | undefined) {
 
 function isImageUpload(upload: DrawingUpload | null) {
   return Boolean(upload?.file && upload.file.type.startsWith("image/"));
+}
+
+async function extractPdfText(file: File): Promise<string> {
+  const arrayBuffer = await file.arrayBuffer();
+  const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+  const pages: string[] = [];
+  for (let i = 1; i <= pdf.numPages; i++) {
+    const page = await pdf.getPage(i);
+    const content = await page.getTextContent();
+    const pageText = content.items
+      .map((item: any) => ("str" in item ? item.str : ""))
+      .join(" ");
+    pages.push(pageText);
+  }
+  return pages.join("\n\n");
 }
 
 function buildIssuesFromAiAnswer(answer: string): DrawingIssue[] {
@@ -630,7 +651,18 @@ export default function App() {
       formData.append("messages", JSON.stringify(updatedMessages.map(m => ({ role: m.role, text: m.text }))));
       formData.append("profile", JSON.stringify({ userName: user.name, focus: interest }));
 
-      if (fileToSend?.file) formData.append("file", fileToSend.file);
+      if (fileToSend?.file) {
+        formData.append("file", fileToSend.file);
+        const ext = fileToSend.file.name.split(".").pop()?.toLowerCase();
+        if (ext === "pdf") {
+          try {
+            const pdfText = await extractPdfText(fileToSend.file);
+            if (pdfText.trim()) formData.append("fileText", pdfText);
+          } catch {
+            // fallback: l'API proverà file.text() che restituirà poco
+          }
+        }
+      }
 
       const res = await fetch("/api/chat", {
         method: "POST",

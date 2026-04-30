@@ -64,6 +64,7 @@ async function readRequestBody(req: Request) {
     const messagesRaw = String(formData.get("messages") || "[]");
     const profileRaw = String(formData.get("profile") || "{}");
     const file = formData.get("file");
+    const preExtractedText = formData.get("fileText");
 
     const messages = safeJsonParse<ChatMessage[]>(messagesRaw, []);
     const profile = safeJsonParse<any>(profileRaw, {});
@@ -87,6 +88,8 @@ async function readRequestBody(req: Request) {
         const buffer = await file.arrayBuffer();
         const base64 = arrayBufferToBase64(buffer);
         imageDataUrl = `data:${file.type};base64,${base64}`;
+      } else if (typeof preExtractedText === "string" && preExtractedText.trim()) {
+        fileText = `\n\nContenuto del file:\n${preExtractedText.slice(0, 45000)}`;
       } else {
         try {
           const text = await file.text();

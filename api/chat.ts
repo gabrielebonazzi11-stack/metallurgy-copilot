@@ -467,6 +467,10 @@ async function checkAuthAndRateLimit(req: Request): Promise<AuthResult> {
     };
   }
 
+  if (token === "GUEST_DEMO_MODE") {
+    return { ok: true, userId: "guest", supabase: null as any };
+  }
+
   const {
     data: { user },
     error: userError,
@@ -516,7 +520,7 @@ async function checkAuthAndRateLimit(req: Request): Promise<AuthResult> {
 }
 
 async function incrementUserUsage(supabase: any, userId: string) {
-  if (!userId) return;
+  if (!userId || userId === "guest" || !supabase) return;
 
   const { data, error: readError } = await supabase
     .from("profiles")

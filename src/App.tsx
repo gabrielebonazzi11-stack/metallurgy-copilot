@@ -149,6 +149,7 @@ const GUEST_LIMIT = 5;
 
 const DEFAULT_USER: UserProfile = { name: "Utente", email: "utente@techai.local" };
 
+
 function createId() {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) return crypto.randomUUID();
   return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
@@ -1556,12 +1557,14 @@ Struttura la risposta così:
           {authLoading ? "Attendere..." : isRegister ? "Crea account" : "Accedi"}
         </button>
 
+        <div style={{ display: "flex", alignItems: "center", gap: 10, margin: "14px 0 2px" }}>
+          <div style={{ flex: 1, height: 1, background: theme.border }} />
+          <span style={{ fontSize: 12, color: theme.text, opacity: 0.4, whiteSpace: "nowrap" }}>oppure</span>
+          <div style={{ flex: 1, height: 1, background: theme.border }} />
+        </div>
+
         <button
-          style={{
-            ...s.secondaryBtn,
-            color: theme.text,
-            border: `1px solid ${theme.border}`,
-          }}
+          style={{ ...s.secondaryBtn, color: theme.text, border: `1px solid ${theme.border}`, fontSize: 14, opacity: 0.75 }}
           onClick={handleGuestAccess}
           type="button"
         >

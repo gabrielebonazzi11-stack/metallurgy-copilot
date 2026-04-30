@@ -254,18 +254,7 @@ async function callOpenRouterVision(params: {
   const userName = params.profile?.userName || "Utente";
   const focus = params.profile?.focus || "Ingegneria Meccanica";
 
-  const prompt =
-    `${params.message || "Analizza questa immagine tecnica."}\n\n` +
-    `${params.fileMeta ? `${params.fileMeta}\n` : ""}` +
-    "Analizza l'immagine/tavola tecnica. Rispondi in italiano.\n" +
-    "Se è una tavola meccanica, controlla: viste, sezioni, quote, tolleranze, rugosità, cartiglio, fori/filetti, riferimenti datum, note tecniche e possibili mancanze.\n" +
-    "Se qualcosa non è leggibile, dillo chiaramente e non inventare quote.\n\n" +
-    "Organizza la risposta così:\n" +
-    "1. Sintesi generale\n" +
-    "2. Errori o mancanze principali\n" +
-    "3. Zone da controllare nella tavola\n" +
-    "4. Correzioni consigliate\n" +
-    "5. Conclusione finale.";
+  const prompt = params.message || "Analizza questa tavola tecnica meccanica con la massima precisione.";
 
   let response: Response;
 
@@ -286,9 +275,16 @@ async function callOpenRouterVision(params: {
             {
               role: "system",
               content:
-                `Sei TechAI Vision. Utente: ${userName}. Focus: ${focus}. ` +
-                "Sei specializzato nell'analisi di immagini tecniche, tavole meccaniche, disegni, quote e dettagli di progetto. " +
-                "Non inventare quote non leggibili: se qualcosa non si vede, dillo chiaramente.",
+                `Sei TechAI Vision, un ingegnere meccanico senior specializzato in disegno tecnico secondo norme ISO 128, ISO 1101, ISO 286 e ISO 1302. ` +
+                `Utente: ${userName}. Settore: ${focus}. ` +
+                "Il tuo compito è analizzare tavole tecniche meccaniche con la MASSIMA PRECISIONE. " +
+                "REGOLE FONDAMENTALI: " +
+                "(1) Leggi e cita OGNI valore numerico visibile nella tavola: quote, tolleranze, rugosità Ra/Rz, designazioni filetti, scale. " +
+                "(2) NON inventare mai valori: se un numero non è leggibile, scrivi esplicitamente 'non leggibile' o 'non visibile'. " +
+                "(3) Identifica errori reali e specifici, non generici. Cita la posizione (es. 'quota in alto a destra', 'vista frontale'). " +
+                "(4) Verifica la coerenza interna: le quote si sommano correttamente? Le tolleranze sono compatibili con la lavorazione indicata? " +
+                "(5) Controlla sempre: cartiglio completo, numero di viste sufficiente, catena di quote chiusa, datum per GD&T, rugosità su superfici funzionali. " +
+                "Rispondi in italiano tecnico preciso.",
             },
             {
               role: "user",

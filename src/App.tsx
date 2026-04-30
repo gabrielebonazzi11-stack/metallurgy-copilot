@@ -96,6 +96,9 @@ type DrawingUpload = {
   file: File;
   fileAttachment: FileAttachment;
   previewUrl?: string;
+  convertedFile?: File;
+  isPdf?: boolean;
+  totalPages?: number;
 };
 
 type DrawingIssue = {
@@ -168,8 +171,38 @@ function isImageFile(file: File | null | undefined) {
   return file.type.startsWith("image/");
 }
 
-function isImageUpload(upload: DrawingUpload | null) {
-  return Boolean(upload?.file && upload.file.type.startsWith("image/"));
+function isPdfFile(file: File | null | undefined) {
+  if (!file) return false;
+  return file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf");
+}
+
+function isDrawingUpload(upload: DrawingUpload | null) {
+  return Boolean(upload?.file && (isImageFile(upload.file) || isPdfFile(upload.file)));
+}
+
+async function pdfPageToImageFile(file: File): Promise<{ dataUrl: string; jpegFile: File; totalPages: number }> {
+  const arrayBuffer = await file.arrayBuffer();
+  const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+  const totalPages = pdf.numPages;
+  const page = await pdf.getPage(1);
+
+  const scale = 2.5;
+  const viewport = page.getViewport({ scale });
+
+  const canvas = document.createElement("canvas");
+  canvas.width = viewport.width;
+  canvas.height = viewport.height;
+
+  const ctx = canvas.getContext("2d")!;
+  await page.render({ canvasContext: ctx as any, viewport }).promise;
+
+  const dataUrl = canvas.toDataURL("image/jpeg", 0.95);
+  const blob = await new Promise<Blob>(resolve =>
+    canvas.toBlob(b => resolve(b!), "image/jpeg", 0.95)
+  );
+  const jpegFile = new File([blob], file.name.replace(/\.pdf$/i, "_p1.jpg"), { type: "image/jpeg" });
+
+  return { dataUrl, jpegFile, totalPages };
 }
 
 async function extractPdfText(file: File): Promise<string> {
@@ -995,26 +1028,51 @@ export default function App() {
     });
   };
 
-  const handleDrawingReviewUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleDrawingReviewUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
 
-    if (!isImageFile(file)) {
-      alert("Per la revisione tavola carica solo immagini: PNG, JPG, JPEG o WebP.");
+    const isImg = isImageFile(file);
+    const isPdf = isPdfFile(file);
+
+    if (!isImg && !isPdf) {
+      alert("Carica un'immagine (PNG, JPG, JPEG, WebP) oppure un PDF della tavola.");
       event.target.value = "";
       return;
     }
 
-    if (drawingReviewFile?.previewUrl) URL.revokeObjectURL(drawingReviewFile.previewUrl);
-
-    setDrawingReviewFile({
-      file,
-      fileAttachment: makeAttachment(file),
-      previewUrl: URL.createObjectURL(file),
-    });
+    if (drawingReviewFile?.previewUrl && !drawingReviewFile.isPdf) {
+      URL.revokeObjectURL(drawingReviewFile.previewUrl);
+    }
 
     setDrawingResults([]);
     setDrawingIssues([]);
+
+    if (isPdf) {
+      setDrawingAiLoading(true);
+      try {
+        const { dataUrl, jpegFile, totalPages } = await pdfPageToImageFile(file);
+        setDrawingReviewFile({
+          file,
+          fileAttachment: makeAttachment(file),
+          previewUrl: dataUrl,
+          convertedFile: jpegFile,
+          isPdf: true,
+          totalPages,
+        });
+      } catch {
+        alert("Errore nella conversione del PDF. Prova con un altro file.");
+      } finally {
+        setDrawingAiLoading(false);
+      }
+    } else {
+      setDrawingReviewFile({
+        file,
+        fileAttachment: makeAttachment(file),
+        previewUrl: URL.createObjectURL(file),
+      });
+    }
+
     event.target.value = "";
   };
 
@@ -1031,18 +1089,21 @@ export default function App() {
   const runDrawingGenerator = async () => {
     const f = drawingForm;
 
-    if (isImageUpload(drawingReviewFile)) {
+    if (isDrawingUpload(drawingReviewFile)) {
       setDrawingAiLoading(true);
       setDrawingResults([]);
       setDrawingIssues([]);
 
       try {
+        const fileToSend = drawingReviewFile!.convertedFile ?? drawingReviewFile!.file;
+
         const formData = new FormData();
         formData.append(
           "message",
-          `Analizza questa tavola tecnica caricata come immagine.
+          `Sei un esperto di disegno tecnico meccanico secondo le norme ISO 128, ISO 1101 e ISO 286.
+Analizza con MASSIMA PRECISIONE questa tavola tecnica. Leggi ogni quota, simbolo e annotazione visibile.
 
-Dati utente:
+DATI DEL PEZZO FORNITI DALL'UTENTE:
 - Nome pezzo: ${f.partName || "non indicato"}
 - Tipo pezzo: ${f.partType || "non indicato"}
 - Materiale: ${f.material || "non indicato"}
@@ -1052,13 +1113,44 @@ Dati utente:
 - Funzione nell'assieme: ${f.assemblyFunction || "non indicata"}
 - Superfici funzionali: ${f.functionalSurfaces || "non indicate"}
 - Fori/filetti/lamature: ${f.holesThreads || "non indicati"}
-- Accoppiamenti: ${f.fits || "non indicati"}
-- Tolleranze previste: ${f.tolerances || "non indicate"}
-- Rugosità previste: ${f.roughness || "non indicate"}
+- Accoppiamenti/tolleranze: ${f.fits || f.tolerances || "non indicati"}
+- Rugosità: ${f.roughness || "non indicate"}
 
-Guarda davvero l'immagine. Non fare una checklist generica. Se qualcosa non è leggibile, dillo chiaramente. Organizza la risposta con Sintesi, Errori/Mancanze, Zone da controllare, Correzioni consigliate e Conclusione.`
+COSA DEVI CONTROLLARE (sii specifico, cita valori reali letti dalla tavola):
+
+1. CARTIGLIO: leggi e riporta nome pezzo, numero disegno, materiale, scala, data, revisione, autore. Segnala campi vuoti o illeggibili.
+
+2. VISTE E SEZIONI: verifica che le viste siano sufficienti a descrivere il pezzo (ISO 128). Mancano viste? Le sezioni sono correttamente indicate con lettere A-A, B-B? Le linee di taglio sono presenti?
+
+3. QUOTATURA: cita le quote leggibili (es. Ø20, 45°, R5...). Ci sono quote mancanti per definire completamente il pezzo? Quote duplicate o in conflitto? La catena di quote è chiusa o aperta?
+
+4. TOLLERANZE DIMENSIONALI: riporta le tolleranze ISO visibili (es. Ø20 H7, h6, js5). Mancano tolleranze su superfici funzionali? Le classi di tolleranza sono coerenti con la funzione?
+
+5. TOLLERANZE GEOMETRICHE (GD&T ISO 1101): ci sono simboli di forma/posizione/orientamento/run-out? Sono correttamente applicati con datum di riferimento? Mancano datum?
+
+6. RUGOSITÀ: riporta i simboli Ra/Rz visibili con i valori. Sono indicati su tutte le superfici lavorati? La rugosità generale è specificata?
+
+7. FILETTI E FORI: riporta designazioni visibili (M10, M6x1, Ø8 H7...). La profondità è quotata? I filetti ciechi hanno indicato la profondità utile?
+
+8. TRATTAMENTI E MATERIALE: ci sono indicazioni di trattamenti termici, rivestimenti, durezza? Sono consistenti con il materiale dichiarato?
+
+9. ERRORI CRITICI: elenca qualsiasi errore che renderebbe il pezzo non producibile o ambiguo.
+
+Rispondi SOLO con quanto vedi realmente. Se un elemento non è leggibile, dillo esplicitamente. NON inventare quote o valori non visibili.
+
+Struttura la risposta così:
+## 1. Cartiglio
+## 2. Viste e sezioni
+## 3. Quotatura
+## 4. Tolleranze dimensionali
+## 5. Tolleranze geometriche
+## 6. Rugosità
+## 7. Filetti e fori
+## 8. Materiale e trattamenti
+## 9. Errori critici e correzioni prioritarie
+## 10. Giudizio finale (Approvata / Da correggere / Non producibile)`
         );
-        formData.append("file", drawingReviewFile!.file);
+        formData.append("file", fileToSend);
         formData.append("profile", JSON.stringify({ userName: user.name, focus: interest }));
         formData.append("messages", JSON.stringify([]));
 
@@ -1820,14 +1912,14 @@ Guarda davvero l'immagine. Non fare una checklist generica. Se qualcosa non è l
               <input
                 ref={drawingReviewInputRef}
                 type="file"
-                accept=".png,.jpg,.jpeg,.webp,image/*"
+                accept=".png,.jpg,.jpeg,.webp,.pdf,image/*,application/pdf"
                 style={{ display: "none" }}
                 onChange={handleDrawingReviewUpload}
               />
 
               <div style={{ ...s.drawingUploadPanel, background: isDark ? "#050505" : "#f8fafc", border: `1px solid ${theme.border}` }}>
                 <strong>Revisione tavola</strong>
-                <p style={s.muted}>Carica solo un'immagine della tavola: PNG, JPG, JPEG o WebP.</p>
+                <p style={s.muted}>Carica un'immagine o PDF della tavola. I PDF vengono convertiti automaticamente.</p>
 
                 <div style={s.drawingUploadGridSingle}>
                   <button
@@ -1835,13 +1927,26 @@ Guarda davvero l'immagine. Non fare una checklist generica. Se qualcosa non è l
                     onClick={() => drawingReviewInputRef.current?.click()}
                     type="button"
                   >
-                    🖼️ Carica immagine tavola
-                    <small>PNG, JPG, JPEG, WebP</small>
+                    📐 Carica tavola tecnica
+                    <small>PNG, JPG, JPEG, WebP, PDF</small>
                   </button>
                 </div>
 
                 {drawingReviewFile && (
-                  <FileCard upload={drawingReviewFile} icon="🖼️" theme={theme} isDark={isDark} onRemove={removeDrawingReviewFile} />
+                  <>
+                    <FileCard
+                      upload={drawingReviewFile}
+                      icon={drawingReviewFile.isPdf ? "📄" : "🖼️"}
+                      theme={theme}
+                      isDark={isDark}
+                      onRemove={removeDrawingReviewFile}
+                    />
+                    {drawingReviewFile.isPdf && drawingReviewFile.totalPages && (
+                      <p style={{ ...s.muted, marginTop: 4 }}>
+                        PDF · {drawingReviewFile.totalPages} {drawingReviewFile.totalPages === 1 ? "pagina" : "pagine"} · analisi sulla pagina 1
+                      </p>
+                    )}
+                  </>
                 )}
               </div>
 
@@ -1862,7 +1967,7 @@ Guarda davvero l'immagine. Non fare una checklist generica. Se qualcosa non è l
               <Field label="Rugosità già previste" value={drawingForm.roughness} onChange={v => updateDrawingField("roughness", v)} placeholder="Ra 3.2, Ra 1.6..." theme={theme} isDark={isDark} />
 
               <button style={{ ...s.primaryBtn, background: theme.primary }} onClick={runDrawingGenerator} disabled={drawingAiLoading} type="button">
-                {drawingAiLoading ? "Analisi immagine in corso..." : isImageUpload(drawingReviewFile) ? "Analizza immagine tavola" : "Genera controllo tavola"}
+                {drawingAiLoading ? "Analisi in corso..." : isDrawingUpload(drawingReviewFile) ? "Analizza tavola con AI" : "Genera controllo tavola"}
               </button>
             </div>
 

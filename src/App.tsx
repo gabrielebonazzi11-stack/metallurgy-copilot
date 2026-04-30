@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { MATERIALS_DB, MaterialInfo } from "./data/materials";
 import * as pdfjsLib from "pdfjs-dist";
+import { supabase } from "./lib/supabaseClient";
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
   "pdfjs-dist/build/pdf.worker.min.mjs",
@@ -278,7 +279,10 @@ export default function App() {
   const [user, setUser] = useState<UserProfile>(DEFAULT_USER);
   const [loginEmail, setLoginEmail] = useState(DEFAULT_USER.email);
   const [loginPassword, setLoginPassword] = useState("");
+  const [loginName, setLoginName] = useState("");
   const [loginError, setLoginError] = useState("");
+  const [authMode, setAuthMode] = useState<"login" | "register">("login");
+  const [authLoading, setAuthLoading] = useState(false);
   const [isLoggedIn, setIsLoggedIn] = useState(true);
 
   const [theme, setTheme] = useState(THEMES[5]);
@@ -371,20 +375,35 @@ export default function App() {
 
   useEffect(() => {
     const saved = localStorage.getItem(STORAGE_KEY);
-    if (!saved) return;
+    if (saved) {
+      const data = safeParseJson<any>(saved, null);
+      if (data) {
+        setTheme(THEMES.find(t => t.name === data.themeName) || THEMES[5]);
+        setInterest(data.interest || "Ingegneria Meccanica");
+        setChats(Array.isArray(data.chats) ? data.chats : []);
+        setActiveChatId(data.activeChatId || null);
+        setSidebarOpen(data.sidebarOpen ?? true);
+        setCustomMaterials(Array.isArray(data.customMaterials) ? data.customMaterials : []);
+      }
+    }
 
-    const data = safeParseJson<any>(saved, null);
-    if (!data) return;
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session?.user) {
+        const name = session.user.user_metadata?.name || session.user.email?.split("@")[0] || "Utente";
+        setUser({ name, email: session.user.email || "" });
+        setLoginEmail(session.user.email || "");
+        setIsLoggedIn(true);
+        setShowLoginPanel(false);
+      } else {
+        setIsLoggedIn(false);
+      }
+    });
 
-    setTheme(THEMES.find(t => t.name === data.themeName) || THEMES[5]);
-    setUser(data.user || DEFAULT_USER);
-    setLoginEmail(data.user?.email || DEFAULT_USER.email);
-    setInterest(data.interest || "Ingegneria Meccanica");
-    setChats(Array.isArray(data.chats) ? data.chats : []);
-    setActiveChatId(data.activeChatId || null);
-    setSidebarOpen(data.sidebarOpen ?? true);
-    setIsLoggedIn(data.isLoggedIn ?? true);
-    setCustomMaterials(Array.isArray(data.customMaterials) ? data.customMaterials : []);
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (!session) setIsLoggedIn(false);
+    });
+
+    return () => subscription.unsubscribe();
   }, []);
 
   useEffect(() => {
@@ -592,22 +611,43 @@ export default function App() {
     return 210000;
   };
 
-  const handleLogin = () => {
-    if (!loginEmail.includes("@")) {
-      setLoginError("Inserisci una email valida.");
-      return;
-    }
+  const handleLogin = async () => {
+    if (!loginEmail.includes("@")) { setLoginError("Inserisci una email valida."); return; }
+    if (!loginPassword.trim()) { setLoginError("Inserisci la password."); return; }
 
-    if (!loginPassword.trim()) {
-      setLoginError("Inserisci una password.");
-      return;
-    }
-
-    setUser(prev => ({ ...prev, email: loginEmail.trim() }));
-    setIsLoggedIn(true);
-    setShowLoginPanel(false);
+    setAuthLoading(true);
     setLoginError("");
+    const { error } = await supabase.auth.signInWithPassword({ email: loginEmail.trim(), password: loginPassword });
+    setAuthLoading(false);
+
+    if (error) { setLoginError(error.message); return; }
     setLoginPassword("");
+  };
+
+  const handleRegister = async () => {
+    if (!loginName.trim()) { setLoginError("Inserisci il tuo nome."); return; }
+    if (!loginEmail.includes("@")) { setLoginError("Inserisci una email valida."); return; }
+    if (loginPassword.length < 6) { setLoginError("La password deve essere di almeno 6 caratteri."); return; }
+
+    setAuthLoading(true);
+    setLoginError("");
+    const { error } = await supabase.auth.signUp({
+      email: loginEmail.trim(),
+      password: loginPassword,
+      options: { data: { name: loginName.trim() } },
+    });
+    setAuthLoading(false);
+
+    if (error) { setLoginError(error.message); return; }
+    setLoginError("Registrazione completata! Controlla la tua email per confermare l'account.");
+    setAuthMode("login");
+    setLoginPassword("");
+  };
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    setUser(DEFAULT_USER);
+    setIsLoggedIn(false);
   };
 
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -1211,43 +1251,70 @@ Guarda davvero l'immagine. Non fare una checklist generica. Se qualcosa non è l
     </div>
   );
 
-  const renderLoginCard = () => (
-    <div style={{ ...s.loginCard, background: isDark ? "#111" : "#fff", color: theme.text, border: `1px solid ${theme.border}` }}>
-      <h1>TECH<span style={{ color: theme.primary }}>AI</span></h1>
-      <p style={s.muted}>Login grafico locale. Per login reale serve backend/database.</p>
+  const renderLoginCard = () => {
+    const isRegister = authMode === "register";
+    const inputStyle = { ...s.input, background: isDark ? "#050505" : "#fff", color: theme.text, border: `1px solid ${theme.border}` };
+    const tabBase: React.CSSProperties = { flex: 1, padding: "8px 0", border: "none", cursor: "pointer", fontWeight: 600, fontSize: 15, borderRadius: 10, transition: "background 0.2s" };
 
-      <label style={s.label}>Email</label>
-      <input
-        style={{ ...s.input, background: isDark ? "#050505" : "#fff", color: theme.text, border: `1px solid ${theme.border}` }}
-        value={loginEmail}
-        onChange={e => setLoginEmail(e.target.value)}
-      />
+    return (
+      <div style={{ ...s.loginCard, background: isDark ? "#111" : "#fff", color: theme.text, border: `1px solid ${theme.border}` }}>
+        <h1>TECH<span style={{ color: theme.primary }}>AI</span></h1>
 
-      <label style={s.label}>Password</label>
-      <input
-        style={{ ...s.input, background: isDark ? "#050505" : "#fff", color: theme.text, border: `1px solid ${theme.border}` }}
-        value={loginPassword}
-        onChange={e => setLoginPassword(e.target.value)}
-        type="password"
-      />
+        <div style={{ display: "flex", gap: 6, marginBottom: 22, background: isDark ? "#1a1a1a" : "#f2f2f2", borderRadius: 12, padding: 4 }}>
+          <button
+            style={{ ...tabBase, background: !isRegister ? theme.primary : "transparent", color: !isRegister ? "#fff" : theme.text }}
+            onClick={() => { setAuthMode("login"); setLoginError(""); }}
+            type="button"
+          >Accedi</button>
+          <button
+            style={{ ...tabBase, background: isRegister ? theme.primary : "transparent", color: isRegister ? "#fff" : theme.text }}
+            onClick={() => { setAuthMode("register"); setLoginError(""); }}
+            type="button"
+          >Registrati</button>
+        </div>
 
-      {loginError && <div style={s.errorBox}>{loginError}</div>}
+        {isRegister && (
+          <>
+            <label style={s.label}>Nome</label>
+            <input style={inputStyle} value={loginName} onChange={e => setLoginName(e.target.value)} placeholder="Il tuo nome" />
+          </>
+        )}
 
-      <button style={{ ...s.primaryBtn, background: theme.primary }} onClick={handleLogin} type="button">Accedi</button>
+        <label style={s.label}>Email</label>
+        <input style={inputStyle} value={loginEmail} onChange={e => setLoginEmail(e.target.value)} type="email" placeholder="email@esempio.com" />
 
-      <button
-        style={{ ...s.secondaryBtn, color: theme.text, border: `1px solid ${theme.border}` }}
-        onClick={() => {
-          setUser({ name: "Ospite", email: "ospite@techai.local" });
-          setIsLoggedIn(true);
-          setShowLoginPanel(false);
-        }}
-        type="button"
-      >
-        Continua come ospite
-      </button>
-    </div>
-  );
+        <label style={s.label}>Password</label>
+        <input style={inputStyle} value={loginPassword} onChange={e => setLoginPassword(e.target.value)} type="password" placeholder={isRegister ? "Minimo 6 caratteri" : ""} />
+
+        {loginError && (
+          <div style={{ ...s.errorBox, color: loginError.startsWith("Registrazione") ? "#22c55e" : undefined }}>
+            {loginError}
+          </div>
+        )}
+
+        <button
+          style={{ ...s.primaryBtn, background: theme.primary, opacity: authLoading ? 0.7 : 1 }}
+          onClick={isRegister ? handleRegister : handleLogin}
+          disabled={authLoading}
+          type="button"
+        >
+          {authLoading ? "Attendere..." : isRegister ? "Crea account" : "Accedi"}
+        </button>
+
+        <button
+          style={{ ...s.secondaryBtn, color: theme.text, border: `1px solid ${theme.border}` }}
+          onClick={() => {
+            setUser({ name: "Ospite", email: "ospite@techai.local" });
+            setIsLoggedIn(true);
+            setShowLoginPanel(false);
+          }}
+          type="button"
+        >
+          Continua come ospite
+        </button>
+      </div>
+    );
+  };
 
   return (
     <div style={{ ...s.app, background: theme.bg, color: theme.text }}>
@@ -1780,9 +1847,13 @@ Guarda davvero l'immagine. Non fare una checklist generica. Se qualcosa non è l
               {activeTab === "Account" && (
                 <>
                   <Field label="Nome" value={user.name} onChange={v => setUser(prev => ({ ...prev, name: v }))} theme={theme} isDark={isDark} />
-                  <Field label="Email" value={user.email} onChange={v => setUser(prev => ({ ...prev, email: v }))} theme={theme} isDark={isDark} />
-                  <button style={{ ...s.secondaryBtn, color: theme.text, border: `1px solid ${theme.border}` }} onClick={() => setShowLoginPanel(true)} type="button">
-                    Apri login
+                  <Field label="Email" value={user.email} onChange={v => {}} theme={theme} isDark={isDark} />
+                  <button
+                    style={{ ...s.secondaryBtn, color: "#ef4444", border: "1px solid #ef4444", marginTop: 8 }}
+                    onClick={handleLogout}
+                    type="button"
+                  >
+                    Disconnetti
                   </button>
                 </>
               )}

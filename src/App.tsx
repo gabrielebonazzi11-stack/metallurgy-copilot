@@ -268,6 +268,7 @@ export default function App() {
   const [pendingFile, setPendingFile] = useState<PendingFile | null>(null);
 
   const [showLoginPanel, setShowLoginPanel] = useState(false);
+  const [loginDismissed, setLoginDismissed] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showChecklist, setShowChecklist] = useState(false);
   const [showQuickCalc, setShowQuickCalc] = useState(false);
@@ -626,6 +627,7 @@ export default function App() {
 
     if (error || !session?.access_token) {
       setIsLoggedIn(false);
+      setLoginDismissed(false);
       setShowLoginPanel(true);
       setLoginError("Sessione scaduta. Effettua di nuovo il login.");
       return null;
@@ -1319,13 +1321,11 @@ Guarda davvero l'immagine. Non fare una checklist generica. Se qualcosa non è l
 
     return (
       <div className="slide-in" style={{ ...s.loginCard, position: "relative", background: isDark ? "#111" : "#fff", color: theme.text, border: `1px solid ${theme.border}` }}>
-        {showLoginPanel && (
-          <button
-            type="button"
-            onClick={() => setShowLoginPanel(false)}
-            style={{ position: "absolute", top: 14, right: 14, background: "transparent", border: "none", cursor: "pointer", fontSize: 22, lineHeight: 1, color: theme.text, opacity: 0.5, padding: 4 }}
-          >✕</button>
-        )}
+        <button
+          type="button"
+          onClick={() => showLoginPanel ? setShowLoginPanel(false) : setLoginDismissed(true)}
+          style={{ position: "absolute", top: 14, right: 14, background: "transparent", border: "none", cursor: "pointer", fontSize: 22, lineHeight: 1, color: theme.text, opacity: 0.5, padding: 4 }}
+        >✕</button>
         <h1>TECH<span style={{ color: theme.primary }}>AI</span></h1>
 
         <div style={{ display: "flex", gap: 6, marginBottom: 22, background: isDark ? "#1a1a1a" : "#f2f2f2", borderRadius: 12, padding: 4 }}>
@@ -1391,7 +1391,7 @@ Guarda davvero l'immagine. Non fare una checklist generica. Se qualcosa non è l
         button:active:not(:disabled) { transform: scale(0.97); }
       `}</style>
 
-      {!isLoggedIn && !showLoginPanel && <div style={s.loginScreen}>{renderLoginCard()}</div>}
+      {!isLoggedIn && !showLoginPanel && !loginDismissed && <div style={s.loginScreen}>{renderLoginCard()}</div>}
 
       <aside
         style={{

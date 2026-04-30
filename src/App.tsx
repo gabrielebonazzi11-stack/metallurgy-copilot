@@ -616,10 +616,11 @@ export default function App() {
     return 210000;
   };
 
-  const getAuthToken = async (): Promise<string | null> => {
-    if (!supabase) return null;
+  const getAuthToken = async (): Promise<string> => {
+    if (!supabase) throw new Error("Sessione scaduta. Effettua di nuovo il login.");
     const { data: { session } } = await supabase.auth.getSession();
-    return session?.access_token ?? null;
+    if (!session?.access_token) throw new Error("Sessione scaduta. Effettua di nuovo il login.");
+    return session.access_token;
   };
 
   const handleLogin = async () => {
@@ -720,7 +721,7 @@ export default function App() {
       const token = await getAuthToken();
       const res = await fetch("/api/chat", {
         method: "POST",
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        headers: { Authorization: `Bearer ${token}` },
         body: formData,
       });
 
@@ -1040,7 +1041,7 @@ Guarda davvero l'immagine. Non fare una checklist generica. Se qualcosa non è l
         const token = await getAuthToken();
         const res = await fetch("/api/chat", {
           method: "POST",
-          headers: token ? { Authorization: `Bearer ${token}` } : {},
+          headers: { Authorization: `Bearer ${token}` },
           body: formData,
         });
 

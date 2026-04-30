@@ -424,12 +424,18 @@ async function incrementUsage(supabase: any, userId: string) {
     console.log("USAGE BEFORE:", profile.ai_requests_used);
     console.log("LIMIT:", profile.ai_requests_limit);
 
-    const { error: updateError } = await supabase
+    const { data: updatedProfile, error: updateError } = await supabase
       .from("profiles")
       .update({ ai_requests_used: profile.ai_requests_used + 1 })
-      .eq("id", userId);
+      .eq("id", userId)
+      .select("ai_requests_used")
+      .single();
 
-    console.log("UPDATE ERROR:", updateError);
+    if (updateError) {
+      console.error("Errore update usage:", updateError);
+    } else {
+      console.log("Usage aggiornato:", updatedProfile.ai_requests_used);
+    }
   }
 }
 

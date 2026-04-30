@@ -616,10 +616,14 @@ export default function App() {
     return 210000;
   };
 
-  const getAuthToken = async (): Promise<string> => {
-    if (!supabase) throw new Error("Sessione scaduta. Effettua di nuovo il login.");
+  const getAuthToken = async (): Promise<string | null> => {
+    if (!supabase) return null;
     const { data: { session } } = await supabase.auth.getSession();
-    if (!session?.access_token) throw new Error("Sessione scaduta. Effettua di nuovo il login.");
+    if (!session?.access_token) {
+      setShowLoginPanel(true);
+      setLoginError("Sessione scaduta. Effettua di nuovo il login.");
+      return null;
+    }
     return session.access_token;
   };
 
@@ -719,6 +723,8 @@ export default function App() {
       }
 
       const token = await getAuthToken();
+      if (!token) return;
+
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { Authorization: `Bearer ${token}` },
@@ -1039,6 +1045,8 @@ Guarda davvero l'immagine. Non fare una checklist generica. Se qualcosa non è l
         formData.append("messages", JSON.stringify([]));
 
         const token = await getAuthToken();
+        if (!token) return;
+
         const res = await fetch("/api/chat", {
           method: "POST",
           headers: { Authorization: `Bearer ${token}` },
@@ -1299,14 +1307,7 @@ Guarda davvero l'immagine. Non fare una checklist generica. Se qualcosa non è l
       <div style={{ ...s.loginCard, position: "relative", background: isDark ? "#111" : "#fff", color: theme.text, border: `1px solid ${theme.border}` }}>
         <button
           type="button"
-          onClick={() => {
-            if (showLoginPanel) {
-              setShowLoginPanel(false);
-            } else {
-              setUser({ name: "Ospite", email: "ospite@techai.local" });
-              setIsLoggedIn(true);
-            }
-          }}
+          onClick={() => setShowLoginPanel(false)}
           style={{ position: "absolute", top: 14, right: 14, background: "transparent", border: "none", cursor: "pointer", fontSize: 22, lineHeight: 1, color: theme.text, opacity: 0.5, padding: 4 }}
         >✕</button>
         <h1>TECH<span style={{ color: theme.primary }}>AI</span></h1>
@@ -1354,11 +1355,7 @@ Guarda davvero l'immagine. Non fare una checklist generica. Se qualcosa non è l
 
         <button
           style={{ ...s.secondaryBtn, color: theme.text, border: `1px solid ${theme.border}` }}
-          onClick={() => {
-            setUser({ name: "Ospite", email: "ospite@techai.local" });
-            setIsLoggedIn(true);
-            setShowLoginPanel(false);
-          }}
+          onClick={() => setShowLoginPanel(false)}
           type="button"
         >
           Continua come ospite

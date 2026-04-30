@@ -616,6 +616,12 @@ export default function App() {
     return 210000;
   };
 
+  const getAuthToken = async (): Promise<string | null> => {
+    if (!supabase) return null;
+    const { data: { session } } = await supabase.auth.getSession();
+    return session?.access_token ?? null;
+  };
+
   const handleLogin = async () => {
     if (!loginEmail.includes("@")) { setLoginError("Inserisci una email valida."); return; }
     if (!loginPassword.trim()) { setLoginError("Inserisci la password."); return; }
@@ -711,13 +717,23 @@ export default function App() {
         }
       }
 
+      const token = await getAuthToken();
       const res = await fetch("/api/chat", {
         method: "POST",
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
         body: formData,
       });
 
       const raw = await res.text();
       const data = safeParseJson<any>(raw, null);
+
+      if (res.status === 403 && data?.error === "Limite AI raggiunto") {
+        replaceMessagesInChat(chatId, [
+          ...updatedMessages,
+          { role: "AI", text: `⚠️ **Limite AI raggiunto** (${data.used}/${data.limit} richieste usate).\n\nUpgrada al piano Pro per continuare a usare l'assistente.` },
+        ]);
+        return;
+      }
 
       if (!res.ok) throw new Error(data?.error || raw || `Errore HTTP ${res.status}`);
 
@@ -1012,13 +1028,19 @@ Guarda davvero l'immagine. Non fare una checklist generica. Se qualcosa non è l
         formData.append("profile", JSON.stringify({ userName: user.name, focus: interest }));
         formData.append("messages", JSON.stringify([]));
 
+        const token = await getAuthToken();
         const res = await fetch("/api/chat", {
           method: "POST",
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
           body: formData,
         });
 
         const raw = await res.text();
         const data = safeParseJson<any>(raw, null);
+
+        if (res.status === 403 && data?.error === "Limite AI raggiunto") {
+          throw new Error(`Limite AI raggiunto (${data.used}/${data.limit} richieste). Upgrada al piano Pro per continuare.`);
+        }
 
         if (!res.ok) throw new Error(data?.error || raw || `Errore HTTP ${res.status}`);
 

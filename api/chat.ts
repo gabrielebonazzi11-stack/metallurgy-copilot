@@ -348,7 +348,7 @@ async function callOpenRouterVision(params: {
 }
 
 async function checkAuthAndRateLimit(req: Request): Promise<
-  | { ok: true; userId: string; supabase: ReturnType<typeof createClient> }
+  | { ok: true; userId: string; supabase: any }
   | { ok: false; response: Response }
 > {
   const supabaseUrl = process.env.SUPABASE_URL;
@@ -414,17 +414,19 @@ async function checkAuthAndRateLimit(req: Request): Promise<
   return { ok: true, userId: user.id, supabase };
 }
 
-async function incrementUsage(supabase: ReturnType<typeof createClient>, userId: string) {
+async function incrementUsage(supabase: any, userId: string) {
   if (!userId) return;
 
-  const { data: profile } = await supabase
+  const { data } = await supabase
     .from("profiles")
     .select("ai_requests_used")
     .eq("id", userId)
     .single();
 
+  const profile = data as { ai_requests_used: number } | null;
+
   if (profile) {
-    await supabase
+    await (supabase as any)
       .from("profiles")
       .update({ ai_requests_used: profile.ai_requests_used + 1 })
       .eq("id", userId);

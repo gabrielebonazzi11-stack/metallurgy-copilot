@@ -11,12 +11,33 @@ type ChatMessage = {
   text?: string;
 };
 
+type RequestBodyData = {
+  message: string;
+  messages: ChatMessage[];
+  profile: any;
+  fileText: string;
+  imageDataUrl: string;
+  fileMeta: string;
+  hasFile: boolean;
+};
+
+type GuestUsageInfo = {
+  used: number;
+  limit: number;
+  fileUsed: number;
+  fileLimit: number;
+  windowStartedAt: string;
+};
+
 type AuthResult =
   | { ok: true; mode: "user"; userId: string; supabase: any }
-  | { ok: true; mode: "guest"; guestId: string; supabase: any }
+  | { ok: true; mode: "guest"; guestId: string; supabase: any; usage: GuestUsageInfo }
   | { ok: false; response: Response };
 
-const GUEST_DEFAULT_LIMIT = 5;
+const GUEST_TEXT_LIMIT_24H = 10;
+const GUEST_FILE_LIMIT_24H = 1;
+const GUEST_WINDOW_HOURS = 24;
+const GUEST_WINDOW_MS = GUEST_WINDOW_HOURS * 60 * 60 * 1000;
 
 function jsonResponse(data: unknown, status = 200) {
   return new Response(JSON.stringify(data), {
@@ -48,6 +69,15 @@ function arrayBufferToBase64(buffer: ArrayBuffer) {
   return btoa(binary);
 }
 
+function isOlderThan24Hours(dateValue: string | null | undefined) {
+  if (!dateValue) return true;
+
+  const date = new Date(dateValue);
+  if (Number.isNaN(date.getTime())) return true;
+
+  return Date.now() - date.getTime() >= GUEST_WINDOW_MS;
+}
+
 async function fetchWithTimeout(url: string, options: RequestInit, timeoutMs = 18000) {
   const controller = new AbortController();
 
@@ -65,7 +95,7 @@ async function fetchWithTimeout(url: string, options: RequestInit, timeoutMs = 1
   }
 }
 
-async function readRequestBody(req: Request) {
+async function readRequestBody(req: Request): Promise<RequestBodyData> {
   const contentType = req.headers.get("content-type") || "";
 
   if (contentType.includes("multipart/form-data")) {
@@ -83,8 +113,11 @@ async function readRequestBody(req: Request) {
     let fileText = "";
     let imageDataUrl = "";
     let fileMeta = "";
+    let hasFile = false;
 
-    if (file instanceof File) {
+    if (file instanceof File && file.size > 0) {
+      hasFile = true;
+
       const fileName = file.name || "file caricato";
       const fileType = file.type || "sconosciuto";
       const fileSizeKb = (file.size / 1024).toFixed(1);
@@ -120,6 +153,7 @@ async function readRequestBody(req: Request) {
       fileText,
       imageDataUrl,
       fileMeta,
+      hasFile,
     };
   }
 
@@ -132,6 +166,7 @@ async function readRequestBody(req: Request) {
     fileText: "",
     imageDataUrl: "",
     fileMeta: "",
+    hasFile: false,
   };
 }
 
@@ -354,7 +389,10 @@ async function callOpenRouterVision(params: {
   );
 }
 
-async function checkAuthAndRateLimit(req: Request): Promise<AuthResult> {
+async function checkAuthAndRateLimit(
+  req: Request,
+  usageRequest: { hasFile: boolean }
+): Promise<AuthResult> {
   const supabaseUrl = process.env.SUPABASE_URL;
   const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
@@ -382,7 +420,7 @@ async function checkAuthAndRateLimit(req: Request): Promise<AuthResult> {
 
     const { data: existingGuest, error: selectError } = await supabase
       .from("guest_usage")
-      .select("guest_id, ai_requests_used, ai_requests_limit")
+      .select("guest_id, ai_requests_used, ai_requests_limit, file_uploads_used, file_uploads_limit, window_started_at")
       .eq("guest_id", cleanGuestId)
       .maybeSingle();
 
@@ -399,13 +437,19 @@ async function checkAuthAndRateLimit(req: Request): Promise<AuthResult> {
       };
     }
 
+    const nowIso = new Date().toISOString();
+
     if (!existingGuest) {
       const { error: insertError } = await supabase
         .from("guest_usage")
         .insert({
           guest_id: cleanGuestId,
           ai_requests_used: 0,
-          ai_requests_limit: GUEST_DEFAULT_LIMIT,
+          ai_requests_limit: GUEST_TEXT_LIMIT_24H,
+          file_uploads_used: 0,
+          file_uploads_limit: GUEST_FILE_LIMIT_24H,
+          window_started_at: nowIso,
+          updated_at: nowIso,
         });
 
       if (insertError) {
@@ -426,17 +470,95 @@ async function checkAuthAndRateLimit(req: Request): Promise<AuthResult> {
         mode: "guest",
         guestId: cleanGuestId,
         supabase,
+        usage: {
+          used: 0,
+          limit: GUEST_TEXT_LIMIT_24H,
+          fileUsed: 0,
+          fileLimit: GUEST_FILE_LIMIT_24H,
+          windowStartedAt: nowIso,
+        },
       };
     }
 
-    if (existingGuest.ai_requests_used >= existingGuest.ai_requests_limit) {
+    let used = Number(existingGuest.ai_requests_used || 0);
+    let limit = Number(existingGuest.ai_requests_limit || GUEST_TEXT_LIMIT_24H);
+    let fileUsed = Number(existingGuest.file_uploads_used || 0);
+    let fileLimit = Number(existingGuest.file_uploads_limit || GUEST_FILE_LIMIT_24H);
+    let windowStartedAt = String(existingGuest.window_started_at || nowIso);
+
+    if (isOlderThan24Hours(windowStartedAt)) {
+      used = 0;
+      limit = GUEST_TEXT_LIMIT_24H;
+      fileUsed = 0;
+      fileLimit = GUEST_FILE_LIMIT_24H;
+      windowStartedAt = nowIso;
+
+      const { error: resetError } = await supabase
+        .from("guest_usage")
+        .update({
+          ai_requests_used: 0,
+          ai_requests_limit: GUEST_TEXT_LIMIT_24H,
+          file_uploads_used: 0,
+          file_uploads_limit: GUEST_FILE_LIMIT_24H,
+          window_started_at: nowIso,
+          updated_at: nowIso,
+        })
+        .eq("guest_id", cleanGuestId);
+
+      if (resetError) {
+        return {
+          ok: false,
+          response: jsonResponse(
+            {
+              error: "Errore reset limite ospite.",
+              detail: resetError.message,
+            },
+            500
+          ),
+        };
+      }
+    } else if (limit !== GUEST_TEXT_LIMIT_24H || fileLimit !== GUEST_FILE_LIMIT_24H) {
+      limit = GUEST_TEXT_LIMIT_24H;
+      fileLimit = GUEST_FILE_LIMIT_24H;
+
+      await supabase
+        .from("guest_usage")
+        .update({
+          ai_requests_limit: GUEST_TEXT_LIMIT_24H,
+          file_uploads_limit: GUEST_FILE_LIMIT_24H,
+          updated_at: nowIso,
+        })
+        .eq("guest_id", cleanGuestId);
+    }
+
+    if (used >= limit) {
       return {
         ok: false,
         response: jsonResponse(
           {
             error: "Limite ospite raggiunto",
-            used: existingGuest.ai_requests_used,
-            limit: existingGuest.ai_requests_limit,
+            used,
+            limit,
+            fileUsed,
+            fileLimit,
+            resetAfterHours: GUEST_WINDOW_HOURS,
+          },
+          403
+        ),
+      };
+    }
+
+    if (usageRequest.hasFile && fileUsed >= fileLimit) {
+      return {
+        ok: false,
+        response: jsonResponse(
+          {
+            error: "Limite file ospite raggiunto",
+            used,
+            limit,
+            fileUsed,
+            fileLimit,
+            resetAfterHours: GUEST_WINDOW_HOURS,
           },
           403
         ),
@@ -448,6 +570,13 @@ async function checkAuthAndRateLimit(req: Request): Promise<AuthResult> {
       mode: "guest",
       guestId: cleanGuestId,
       supabase,
+      usage: {
+        used,
+        limit,
+        fileUsed,
+        fileLimit,
+        windowStartedAt,
+      },
     };
   }
 
@@ -465,10 +594,6 @@ async function checkAuthAndRateLimit(req: Request): Promise<AuthResult> {
       ok: false,
       response: jsonResponse({ error: "Token non valido." }, 401),
     };
-  }
-
-  if (token === "GUEST_DEMO_MODE") {
-    return { ok: true, userId: "guest", supabase: null as any };
   }
 
   const {
@@ -520,7 +645,7 @@ async function checkAuthAndRateLimit(req: Request): Promise<AuthResult> {
 }
 
 async function incrementUserUsage(supabase: any, userId: string) {
-  if (!userId || userId === "guest" || !supabase) return;
+  if (!userId || !supabase) return;
 
   const { data, error: readError } = await supabase
     .from("profiles")
@@ -545,26 +670,45 @@ async function incrementUserUsage(supabase: any, userId: string) {
   }
 }
 
-async function incrementGuestUsage(supabase: any, guestId: string) {
-  if (!guestId) return;
+async function incrementGuestUsage(supabase: any, guestId: string, hasFile: boolean) {
+  if (!guestId || !supabase) {
+    return {
+      used: 0,
+      limit: GUEST_TEXT_LIMIT_24H,
+      fileUsed: 0,
+      fileLimit: GUEST_FILE_LIMIT_24H,
+      windowStartedAt: new Date().toISOString(),
+    };
+  }
 
   const { data, error: readError } = await supabase
     .from("guest_usage")
-    .select("ai_requests_used")
+    .select("ai_requests_used, ai_requests_limit, file_uploads_used, file_uploads_limit, window_started_at")
     .eq("guest_id", guestId)
     .single();
 
   if (readError || !data) {
     console.error("Errore lettura usage ospite:", readError);
-    return;
+    return {
+      used: 0,
+      limit: GUEST_TEXT_LIMIT_24H,
+      fileUsed: 0,
+      fileLimit: GUEST_FILE_LIMIT_24H,
+      windowStartedAt: new Date().toISOString(),
+    };
   }
 
-  const used = Number(data.ai_requests_used || 0);
+  const used = Number(data.ai_requests_used || 0) + 1;
+  const fileUsed = Number(data.file_uploads_used || 0) + (hasFile ? 1 : 0);
+  const limit = Number(data.ai_requests_limit || GUEST_TEXT_LIMIT_24H);
+  const fileLimit = Number(data.file_uploads_limit || GUEST_FILE_LIMIT_24H);
+  const windowStartedAt = String(data.window_started_at || new Date().toISOString());
 
   const { error: updateError } = await supabase
     .from("guest_usage")
     .update({
-      ai_requests_used: used + 1,
+      ai_requests_used: used,
+      file_uploads_used: fileUsed,
       updated_at: new Date().toISOString(),
     })
     .eq("guest_id", guestId);
@@ -572,6 +716,14 @@ async function incrementGuestUsage(supabase: any, guestId: string) {
   if (updateError) {
     console.error("Errore update usage ospite:", updateError);
   }
+
+  return {
+    used,
+    limit,
+    fileUsed,
+    fileLimit,
+    windowStartedAt,
+  };
 }
 
 export default async function handler(req: Request) {
@@ -585,7 +737,9 @@ export default async function handler(req: Request) {
         hasOpenRouterKey: Boolean(process.env.OPENROUTER_API_KEY),
         openRouterVisionModel: process.env.OPENROUTER_VISION_MODEL || "openai/gpt-4o-mini",
         hasSupabase: Boolean(process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY),
-        guestLimit: GUEST_DEFAULT_LIMIT,
+        guestTextLimit24h: GUEST_TEXT_LIMIT_24H,
+        guestFileLimit24h: GUEST_FILE_LIMIT_24H,
+        guestWindowHours: GUEST_WINDOW_HOURS,
       },
     });
   }
@@ -595,13 +749,15 @@ export default async function handler(req: Request) {
   }
 
   try {
-    const auth = await checkAuthAndRateLimit(req);
+    const body = await readRequestBody(req);
+
+    const auth = await checkAuthAndRateLimit(req, {
+      hasFile: body.hasFile,
+    });
 
     if (!auth.ok) {
       return auth.response;
     }
-
-    const body = await readRequestBody(req);
 
     const answer = body.imageDataUrl
       ? await callOpenRouterVision({
@@ -618,15 +774,18 @@ export default async function handler(req: Request) {
           fileText: body.fileText,
         });
 
+    let usage: any = null;
+
     if (auth.mode === "user") {
       await incrementUserUsage(auth.supabase, auth.userId);
     } else {
-      await incrementGuestUsage(auth.supabase, auth.guestId);
+      usage = await incrementGuestUsage(auth.supabase, auth.guestId, body.hasFile);
     }
 
     return jsonResponse({
       answer,
       mode: auth.mode,
+      usage,
     });
   } catch (error: any) {
     return jsonResponse(

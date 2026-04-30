@@ -283,7 +283,7 @@ export default function App() {
   const [loginError, setLoginError] = useState("");
   const [authMode, setAuthMode] = useState<"login" | "register">("login");
   const [authLoading, setAuthLoading] = useState(false);
-  const [isLoggedIn, setIsLoggedIn] = useState(true);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
 
   const [theme, setTheme] = useState(THEMES[5]);
   const [interest, setInterest] = useState("Ingegneria Meccanica");
@@ -618,13 +618,18 @@ export default function App() {
 
   const getAuthToken = async (): Promise<string | null> => {
     if (!supabase) return null;
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session?.access_token) {
+
+    const { data, error } = await supabase.auth.refreshSession();
+
+    if (error || !data.session?.access_token) {
+      await supabase.auth.signOut();
+      setIsLoggedIn(false);
       setShowLoginPanel(true);
       setLoginError("Sessione scaduta. Effettua di nuovo il login.");
       return null;
     }
-    return session.access_token;
+
+    return data.session.access_token;
   };
 
   const handleLogin = async () => {
@@ -723,7 +728,14 @@ export default function App() {
       }
 
       const token = await getAuthToken();
-      if (!token) return;
+
+      if (!token) {
+        replaceMessagesInChat(chatId, [
+          ...updatedMessages,
+          { role: "AI", text: "⚠️ Sessione scaduta. Effettua di nuovo il login e riprova." },
+        ]);
+        return;
+      }
 
       const res = await fetch("/api/chat", {
         method: "POST",
@@ -1353,13 +1365,6 @@ Guarda davvero l'immagine. Non fare una checklist generica. Se qualcosa non è l
           {authLoading ? "Attendere..." : isRegister ? "Crea account" : "Accedi"}
         </button>
 
-        <button
-          style={{ ...s.secondaryBtn, color: theme.text, border: `1px solid ${theme.border}` }}
-          onClick={() => setShowLoginPanel(false)}
-          type="button"
-        >
-          Continua come ospite
-        </button>
       </div>
     );
   };

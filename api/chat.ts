@@ -354,9 +354,11 @@ async function checkAuthAndRateLimit(req: Request): Promise<
   const supabaseUrl = process.env.SUPABASE_URL;
   const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-  // Se le variabili Supabase non sono configurate, si bypassa il controllo
   if (!supabaseUrl || !supabaseServiceKey) {
-    return { ok: true, userId: "", supabase: null as any };
+    return {
+      ok: false,
+      response: jsonResponse({ error: "Supabase server non configurato." }, 500),
+    };
   }
 
   const authHeader = req.headers.get("authorization");

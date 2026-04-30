@@ -142,7 +142,7 @@ const THEMES: Theme[] = [
   { name: "Dark Black", primary: "#60a5fa", bg: "#050505", surface: "#111111", text: "#f8fafc", border: "#262626" },
 ];
 
-const STORAGE_KEY = "techai_stable_app_v6_guest_24h";
+const STORAGE_KEY_BASE = "techai_stable_app_v7_scoped";
 const GUEST_ID_KEY = "techai_guest_id";
 const GUEST_USED_KEY = "techai_guest_used";
 const GUEST_LIMIT = 10;
@@ -278,6 +278,8 @@ export default function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [isGuest, setIsGuest] = useState(false);
   const [guestUsed, setGuestUsed] = useState(0);
+  const [activeStorageKey, setActiveStorageKey] = useState("");
+  const [storageReady, setStorageReady] = useState(false);
 
   const [theme, setTheme] = useState(THEMES[5]);
   const [interest, setInterest] = useState("Ingegneria Meccanica");
@@ -365,50 +367,117 @@ export default function App() {
       .slice(0, 180);
   }, [materialSearch, allMaterials]);
 
+  const makeUserStorageKey = (email: string) => {
+    const cleanEmail = String(email || "utente")
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9@._-]/g, "_");
+
+    return `${STORAGE_KEY_BASE}:user:${cleanEmail}`;
+  };
+
+  const makeGuestStorageKey = (guestId: string) => {
+    const cleanGuestId = String(guestId || "guest").trim().replace(/[^a-zA-Z0-9_-]/g, "_");
+    return `${STORAGE_KEY_BASE}:guest:${cleanGuestId}`;
+  };
+
+  const resetWorkspace = () => {
+    setChats([]);
+    setActiveChatId(null);
+    setPendingFile(null);
+    setQuery("");
+    setChecklistResults([]);
+    setQuickCalcResult(null);
+    setDrawingReviewFile(null);
+    setDrawingResults([]);
+    setDrawingIssues([]);
+  };
+
+  const loadWorkspaceFromStorage = (storageKey: string) => {
+    setStorageReady(false);
+    setActiveStorageKey(storageKey);
+
+    const saved = localStorage.getItem(storageKey);
+
+    if (!saved) {
+      resetWorkspace();
+      setTheme(THEMES[5]);
+      setInterest("Ingegneria Meccanica");
+      setSidebarOpen(true);
+      setCustomMaterials([]);
+      setStorageReady(true);
+      return;
+    }
+
+    const data = safeParseJson<any>(saved, null);
+
+    if (!data) {
+      resetWorkspace();
+      setStorageReady(true);
+      return;
+    }
+
+    setTheme(THEMES.find(t => t.name === data.themeName) || THEMES[5]);
+    setInterest(data.interest || "Ingegneria Meccanica");
+    setChats(Array.isArray(data.chats) ? data.chats : []);
+    setActiveChatId(data.activeChatId || null);
+    setSidebarOpen(data.sidebarOpen ?? true);
+    setCustomMaterials(Array.isArray(data.customMaterials) ? data.customMaterials : []);
+    setPendingFile(null);
+    setQuery("");
+    setStorageReady(true);
+  };
+
   useEffect(() => {
     const savedGuestUsed = Number(localStorage.getItem(GUEST_USED_KEY) || "0");
     setGuestUsed(Number.isFinite(savedGuestUsed) ? savedGuestUsed : 0);
 
-    const saved = localStorage.getItem(STORAGE_KEY);
-    if (saved) {
-      const data = safeParseJson<any>(saved, null);
-      if (data) {
-        setTheme(THEMES.find(t => t.name === data.themeName) || THEMES[5]);
-        setInterest(data.interest || "Ingegneria Meccanica");
-        setChats(Array.isArray(data.chats) ? data.chats : []);
-        setActiveChatId(data.activeChatId || null);
-        setSidebarOpen(data.sidebarOpen ?? true);
-        setCustomMaterials(Array.isArray(data.customMaterials) ? data.customMaterials : []);
+    const applySession = (session: any) => {
+      if (session?.user) {
+        const name = session.user.user_metadata?.name || session.user.email?.split("@")[0] || "Utente";
+        const email = session.user.email || "";
+        const profile = { name, email };
+
+        setUser(profile);
+        setLoginEmail(email);
+        setIsLoggedIn(true);
+        setIsGuest(false);
+        setShowLoginPanel(false);
+        setLoginDismissed(false);
+        setLoginError("");
+
+        loadWorkspaceFromStorage(makeUserStorageKey(email));
+      } else {
+        setUser(DEFAULT_USER);
+        setIsLoggedIn(false);
+        setIsGuest(false);
+        setStorageReady(false);
+        setActiveStorageKey("");
+        resetWorkspace();
       }
-    }
+    };
 
     if (!isSupabaseConfigured || !supabase) {
       setIsLoggedIn(true);
+      setIsGuest(false);
+      loadWorkspaceFromStorage(`${STORAGE_KEY_BASE}:local`);
       return;
     }
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (session?.user) {
-        const name = session.user.user_metadata?.name || session.user.email?.split("@")[0] || "Utente";
-        setUser({ name, email: session.user.email || "" });
-        setLoginEmail(session.user.email || "");
-        setIsLoggedIn(true);
-        setIsGuest(false);
-        setShowLoginPanel(false);
-      } else {
-        setIsLoggedIn(false);
-        setIsGuest(false);
-      }
+      applySession(session);
     });
 
     supabase.auth.getSession().then(({ data: { session } }) => {
-      if (!session) setIsLoggedIn(false);
+      applySession(session);
     });
 
     return () => subscription.unsubscribe();
   }, []);
 
   useEffect(() => {
+    if (!storageReady || !activeStorageKey) return;
+
     const safeChats = chats.map(chat => ({
       ...chat,
       messages: chat.messages.map(message => ({
@@ -419,7 +488,7 @@ export default function App() {
     }));
 
     localStorage.setItem(
-      STORAGE_KEY,
+      activeStorageKey,
       JSON.stringify({
         themeName: theme.name,
         user,
@@ -432,7 +501,7 @@ export default function App() {
         customMaterials,
       })
     );
-  }, [theme, user, interest, chats, activeChatId, sidebarOpen, isLoggedIn, isGuest, customMaterials]);
+  }, [theme, user, interest, chats, activeChatId, sidebarOpen, isLoggedIn, isGuest, customMaterials, storageReady, activeStorageKey]);
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -666,7 +735,7 @@ export default function App() {
 
   const handleGuestAccess = () => {
     const used = Number(localStorage.getItem(GUEST_USED_KEY) || "0");
-    getOrCreateGuestId();
+    const guestId = getOrCreateGuestId();
 
     setUser({ name: "Ospite", email: "ospite@techai.local" });
     setIsGuest(true);
@@ -675,6 +744,8 @@ export default function App() {
     setShowLoginPanel(false);
     setLoginDismissed(true);
     setLoginError("");
+
+    loadWorkspaceFromStorage(makeGuestStorageKey(guestId));
   };
 
   const handleLogin = async () => {
@@ -714,6 +785,10 @@ export default function App() {
   };
 
   const handleLogout = async () => {
+    setStorageReady(false);
+    setActiveStorageKey("");
+    resetWorkspace();
+
     if (supabase && !isGuest) await supabase.auth.signOut();
 
     setUser(DEFAULT_USER);

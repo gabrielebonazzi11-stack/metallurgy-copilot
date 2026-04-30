@@ -619,17 +619,19 @@ export default function App() {
   const getAuthToken = async (): Promise<string | null> => {
     if (!supabase) return null;
 
-    const { data, error } = await supabase.auth.refreshSession();
+    const {
+      data: { session },
+      error,
+    } = await supabase.auth.getSession();
 
-    if (error || !data.session?.access_token) {
-      await supabase.auth.signOut();
+    if (error || !session?.access_token) {
       setIsLoggedIn(false);
       setShowLoginPanel(true);
       setLoginError("Sessione scaduta. Effettua di nuovo il login.");
       return null;
     }
 
-    return data.session.access_token;
+    return session.access_token;
   };
 
   const handleLogin = async () => {

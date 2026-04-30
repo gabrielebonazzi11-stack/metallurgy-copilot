@@ -1318,12 +1318,14 @@ Guarda davvero l'immagine. Non fare una checklist generica. Se qualcosa non è l
     const tabBase: React.CSSProperties = { flex: 1, padding: "8px 0", border: "none", cursor: "pointer", fontWeight: 600, fontSize: 15, borderRadius: 10, transition: "background 0.2s" };
 
     return (
-      <div style={{ ...s.loginCard, position: "relative", background: isDark ? "#111" : "#fff", color: theme.text, border: `1px solid ${theme.border}` }}>
-        <button
-          type="button"
-          onClick={() => setShowLoginPanel(false)}
-          style={{ position: "absolute", top: 14, right: 14, background: "transparent", border: "none", cursor: "pointer", fontSize: 22, lineHeight: 1, color: theme.text, opacity: 0.5, padding: 4 }}
-        >✕</button>
+      <div className="slide-in" style={{ ...s.loginCard, position: "relative", background: isDark ? "#111" : "#fff", color: theme.text, border: `1px solid ${theme.border}` }}>
+        {showLoginPanel && (
+          <button
+            type="button"
+            onClick={() => setShowLoginPanel(false)}
+            style={{ position: "absolute", top: 14, right: 14, background: "transparent", border: "none", cursor: "pointer", fontSize: 22, lineHeight: 1, color: theme.text, opacity: 0.5, padding: 4 }}
+          >✕</button>
+        )}
         <h1>TECH<span style={{ color: theme.primary }}>AI</span></h1>
 
         <div style={{ display: "flex", gap: 6, marginBottom: 22, background: isDark ? "#1a1a1a" : "#f2f2f2", borderRadius: 12, padding: 4 }}>
@@ -1373,6 +1375,22 @@ Guarda davvero l'immagine. Non fare una checklist generica. Se qualcosa non è l
 
   return (
     <div style={{ ...s.app, background: theme.bg, color: theme.text }}>
+      <style>{`
+        @keyframes slideInUp {
+          from { opacity: 0; transform: translateY(28px); }
+          to   { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes fadeIn {
+          from { opacity: 0; }
+          to   { opacity: 1; }
+        }
+        .slide-in { animation: slideInUp 0.32s cubic-bezier(0.16, 1, 0.3, 1) both; }
+        .fade-in  { animation: fadeIn 0.22s ease both; }
+        button { transition: transform 0.15s ease, opacity 0.15s ease !important; }
+        button:hover:not(:disabled) { transform: scale(1.05); }
+        button:active:not(:disabled) { transform: scale(0.97); }
+      `}</style>
+
       {!isLoggedIn && !showLoginPanel && <div style={s.loginScreen}>{renderLoginCard()}</div>}
 
       <aside
@@ -1524,10 +1542,9 @@ Guarda davvero l'immagine. Non fare una checklist generica. Se qualcosa non è l
       </main>
 
       {showLoginPanel && (
-        <div style={s.overlay}>
+        <div className="fade-in" style={s.overlay}>
           <div style={s.loginModalWrap}>
             {renderLoginCard()}
-            <button style={s.closeFloatingBtn} onClick={() => setShowLoginPanel(false)} type="button">×</button>
           </div>
         </div>
       )}

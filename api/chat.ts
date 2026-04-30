@@ -413,17 +413,23 @@ async function incrementUsage(supabase: any, userId: string) {
 
   const { data } = await supabase
     .from("profiles")
-    .select("ai_requests_used")
+    .select("ai_requests_used, ai_requests_limit")
     .eq("id", userId)
     .single();
 
-  const profile = data as { ai_requests_used: number } | null;
+  const profile = data as { ai_requests_used: number; ai_requests_limit: number } | null;
 
   if (profile) {
-    await (supabase as any)
+    console.log("USER ID:", userId);
+    console.log("USAGE BEFORE:", profile.ai_requests_used);
+    console.log("LIMIT:", profile.ai_requests_limit);
+
+    const { error: updateError } = await supabase
       .from("profiles")
       .update({ ai_requests_used: profile.ai_requests_used + 1 })
       .eq("id", userId);
+
+    console.log("UPDATE ERROR:", updateError);
   }
 }
 

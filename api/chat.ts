@@ -1,3 +1,5 @@
+// FILE: api/chat.ts
+
 import { createClient } from "@supabase/supabase-js";
 
 export const config = {
@@ -8,6 +10,13 @@ type ChatMessage = {
   role?: string;
   text?: string;
 };
+
+type AuthResult =
+  | { ok: true; mode: "user"; userId: string; supabase: any }
+  | { ok: true; mode: "guest"; guestId: string; supabase: any }
+  | { ok: false; response: Response };
+
+const GUEST_DEFAULT_LIMIT = 5;
 
 function jsonResponse(data: unknown, status = 200) {
   return new Response(JSON.stringify(data), {
@@ -254,7 +263,9 @@ async function callOpenRouterVision(params: {
   const userName = params.profile?.userName || "Utente";
   const focus = params.profile?.focus || "Ingegneria Meccanica";
 
-  const prompt = params.message || "Analizza questa tavola tecnica meccanica con la massima precisione.";
+  const prompt =
+    `${params.message || "Analizza questa tavola tecnica meccanica con la massima precisione."}\n\n` +
+    `${params.fileMeta ? `${params.fileMeta}\n` : ""}`;
 
   let response: Response;
 
@@ -281,7 +292,7 @@ async function callOpenRouterVision(params: {
                 "REGOLE FONDAMENTALI: " +
                 "(1) Leggi e cita OGNI valore numerico visibile nella tavola: quote, tolleranze, rugosità Ra/Rz, designazioni filetti, scale. " +
                 "(2) NON inventare mai valori: se un numero non è leggibile, scrivi esplicitamente 'non leggibile' o 'non visibile'. " +
-                "(3) Identifica errori reali e specifici, non generici. Cita la posizione (es. 'quota in alto a destra', 'vista frontale'). " +
+                "(3) Identifica errori reali e specifici, non generici. Cita la posizione, per esempio 'quota in alto a destra' o 'vista frontale'. " +
                 "(4) Verifica la coerenza interna: le quote si sommano correttamente? Le tolleranze sono compatibili con la lavorazione indicata? " +
                 "(5) Controlla sempre: cartiglio completo, numero di viste sufficiente, catena di quote chiusa, datum per GD&T, rugosità su superfici funzionali. " +
                 "Rispondi in italiano tecnico preciso.",
@@ -343,10 +354,7 @@ async function callOpenRouterVision(params: {
   );
 }
 
-async function checkAuthAndRateLimit(req: Request): Promise<
-  | { ok: true; userId: string; supabase: any }
-  | { ok: false; response: Response }
-> {
+async function checkAuthAndRateLimit(req: Request): Promise<AuthResult> {
   const supabaseUrl = process.env.SUPABASE_URL;
   const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
@@ -357,17 +365,107 @@ async function checkAuthAndRateLimit(req: Request): Promise<
     };
   }
 
+  const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
   const authHeader = req.headers.get("authorization");
+  const guestId = req.headers.get("x-guest-id");
+
+  if (!authHeader && guestId) {
+    const cleanGuestId = guestId.trim();
+
+    if (!cleanGuestId || cleanGuestId.length < 8 || cleanGuestId.length > 120) {
+      return {
+        ok: false,
+        response: jsonResponse({ error: "Guest ID non valido." }, 400),
+      };
+    }
+
+    const { data: existingGuest, error: selectError } = await supabase
+      .from("guest_usage")
+      .select("guest_id, ai_requests_used, ai_requests_limit")
+      .eq("guest_id", cleanGuestId)
+      .maybeSingle();
+
+    if (selectError) {
+      return {
+        ok: false,
+        response: jsonResponse(
+          {
+            error: "Errore controllo limite ospite.",
+            detail: selectError.message,
+          },
+          500
+        ),
+      };
+    }
+
+    if (!existingGuest) {
+      const { error: insertError } = await supabase
+        .from("guest_usage")
+        .insert({
+          guest_id: cleanGuestId,
+          ai_requests_used: 0,
+          ai_requests_limit: GUEST_DEFAULT_LIMIT,
+        });
+
+      if (insertError) {
+        return {
+          ok: false,
+          response: jsonResponse(
+            {
+              error: "Errore creazione profilo ospite.",
+              detail: insertError.message,
+            },
+            500
+          ),
+        };
+      }
+
+      return {
+        ok: true,
+        mode: "guest",
+        guestId: cleanGuestId,
+        supabase,
+      };
+    }
+
+    if (existingGuest.ai_requests_used >= existingGuest.ai_requests_limit) {
+      return {
+        ok: false,
+        response: jsonResponse(
+          {
+            error: "Limite ospite raggiunto",
+            used: existingGuest.ai_requests_used,
+            limit: existingGuest.ai_requests_limit,
+          },
+          403
+        ),
+      };
+    }
+
+    return {
+      ok: true,
+      mode: "guest",
+      guestId: cleanGuestId,
+      supabase,
+    };
+  }
 
   if (!authHeader) {
     return {
       ok: false,
-      response: jsonResponse({ error: "Token mancante. Effettua il login." }, 401),
+      response: jsonResponse({ error: "Token mancante. Effettua il login oppure entra come ospite." }, 401),
     };
   }
 
-  const token = authHeader.replace("Bearer ", "");
-  const supabase = createClient(supabaseUrl, supabaseServiceKey);
+  const token = authHeader.replace("Bearer ", "").trim();
+
+  if (!token) {
+    return {
+      ok: false,
+      response: jsonResponse({ error: "Token non valido." }, 401),
+    };
+  }
 
   const {
     data: { user },
@@ -409,37 +507,66 @@ async function checkAuthAndRateLimit(req: Request): Promise<
     };
   }
 
-  return { ok: true, userId: user.id, supabase };
+  return {
+    ok: true,
+    mode: "user",
+    userId: user.id,
+    supabase,
+  };
 }
 
-async function incrementUsage(supabase: any, userId: string) {
+async function incrementUserUsage(supabase: any, userId: string) {
   if (!userId) return;
 
-  const { data } = await supabase
+  const { data, error: readError } = await supabase
     .from("profiles")
     .select("ai_requests_used, ai_requests_limit")
     .eq("id", userId)
     .single();
 
-  const profile = data as { ai_requests_used: number; ai_requests_limit: number } | null;
+  if (readError || !data) {
+    console.error("Errore lettura usage utente:", readError);
+    return;
+  }
 
-  if (profile) {
-    console.log("USER ID:", userId);
-    console.log("USAGE BEFORE:", profile.ai_requests_used);
-    console.log("LIMIT:", profile.ai_requests_limit);
+  const profile = data as { ai_requests_used: number; ai_requests_limit: number };
 
-    const { data: updatedProfile, error: updateError } = await supabase
-      .from("profiles")
-      .update({ ai_requests_used: profile.ai_requests_used + 1 })
-      .eq("id", userId)
-      .select("ai_requests_used")
-      .single();
+  const { error: updateError } = await supabase
+    .from("profiles")
+    .update({ ai_requests_used: profile.ai_requests_used + 1 })
+    .eq("id", userId);
 
-    if (updateError) {
-      console.error("Errore update usage:", updateError);
-    } else {
-      console.log("Usage aggiornato:", updatedProfile.ai_requests_used);
-    }
+  if (updateError) {
+    console.error("Errore update usage utente:", updateError);
+  }
+}
+
+async function incrementGuestUsage(supabase: any, guestId: string) {
+  if (!guestId) return;
+
+  const { data, error: readError } = await supabase
+    .from("guest_usage")
+    .select("ai_requests_used")
+    .eq("guest_id", guestId)
+    .single();
+
+  if (readError || !data) {
+    console.error("Errore lettura usage ospite:", readError);
+    return;
+  }
+
+  const used = Number(data.ai_requests_used || 0);
+
+  const { error: updateError } = await supabase
+    .from("guest_usage")
+    .update({
+      ai_requests_used: used + 1,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("guest_id", guestId);
+
+  if (updateError) {
+    console.error("Errore update usage ospite:", updateError);
   }
 }
 
@@ -454,6 +581,7 @@ export default async function handler(req: Request) {
         hasOpenRouterKey: Boolean(process.env.OPENROUTER_API_KEY),
         openRouterVisionModel: process.env.OPENROUTER_VISION_MODEL || "openai/gpt-4o-mini",
         hasSupabase: Boolean(process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY),
+        guestLimit: GUEST_DEFAULT_LIMIT,
       },
     });
   }
@@ -486,14 +614,24 @@ export default async function handler(req: Request) {
           fileText: body.fileText,
         });
 
-    await incrementUsage(auth.supabase, auth.userId);
+    if (auth.mode === "user") {
+      await incrementUserUsage(auth.supabase, auth.userId);
+    } else {
+      await incrementGuestUsage(auth.supabase, auth.guestId);
+    }
 
-    return jsonResponse({ answer });
-  } catch (error: any) {
     return jsonResponse({
-      answer:
-        "⚠️ Errore interno nella rotta `/api/chat`.\n\n" +
-        `Dettaglio tecnico: ${error?.message || "errore sconosciuto"}`,
+      answer,
+      mode: auth.mode,
     });
+  } catch (error: any) {
+    return jsonResponse(
+      {
+        answer:
+          "⚠️ Errore interno nella rotta `/api/chat`.\n\n" +
+          `Dettaglio tecnico: ${error?.message || "errore sconosciuto"}`,
+      },
+      500
+    );
   }
 }

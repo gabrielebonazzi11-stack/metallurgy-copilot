@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { MATERIALS_DB, MaterialInfo } from "./data/materials";
 import * as pdfjsLib from "pdfjs-dist";
-import { supabase } from "./lib/supabaseClient";
+import { supabase, isSupabaseConfigured } from "./lib/supabaseClient";
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
   "pdfjs-dist/build/pdf.worker.min.mjs",
@@ -387,6 +387,11 @@ export default function App() {
       }
     }
 
+    if (!isSupabaseConfigured || !supabase) {
+      setIsLoggedIn(true);
+      return;
+    }
+
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       if (session?.user) {
         const name = session.user.user_metadata?.name || session.user.email?.split("@")[0] || "Utente";
@@ -614,6 +619,7 @@ export default function App() {
   const handleLogin = async () => {
     if (!loginEmail.includes("@")) { setLoginError("Inserisci una email valida."); return; }
     if (!loginPassword.trim()) { setLoginError("Inserisci la password."); return; }
+    if (!supabase) { setLoginError("Supabase non configurato."); return; }
 
     setAuthLoading(true);
     setLoginError("");
@@ -628,6 +634,7 @@ export default function App() {
     if (!loginName.trim()) { setLoginError("Inserisci il tuo nome."); return; }
     if (!loginEmail.includes("@")) { setLoginError("Inserisci una email valida."); return; }
     if (loginPassword.length < 6) { setLoginError("La password deve essere di almeno 6 caratteri."); return; }
+    if (!supabase) { setLoginError("Supabase non configurato."); return; }
 
     setAuthLoading(true);
     setLoginError("");
@@ -645,7 +652,7 @@ export default function App() {
   };
 
   const handleLogout = async () => {
-    await supabase.auth.signOut();
+    if (supabase) await supabase.auth.signOut();
     setUser(DEFAULT_USER);
     setIsLoggedIn(false);
   };

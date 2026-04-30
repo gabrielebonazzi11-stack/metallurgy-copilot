@@ -361,11 +361,9 @@ async function checkAuthAndRateLimit(req: Request): Promise<
 
   const authHeader = req.headers.get("authorization");
 
+  // Ospiti senza token: bypassa auth e rate limiting
   if (!authHeader) {
-    return {
-      ok: false,
-      response: jsonResponse({ error: "Utente non autenticato" }, 401),
-    };
+    return { ok: true, userId: "", supabase: null as any };
   }
 
   const token = authHeader.replace("Bearer ", "");

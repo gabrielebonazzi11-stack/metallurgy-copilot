@@ -374,11 +374,9 @@ async function checkAuthAndRateLimit(req: Request): Promise<
     error: userError,
   } = await supabase.auth.getUser(token);
 
+  // Token non valido o scaduto → tratta come ospite senza bloccare
   if (userError || !user) {
-    return {
-      ok: false,
-      response: jsonResponse({ error: "Sessione non valida" }, 401),
-    };
+    return { ok: true, userId: "", supabase: null as any };
   }
 
   const { data: profile, error: profileError } = await supabase
@@ -387,11 +385,9 @@ async function checkAuthAndRateLimit(req: Request): Promise<
     .eq("id", user.id)
     .single();
 
+  // Profilo non trovato → tratta come ospite senza bloccare
   if (profileError || !profile) {
-    return {
-      ok: false,
-      response: jsonResponse({ error: "Profilo utente non trovato" }, 404),
-    };
+    return { ok: true, userId: "", supabase: null as any };
   }
 
   if (profile.ai_requests_used >= profile.ai_requests_limit) {

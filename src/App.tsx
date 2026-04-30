@@ -143,6 +143,10 @@ const THEMES: Theme[] = [
 ];
 
 const STORAGE_KEY = "techai_stable_app_v5_materials";
+const GUEST_ID_KEY = "techai_guest_id";
+const GUEST_USED_KEY = "techai_guest_used";
+const GUEST_LIMIT = 5;
+
 const DEFAULT_USER: UserProfile = { name: "Utente", email: "utente@techai.local" };
 
 function createId() {
@@ -318,6 +322,8 @@ export default function App() {
   const [authMode, setAuthMode] = useState<"login" | "register">("login");
   const [authLoading, setAuthLoading] = useState(false);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [isGuest, setIsGuest] = useState(false);
+  const [guestUsed, setGuestUsed] = useState(0);
 
   const [theme, setTheme] = useState(THEMES[5]);
   const [interest, setInterest] = useState("Ingegneria Meccanica");
@@ -408,6 +414,9 @@ export default function App() {
   }, [materialSearch, allMaterials]);
 
   useEffect(() => {
+    const savedGuestUsed = Number(localStorage.getItem(GUEST_USED_KEY) || "0");
+    setGuestUsed(Number.isFinite(savedGuestUsed) ? savedGuestUsed : 0);
+
     const saved = localStorage.getItem(STORAGE_KEY);
     if (saved) {
       const data = safeParseJson<any>(saved, null);
@@ -432,9 +441,11 @@ export default function App() {
         setUser({ name, email: session.user.email || "" });
         setLoginEmail(session.user.email || "");
         setIsLoggedIn(true);
+        setIsGuest(false);
         setShowLoginPanel(false);
       } else {
         setIsLoggedIn(false);
+        setIsGuest(false);
       }
     });
 
@@ -465,10 +476,11 @@ export default function App() {
         activeChatId,
         sidebarOpen,
         isLoggedIn,
+        isGuest,
         customMaterials,
       })
     );
-  }, [theme, user, interest, chats, activeChatId, sidebarOpen, isLoggedIn, customMaterials]);
+  }, [theme, user, interest, chats, activeChatId, sidebarOpen, isLoggedIn, isGuest, customMaterials]);
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -650,7 +662,26 @@ export default function App() {
     return 210000;
   };
 
+  const getOrCreateGuestId = () => {
+    let guestId = localStorage.getItem(GUEST_ID_KEY);
+
+    if (!guestId) {
+      guestId = `guest_${createId()}`;
+      localStorage.setItem(GUEST_ID_KEY, guestId);
+    }
+
+    return guestId;
+  };
+
+  const markGuestRequestUsed = () => {
+    const newUsed = guestUsed + 1;
+    setGuestUsed(newUsed);
+    localStorage.setItem(GUEST_USED_KEY, String(newUsed));
+  };
+
   const getAuthToken = async (): Promise<string | null> => {
+    if (isGuest) return null;
+
     if (!supabase) return null;
 
     const {
@@ -660,6 +691,7 @@ export default function App() {
 
     if (error || !session?.access_token) {
       setIsLoggedIn(false);
+      setIsGuest(false);
       setLoginDismissed(false);
       setShowLoginPanel(true);
       setLoginError("Sessione scaduta. Effettua di nuovo il login.");
@@ -667,6 +699,36 @@ export default function App() {
     }
 
     return session.access_token;
+  };
+
+  const buildApiHeaders = async (): Promise<Record<string, string> | null> => {
+    const headers: Record<string, string> = {};
+    const token = await getAuthToken();
+
+    if (token) {
+      headers.Authorization = `Bearer ${token}`;
+      return headers;
+    }
+
+    if (isGuest) {
+      headers["X-Guest-Id"] = getOrCreateGuestId();
+      return headers;
+    }
+
+    return null;
+  };
+
+  const handleGuestAccess = () => {
+    const used = Number(localStorage.getItem(GUEST_USED_KEY) || "0");
+    getOrCreateGuestId();
+
+    setUser({ name: "Ospite", email: "ospite@techai.local" });
+    setIsGuest(true);
+    setIsLoggedIn(true);
+    setGuestUsed(Number.isFinite(used) ? used : 0);
+    setShowLoginPanel(false);
+    setLoginDismissed(true);
+    setLoginError("");
   };
 
   const handleLogin = async () => {
@@ -680,6 +742,8 @@ export default function App() {
     setAuthLoading(false);
 
     if (error) { setLoginError(error.message); return; }
+
+    setIsGuest(false);
     setLoginPassword("");
   };
 
@@ -705,11 +769,18 @@ export default function App() {
   };
 
   const handleLogout = async () => {
-    if (supabase) await supabase.auth.signOut();
+    if (supabase && !isGuest) {
+      await supabase.auth.signOut();
+    }
+
     setUser(DEFAULT_USER);
     setIsLoggedIn(false);
+    setIsGuest(false);
     setLoginDismissed(false);
-    setShowLoginPanel(false);
+    setShowLoginPanel(true);
+    setShowSettings(false);
+    setLoginPassword("");
+    setAuthMode("login");
   };
 
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -766,19 +837,19 @@ export default function App() {
         }
       }
 
-      const token = await getAuthToken();
+      const headers = await buildApiHeaders();
 
-      if (!token) {
+      if (!headers) {
         replaceMessagesInChat(chatId, [
           ...updatedMessages,
-          { role: "AI", text: "⚠️ Sessione scaduta. Effettua di nuovo il login e riprova." },
+          { role: "AI", text: "⚠️ Sessione scaduta. Effettua di nuovo il login oppure entra come ospite." },
         ]);
         return;
       }
 
       const res = await fetch("/api/chat", {
         method: "POST",
-        headers: { Authorization: `Bearer ${token}` },
+        headers,
         body: formData,
       });
 
@@ -787,6 +858,7 @@ export default function App() {
 
       if (!res.ok) {
         const errMsg = data?.error || raw || `Errore HTTP ${res.status}`;
+
         if (res.status === 403 && data?.error === "Limite AI raggiunto") {
           replaceMessagesInChat(chatId, [
             ...updatedMessages,
@@ -794,18 +866,30 @@ export default function App() {
           ]);
           return;
         }
-        if (res.status === 401) {
+
+        if (res.status === 403 && data?.error === "Limite ospite raggiunto") {
           replaceMessagesInChat(chatId, [
             ...updatedMessages,
-            { role: "AI", text: `⚠️ **Sessione scaduta.** Effettua di nuovo il login per continuare.` },
+            { role: "AI", text: `⚠️ **Limite ospite raggiunto** (${data.used}/${data.limit} richieste usate).\n\nAccedi o registrati per continuare a usare TechAI.` },
           ]);
           return;
         }
+
+        if (res.status === 401) {
+          replaceMessagesInChat(chatId, [
+            ...updatedMessages,
+            { role: "AI", text: `⚠️ **Sessione scaduta.** Effettua di nuovo il login oppure entra come ospite.` },
+          ]);
+          return;
+        }
+
         throw new Error(errMsg);
       }
 
       const answer = data?.answer || data?.message || raw;
       if (!answer) throw new Error("Il backend non ha restituito una risposta valida.");
+
+      if (isGuest) markGuestRequestUsed();
 
       replaceMessagesInChat(chatId, [...updatedMessages, { role: "AI", text: answer }]);
     } catch (error: any) {
@@ -1154,12 +1238,15 @@ Struttura la risposta così:
         formData.append("profile", JSON.stringify({ userName: user.name, focus: interest }));
         formData.append("messages", JSON.stringify([]));
 
-        const token = await getAuthToken();
-        if (!token) return;
+        const headers = await buildApiHeaders();
+
+        if (!headers) {
+          throw new Error("Sessione scaduta. Effettua di nuovo il login oppure entra come ospite.");
+        }
 
         const res = await fetch("/api/chat", {
           method: "POST",
-          headers: { Authorization: `Bearer ${token}` },
+          headers,
           body: formData,
         });
 
@@ -1170,9 +1257,15 @@ Struttura la risposta così:
           throw new Error(`Limite AI raggiunto (${data.used}/${data.limit} richieste). Upgrada al piano Pro per continuare.`);
         }
 
+        if (res.status === 403 && data?.error === "Limite ospite raggiunto") {
+          throw new Error(`Limite ospite raggiunto (${data.used}/${data.limit} richieste). Accedi o registrati per continuare.`);
+        }
+
         if (!res.ok) throw new Error(data?.error || raw || `Errore HTTP ${res.status}`);
 
         const answer = data?.answer || data?.message || raw || "Nessuna risposta ricevuta dall'analisi immagine.";
+
+        if (isGuest) markGuestRequestUsed();
 
         setDrawingIssues(buildIssuesFromAiAnswer(String(answer)));
         setDrawingResults([
@@ -1463,6 +1556,17 @@ Struttura la risposta così:
           {authLoading ? "Attendere..." : isRegister ? "Crea account" : "Accedi"}
         </button>
 
+        <button
+          style={{
+            ...s.secondaryBtn,
+            color: theme.text,
+            border: `1px solid ${theme.border}`,
+          }}
+          onClick={handleGuestAccess}
+          type="button"
+        >
+          Continua come ospite · {Math.max(GUEST_LIMIT - guestUsed, 0)}/{GUEST_LIMIT} richieste rimaste
+        </button>
       </div>
     );
   };
@@ -1590,6 +1694,11 @@ Struttura la risposta così:
           {currentMessages.length === 0 ? (
             <div style={s.homeWrapper}>
               <h1 style={s.welcomeText}>Benvenuto {user.name.split(" ")[0]}, come posso aiutarti?</h1>
+              {isGuest && (
+                <p style={{ ...s.fileHint, color: theme.primary, fontWeight: 800 }}>
+                  Modalità ospite attiva · {Math.max(GUEST_LIMIT - guestUsed, 0)}/{GUEST_LIMIT} richieste rimaste
+                </p>
+              )}
               {renderInputBar("Chiedi a TechAI o carica un file...")}
               <p style={s.fileHint}>Il file viene mandato al backend. La chiave AI non è nel frontend.</p>
             </div>
@@ -2026,13 +2135,20 @@ Struttura la risposta così:
               {activeTab === "Account" && (
                 <>
                   <Field label="Nome" value={user.name} onChange={v => setUser(prev => ({ ...prev, name: v }))} theme={theme} isDark={isDark} />
-                  <Field label="Email" value={user.email} onChange={v => {}} theme={theme} isDark={isDark} />
+                  <Field label="Email" value={user.email} onChange={() => {}} theme={theme} isDark={isDark} />
+
+                  {isGuest && (
+                    <div style={{ ...s.warningBox, border: `1px solid ${theme.border}`, marginBottom: 10 }}>
+                      Sei in modalità ospite. Richieste rimaste: {Math.max(GUEST_LIMIT - guestUsed, 0)}/{GUEST_LIMIT}.
+                    </div>
+                  )}
+
                   <button
                     style={{ ...s.secondaryBtn, color: "#ef4444", border: "1px solid #ef4444", marginTop: 8 }}
                     onClick={handleLogout}
                     type="button"
                   >
-                    Logout
+                    {isGuest ? "Esci dalla modalità ospite" : "Logout"}
                   </button>
                 </>
               )}

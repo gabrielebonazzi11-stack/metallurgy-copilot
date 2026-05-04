@@ -72,21 +72,51 @@ type ChecklistResult = {
 
 type QuickCalcForm = {
   componentType: string;
-  stressType: string;
+  verificationType: string;
+  sectionType: string;
   material: string;
-  load: string;
+
+  axialLoad: string;
+  shearLoad: string;
+  bendingMoment: string;
+  torque: string;
   distance: string;
+
   diameter: string;
+  outerDiameter: string;
+  innerDiameter: string;
+
+  base: string;
+  height: string;
+  outerBase: string;
+  outerHeight: string;
+  innerBase: string;
+  innerHeight: string;
+
+  pressure: string;
+  radius: string;
+  thickness: string;
+
+  sigmaX: string;
+  sigmaY: string;
+  tauXY: string;
+
+  sigmaMax: string;
+  sigmaMin: string;
+  fatigueLimit: string;
+
   safetyFactorRequired: string;
 };
 
 type QuickCalcResult = {
   title: string;
   scheme: string;
+  section: string;
   formulas: string[];
+  sectionValues: string[];
   values: string[];
-  sigma: number;
-  deflection: number;
+  equivalentStress: number;
+  trescaStress?: number;
   safetyFactor: number;
   outcome: "OK" | "NON OK";
   notes: string[];
@@ -131,6 +161,18 @@ type DrawingForm = {
   roughness: string;
   assemblyFunction: string;
   productionQuantity: string;
+};
+
+type SectionData = {
+  name: string;
+  A: number;
+  Jf: number;
+  Wf: number;
+  Jp: number;
+  Wt: number;
+  shearFactor: number;
+  values: string[];
+  notes: string[];
 };
 
 const THEMES: Theme[] = [
@@ -181,6 +223,11 @@ function isPdfFile(file: File | null | undefined) {
 
 function isDrawingUpload(upload: DrawingUpload | null) {
   return Boolean(upload?.file && (isImageFile(upload.file) || isPdfFile(upload.file)));
+}
+
+function toNumber(value: string, fallback = 0) {
+  const n = Number(String(value || "").replace(",", "."));
+  return Number.isFinite(n) ? n : fallback;
 }
 
 async function pdfPageToImageFile(file: File): Promise<{ dataUrl: string; jpegFile: File; totalPages: number }> {
@@ -320,12 +367,40 @@ export default function App() {
   const [checklistResults, setChecklistResults] = useState<ChecklistResult[]>([]);
 
   const [quickCalcForm, setQuickCalcForm] = useState<QuickCalcForm>({
-    componentType: "perno",
-    stressType: "flessione",
+    componentType: "albero",
+    verificationType: "flessione_torsione",
+    sectionType: "circolare_piena",
     material: "C45",
-    load: "2500",
+
+    axialLoad: "0",
+    shearLoad: "2500",
+    bendingMoment: "",
+    torque: "80000",
     distance: "120",
-    diameter: "20",
+
+    diameter: "25",
+    outerDiameter: "40",
+    innerDiameter: "25",
+
+    base: "30",
+    height: "50",
+    outerBase: "60",
+    outerHeight: "80",
+    innerBase: "40",
+    innerHeight: "60",
+
+    pressure: "30",
+    radius: "150",
+    thickness: "4",
+
+    sigmaX: "80",
+    sigmaY: "20",
+    tauXY: "30",
+
+    sigmaMax: "180",
+    sigmaMin: "20",
+    fatigueLimit: "",
+
     safetyFactorRequired: "2",
   });
   const [quickCalcResult, setQuickCalcResult] = useState<QuickCalcResult | null>(null);
@@ -591,6 +666,157 @@ export default function App() {
     );
   };
 
+  const getSectionData = (): SectionData => {
+    const sectionType = quickCalcForm.sectionType;
+
+    const d = toNumber(quickCalcForm.diameter);
+    const D = toNumber(quickCalcForm.outerDiameter);
+    const di = toNumber(quickCalcForm.innerDiameter);
+
+    const b = toNumber(quickCalcForm.base);
+    const h = toNumber(quickCalcForm.height);
+
+    const B = toNumber(quickCalcForm.outerBase);
+    const H = toNumber(quickCalcForm.outerHeight);
+    const bi = toNumber(quickCalcForm.innerBase);
+    const hi = toNumber(quickCalcForm.innerHeight);
+
+    if (sectionType === "circolare_piena") {
+      if (d <= 0) throw new Error("Inserisci un diametro d valido per la sezione circolare piena.");
+
+      const A = Math.PI * d ** 2 / 4;
+      const Jf = Math.PI * d ** 4 / 64;
+      const Wf = Math.PI * d ** 3 / 32;
+      const Jp = Math.PI * d ** 4 / 32;
+      const Wt = Math.PI * d ** 3 / 16;
+
+      return {
+        name: `Circolare piena Ø${d} mm`,
+        A,
+        Jf,
+        Wf,
+        Jp,
+        Wt,
+        shearFactor: 4 / 3,
+        values: [
+          `Sezione: circolare piena`,
+          `Diametro: d = ${d.toFixed(2)} mm`,
+          `Area: A = ${A.toFixed(2)} mm²`,
+          `Momento d'inerzia flessionale: Jf = ${Jf.toFixed(2)} mm⁴`,
+          `Modulo resistente a flessione: Wf = ${Wf.toFixed(2)} mm³`,
+          `Momento polare: Jp = ${Jp.toFixed(2)} mm⁴`,
+          `Modulo resistente a torsione: Wt = ${Wt.toFixed(2)} mm³`,
+        ],
+        notes: [],
+      };
+    }
+
+    if (sectionType === "circolare_cava") {
+      if (D <= 0 || di <= 0 || di >= D) {
+        throw new Error("Per la sezione circolare cava inserisci D esterno > d interno > 0.");
+      }
+
+      const A = Math.PI * (D ** 2 - di ** 2) / 4;
+      const Jf = Math.PI * (D ** 4 - di ** 4) / 64;
+      const Wf = Jf / (D / 2);
+      const Jp = Math.PI * (D ** 4 - di ** 4) / 32;
+      const Wt = Jp / (D / 2);
+
+      return {
+        name: `Circolare cava Ø${D}/${di} mm`,
+        A,
+        Jf,
+        Wf,
+        Jp,
+        Wt,
+        shearFactor: 1.35,
+        values: [
+          `Sezione: circolare cava`,
+          `Diametro esterno: D = ${D.toFixed(2)} mm`,
+          `Diametro interno: d = ${di.toFixed(2)} mm`,
+          `Area: A = ${A.toFixed(2)} mm²`,
+          `Momento d'inerzia flessionale: Jf = ${Jf.toFixed(2)} mm⁴`,
+          `Modulo resistente a flessione: Wf = ${Wf.toFixed(2)} mm³`,
+          `Momento polare: Jp = ${Jp.toFixed(2)} mm⁴`,
+          `Modulo resistente a torsione: Wt = ${Wt.toFixed(2)} mm³`,
+        ],
+        notes: ["Per il taglio su sezione cava il coefficiente è indicativo."],
+      };
+    }
+
+    if (sectionType === "rettangolare_piena") {
+      if (b <= 0 || h <= 0) {
+        throw new Error("Per la sezione rettangolare piena inserisci base b e altezza h valide.");
+      }
+
+      const A = b * h;
+      const Jf = b * h ** 3 / 12;
+      const Wf = b * h ** 2 / 6;
+
+      const longSide = Math.max(b, h);
+      const shortSide = Math.min(b, h);
+      const Jt = longSide * shortSide ** 3 * (1 / 3 - 0.21 * (shortSide / longSide) * (1 - shortSide ** 4 / (12 * longSide ** 4)));
+      const Wt = Jt / (shortSide / 2);
+
+      return {
+        name: `Rettangolare piena ${b}×${h} mm`,
+        A,
+        Jf,
+        Wf,
+        Jp: Jt,
+        Wt,
+        shearFactor: 1.5,
+        values: [
+          `Sezione: rettangolare piena`,
+          `Base: b = ${b.toFixed(2)} mm`,
+          `Altezza: h = ${h.toFixed(2)} mm`,
+          `Area: A = ${A.toFixed(2)} mm²`,
+          `Momento d'inerzia flessionale: Jf = ${Jf.toFixed(2)} mm⁴`,
+          `Modulo resistente a flessione: Wf = ${Wf.toFixed(2)} mm³`,
+          `Modulo resistente torsionale indicativo: Wt ≈ ${Wt.toFixed(2)} mm³`,
+        ],
+        notes: ["La torsione su sezione rettangolare è una stima preliminare."],
+      };
+    }
+
+    if (sectionType === "rettangolare_cava") {
+      if (B <= 0 || H <= 0 || bi <= 0 || hi <= 0 || bi >= B || hi >= H) {
+        throw new Error("Per la sezione rettangolare cava inserisci dimensioni esterne maggiori di quelle interne.");
+      }
+
+      const A = B * H - bi * hi;
+      const Jf = (B * H ** 3 - bi * hi ** 3) / 12;
+      const Wf = Jf / (H / 2);
+
+      const JpIndicativo = ((B * H ** 3 + H * B ** 3) - (bi * hi ** 3 + hi * bi ** 3)) / 12;
+      const Wt = JpIndicativo / (Math.min(B, H) / 2);
+
+      return {
+        name: `Rettangolare cava ${B}×${H} / ${bi}×${hi} mm`,
+        A,
+        Jf,
+        Wf,
+        Jp: JpIndicativo,
+        Wt,
+        shearFactor: 1.5,
+        values: [
+          `Sezione: rettangolare cava`,
+          `Base esterna: B = ${B.toFixed(2)} mm`,
+          `Altezza esterna: H = ${H.toFixed(2)} mm`,
+          `Base interna: b = ${bi.toFixed(2)} mm`,
+          `Altezza interna: h = ${hi.toFixed(2)} mm`,
+          `Area: A = ${A.toFixed(2)} mm²`,
+          `Momento d'inerzia flessionale: Jf = ${Jf.toFixed(2)} mm⁴`,
+          `Modulo resistente a flessione: Wf = ${Wf.toFixed(2)} mm³`,
+          `Modulo torsionale indicativo: Wt ≈ ${Wt.toFixed(2)} mm³`,
+        ],
+        notes: ["La torsione su sezione rettangolare cava è molto semplificata: per progetto reale usare formule da manuale o FEM."],
+      };
+    }
+
+    throw new Error("Tipo di sezione non riconosciuto.");
+  };
+
   const updateNewMaterialField = (field: keyof MaterialInfo, value: string) => {
     setNewMaterial(prev => ({
       ...prev,
@@ -667,8 +893,18 @@ export default function App() {
     if (!material) return 210000;
     const name = material.name.toLowerCase();
     if (name.includes("alluminio")) return 70000;
-    if (name.includes("rame") || name.includes("ottone")) return 110000;
-    if (name.includes("ptfe") || name.includes("nylon") || name.includes("gomma") || name.includes("pvc")) return 3000;
+    if (name.includes("rame") || name.includes("ottone") || name.includes("bronzo")) return 110000;
+    if (name.includes("ghisa")) return 100000;
+    if (
+      name.includes("ptfe") ||
+      name.includes("nylon") ||
+      name.includes("gomma") ||
+      name.includes("pvc") ||
+      name.includes("pom") ||
+      name.includes("abs") ||
+      name.includes("pla") ||
+      name.includes("petg")
+    ) return 3000;
     return 210000;
   };
 
@@ -847,7 +1083,7 @@ export default function App() {
             const pdfText = await extractPdfText(fileToSend.file);
             if (pdfText.trim()) formData.append("fileText", pdfText);
           } catch {
-            // fallback: il backend proverà a leggere direttamente il file
+            // fallback backend
           }
         }
       }
@@ -986,85 +1222,322 @@ export default function App() {
   };
 
   const runQuickCalc = () => {
-    const F = Number(quickCalcForm.load.replace(",", "."));
-    const L = Number(quickCalcForm.distance.replace(",", "."));
-    const d = Number(quickCalcForm.diameter.replace(",", "."));
-    const nRequired = Number(quickCalcForm.safetyFactorRequired.replace(",", ".")) || 2;
-    const material = findMaterial(quickCalcForm.material);
-    const Re = material?.re || 300;
-    const E = getYoungModulus(material);
+    try {
+      const material = findMaterial(quickCalcForm.material);
+      const Re = material?.re || 300;
+      const Rm = material?.rm || Math.max(Re * 1.4, 400);
+      const E = getYoungModulus(material);
+      const nRequired = toNumber(quickCalcForm.safetyFactorRequired, 2) || 2;
+      const type = quickCalcForm.verificationType;
 
-    if (!F || !L || !d || F <= 0 || L <= 0 || d <= 0) {
+      const section = getSectionData();
+
+      const N = toNumber(quickCalcForm.axialLoad);
+      const T = toNumber(quickCalcForm.shearLoad);
+      const L = toNumber(quickCalcForm.distance);
+      const Mt = toNumber(quickCalcForm.torque);
+      const MfInput = toNumber(quickCalcForm.bendingMoment);
+      const Mf = MfInput > 0 ? MfInput : T * L;
+
+      let title = "";
+      let scheme = "";
+      let formulas: string[] = [];
+      let values: string[] = [];
+      let notes: string[] = [...section.notes];
+
+      let sigmaN = 0;
+      let sigmaF = 0;
+      let tauT = 0;
+      let tauV = 0;
+      let tauTot = 0;
+      let sigmaTot = 0;
+      let sigmaVM = 0;
+      let sigmaTresca = 0;
+      let safetyFactor = 0;
+
+      if (type === "assiale") {
+        sigmaN = N / section.A;
+        sigmaVM = Math.abs(sigmaN);
+        sigmaTresca = Math.abs(sigmaN);
+        safetyFactor = Re / sigmaVM;
+        title = "Verifica a trazione / compressione";
+        scheme = "Barra o componente con carico assiale centrato.";
+        formulas = ["A = area sezione", "σ = N / A", "n = Re / |σ|"];
+        values = [
+          `Carico assiale: N = ${N.toFixed(2)} N`,
+          `Tensione normale: σ = ${sigmaN.toFixed(2)} MPa`,
+          `Modulo elastico indicativo: E = ${E.toFixed(0)} MPa`,
+        ];
+        notes.push("Se il carico è di compressione e il pezzo è snello, controllare anche l'instabilità di punta.");
+      }
+
+      if (type === "taglio") {
+        tauV = section.shearFactor * T / section.A;
+        sigmaVM = Math.sqrt(3) * Math.abs(tauV);
+        sigmaTresca = 2 * Math.abs(tauV);
+        safetyFactor = Re / sigmaVM;
+        title = "Verifica a taglio";
+        scheme = "Sezione sollecitata da forza tagliante.";
+        formulas = ["τmedio = T / A", "τmax = k · T / A", "σVM = √3 · τmax", "n = Re / σVM"];
+        values = [
+          `Forza tagliante: T = ${T.toFixed(2)} N`,
+          `Coefficiente forma taglio: k = ${section.shearFactor.toFixed(2)}`,
+          `Tensione tangenziale massima indicativa: τ = ${tauV.toFixed(2)} MPa`,
+          `Tensione equivalente Von Mises: σVM = ${sigmaVM.toFixed(2)} MPa`,
+        ];
+        notes.push("Per spine/perni controllare se il taglio è singolo o doppio.");
+      }
+
+      if (type === "flessione") {
+        sigmaF = Mf / section.Wf;
+        sigmaVM = Math.abs(sigmaF);
+        sigmaTresca = Math.abs(sigmaF);
+        safetyFactor = Re / sigmaVM;
+        title = "Verifica a flessione";
+        scheme = MfInput > 0 ? "Momento flettente inserito direttamente." : "Momento flettente calcolato da forza tagliante e braccio: Mf = T · L.";
+        formulas = ["Mf = T · L oppure valore inserito", "Wf = modulo resistente a flessione", "σf = Mf / Wf", "n = Re / |σf|"];
+        values = [
+          `Forza tagliante: T = ${T.toFixed(2)} N`,
+          `Braccio: L = ${L.toFixed(2)} mm`,
+          `Momento flettente: Mf = ${Mf.toFixed(2)} Nmm`,
+          `Tensione di flessione: σf = ${sigmaF.toFixed(2)} MPa`,
+        ];
+      }
+
+      if (type === "torsione") {
+        tauT = Mt / section.Wt;
+        sigmaVM = Math.sqrt(3) * Math.abs(tauT);
+        sigmaTresca = 2 * Math.abs(tauT);
+        safetyFactor = Re / sigmaVM;
+        title = "Verifica a torsione";
+        scheme = "Sezione sollecitata da momento torcente.";
+        formulas = ["Wt = modulo resistente a torsione", "τt = Mt / Wt", "σVM = √3 · τt", "n = Re / σVM"];
+        values = [
+          `Momento torcente: Mt = ${Mt.toFixed(2)} Nmm`,
+          `Tensione tangenziale di torsione: τt = ${tauT.toFixed(2)} MPa`,
+          `Tensione equivalente Von Mises: σVM = ${sigmaVM.toFixed(2)} MPa`,
+        ];
+        notes.push("Per alberi con cave linguetta o spallamenti applicare coefficienti di intaglio.");
+      }
+
+      if (
+        type === "flessione_torsione" ||
+        type === "flessione_taglio" ||
+        type === "trazione_flessione" ||
+        type === "trazione_torsione" ||
+        type === "generale"
+      ) {
+        sigmaN = N / section.A;
+        sigmaF = Mf / section.Wf;
+        tauT = Mt / section.Wt;
+        tauV = section.shearFactor * T / section.A;
+
+        const useAxial = type === "trazione_flessione" || type === "trazione_torsione" || type === "generale";
+        const useBending = type === "flessione_torsione" || type === "flessione_taglio" || type === "trazione_flessione" || type === "generale";
+        const useTorsion = type === "flessione_torsione" || type === "trazione_torsione" || type === "generale";
+        const useShear = type === "flessione_taglio" || type === "generale";
+
+        sigmaTot = (useAxial ? sigmaN : 0) + (useBending ? sigmaF : 0);
+        tauTot = Math.sqrt((useTorsion ? tauT : 0) ** 2 + (useShear ? tauV : 0) ** 2);
+
+        sigmaVM = Math.sqrt(sigmaTot ** 2 + 3 * tauTot ** 2);
+        sigmaTresca = Math.sqrt(sigmaTot ** 2 + 4 * tauTot ** 2);
+        safetyFactor = Re / sigmaVM;
+
+        const titles: Record<string, string> = {
+          flessione_torsione: "Verifica composta: flessione + torsione",
+          flessione_taglio: "Verifica composta: flessione + taglio",
+          trazione_flessione: "Verifica composta: trazione/compressione + flessione",
+          trazione_torsione: "Verifica composta: trazione/compressione + torsione",
+          generale: "Verifica generale: assiale + flessione + torsione + taglio",
+        };
+
+        title = titles[type];
+        scheme = "Sollecitazioni combinate sulla stessa sezione. Verifica equivalente con Von Mises e confronto indicativo con Tresca.";
+        formulas = [
+          "σN = N / A",
+          "σf = Mf / Wf",
+          "τt = Mt / Wt",
+          "τV = k · T / A",
+          "σtot = σN + σf",
+          "τtot = √(τt² + τV²)",
+          "σVM = √(σtot² + 3τtot²)",
+          "σTresca ≈ √(σtot² + 4τtot²)",
+          "n = Re / σVM",
+        ];
+        values = [
+          `Carico assiale: N = ${N.toFixed(2)} N`,
+          `Forza tagliante: T = ${T.toFixed(2)} N`,
+          `Braccio: L = ${L.toFixed(2)} mm`,
+          `Momento flettente usato: Mf = ${Mf.toFixed(2)} Nmm`,
+          `Momento torcente: Mt = ${Mt.toFixed(2)} Nmm`,
+          `σN = ${sigmaN.toFixed(2)} MPa`,
+          `σf = ${sigmaF.toFixed(2)} MPa`,
+          `τt = ${tauT.toFixed(2)} MPa`,
+          `τV = ${tauV.toFixed(2)} MPa`,
+          `σtot usata = ${sigmaTot.toFixed(2)} MPa`,
+          `τtot usata = ${tauTot.toFixed(2)} MPa`,
+          `Von Mises: σVM = ${sigmaVM.toFixed(2)} MPa`,
+          `Tresca indicativo: σTresca = ${sigmaTresca.toFixed(2)} MPa`,
+        ];
+        notes.push("Per alberi reali considera anche intagli, cava linguetta, fatica e diametri normalizzati.");
+      }
+
+      if (type === "pressione_interna") {
+        const pBar = toNumber(quickCalcForm.pressure);
+        const p = pBar * 0.1;
+        const r = toNumber(quickCalcForm.radius);
+        const sp = toNumber(quickCalcForm.thickness);
+
+        if (pBar <= 0 || r <= 0 || sp <= 0) {
+          throw new Error("Per la pressione interna inserisci p [bar], raggio medio r [mm] e spessore s [mm].");
+        }
+
+        const sigmaCirc = p * r / sp;
+        const sigmaLong = p * r / (2 * sp);
+
+        sigmaVM = Math.sqrt(sigmaCirc ** 2 - sigmaCirc * sigmaLong + sigmaLong ** 2);
+        sigmaTresca = Math.max(Math.abs(sigmaCirc - sigmaLong), Math.abs(sigmaCirc), Math.abs(sigmaLong));
+        safetyFactor = Re / sigmaVM;
+
+        title = "Verifica recipiente cilindrico in pressione";
+        scheme = "Guscio cilindrico sottile con pressione interna. Formula valida come stima se s << r.";
+        formulas = [
+          "p[MPa] = p[bar] · 0,1",
+          "σcirconferenziale = p · r / s",
+          "σlongitudinale = p · r / (2s)",
+          "σVM = √(σc² - σcσl + σl²)",
+          "n = Re / σVM",
+        ];
+        values = [
+          `Pressione: p = ${pBar.toFixed(2)} bar = ${p.toFixed(2)} MPa`,
+          `Raggio medio: r = ${r.toFixed(2)} mm`,
+          `Spessore: s = ${sp.toFixed(2)} mm`,
+          `σ circonferenziale = ${sigmaCirc.toFixed(2)} MPa`,
+          `σ longitudinale = ${sigmaLong.toFixed(2)} MPa`,
+          `Von Mises: σVM = ${sigmaVM.toFixed(2)} MPa`,
+          `Tresca indicativo: σTresca = ${sigmaTresca.toFixed(2)} MPa`,
+        ];
+        notes.push("Per recipienti reali considera saldature, fondi, aperture, normative e coefficienti di sicurezza specifici.");
+      }
+
+      if (type === "stato_piano") {
+        const sx = toNumber(quickCalcForm.sigmaX);
+        const sy = toNumber(quickCalcForm.sigmaY);
+        const txy = toNumber(quickCalcForm.tauXY);
+
+        const center = (sx + sy) / 2;
+        const radius = Math.sqrt(((sx - sy) / 2) ** 2 + txy ** 2);
+        const s1 = center + radius;
+        const s2 = center - radius;
+        const s3 = 0;
+
+        sigmaVM = Math.sqrt(sx ** 2 - sx * sy + sy ** 2 + 3 * txy ** 2);
+        sigmaTresca = Math.max(Math.abs(s1 - s2), Math.abs(s1 - s3), Math.abs(s2 - s3));
+        safetyFactor = Re / sigmaVM;
+
+        title = "Stato piano di tensione";
+        scheme = "Calcolo tensioni principali, taglio massimo, Von Mises e Tresca da σx, σy, τxy.";
+        formulas = [
+          "σ1,2 = (σx+σy)/2 ± √[((σx-σy)/2)² + τxy²]",
+          "τmax = √[((σx-σy)/2)² + τxy²]",
+          "σVM = √(σx² - σxσy + σy² + 3τxy²)",
+          "σTresca = max(|σ1-σ2|, |σ1|, |σ2|)",
+          "n = Re / σVM",
+        ];
+        values = [
+          `σx = ${sx.toFixed(2)} MPa`,
+          `σy = ${sy.toFixed(2)} MPa`,
+          `τxy = ${txy.toFixed(2)} MPa`,
+          `σ1 = ${s1.toFixed(2)} MPa`,
+          `σ2 = ${s2.toFixed(2)} MPa`,
+          `τmax = ${radius.toFixed(2)} MPa`,
+          `Von Mises: σVM = ${sigmaVM.toFixed(2)} MPa`,
+          `Tresca: σTresca = ${sigmaTresca.toFixed(2)} MPa`,
+        ];
+      }
+
+      if (type === "fatica") {
+        const sMax = toNumber(quickCalcForm.sigmaMax);
+        const sMin = toNumber(quickCalcForm.sigmaMin);
+        const SnInput = toNumber(quickCalcForm.fatigueLimit);
+        const Sn = SnInput > 0 ? SnInput : 0.5 * Rm;
+
+        const sm = (sMax + sMin) / 2;
+        const sa = Math.abs(sMax - sMin) / 2;
+
+        const denominator = sa / Sn + Math.max(sm, 0) / Rm;
+        safetyFactor = denominator > 0 ? 1 / denominator : 999;
+        sigmaVM = sa;
+        sigmaTresca = undefined;
+
+        title = "Verifica a fatica semplificata";
+        scheme = "Verifica tipo Goodman con tensione media e alternata. Valida come controllo preliminare.";
+        formulas = [
+          "σm = (σmax + σmin) / 2",
+          "σa = |σmax - σmin| / 2",
+          "Sn ≈ 0,5 · Rm se non inserito",
+          "1/n = σa/Sn + σm/Rm",
+        ];
+        values = [
+          `σmax = ${sMax.toFixed(2)} MPa`,
+          `σmin = ${sMin.toFixed(2)} MPa`,
+          `σm = ${sm.toFixed(2)} MPa`,
+          `σa = ${sa.toFixed(2)} MPa`,
+          `Rm = ${Rm.toFixed(2)} MPa`,
+          `Sn usato = ${Sn.toFixed(2)} MPa`,
+          `Coefficiente a fatica: n = ${safetyFactor.toFixed(2)}`,
+        ];
+        notes.push("Per fatica reale correggere Sn con rugosità, dimensione, affidabilità, tipo di sollecitazione e intaglio.");
+      }
+
+      if (!Number.isFinite(sigmaVM) || sigmaVM <= 0) {
+        throw new Error("La tensione calcolata è nulla o non valida. Inserisci carichi/momenti coerenti con il tipo di verifica scelto.");
+      }
+
+      const outcome = safetyFactor >= nRequired ? "OK" : "NON OK";
+
+      const materialText = material
+        ? `${material.name} (${material.en})`
+        : `${quickCalcForm.material} non trovato: usati valori indicativi Re = ${Re} MPa, Rm = ${Rm} MPa`;
+
       setQuickCalcResult({
-        title: "Dati insufficienti",
-        scheme: "Inserisci carico, distanza e diametro numerici e maggiori di zero.",
+        title,
+        scheme,
+        section: section.name,
+        formulas,
+        sectionValues: [
+          `Materiale usato: ${materialText}`,
+          `Re/Rp0.2 usato: ${Re.toFixed(2)} MPa`,
+          `Rm usato: ${Rm.toFixed(2)} MPa`,
+          ...section.values,
+        ],
+        values: [
+          ...values,
+          `Tensione equivalente finale: ${sigmaVM.toFixed(2)} MPa`,
+          `Coefficiente di sicurezza richiesto: n_req = ${nRequired.toFixed(2)}`,
+          `Coefficiente di sicurezza calcolato: n = ${safetyFactor.toFixed(2)}`,
+        ],
+        equivalentStress: sigmaVM,
+        trescaStress: sigmaTresca,
+        safetyFactor,
+        outcome,
+        notes,
+      });
+    } catch (error: any) {
+      setQuickCalcResult({
+        title: "Errore nei dati inseriti",
+        scheme: "Il modulo non riesce a completare la verifica perché uno o più dati non sono coerenti.",
+        section: "Non calcolata",
         formulas: [],
+        sectionValues: [],
         values: [],
-        sigma: 0,
-        deflection: 0,
+        equivalentStress: 0,
         safetyFactor: 0,
         outcome: "NON OK",
-        notes: ["Controlla i dati di input: usa N per il carico, mm per lunghezza e diametro."],
+        notes: [error?.message || "Controlla i dati inseriti e riprova."],
       });
-      return;
     }
-
-    const A = Math.PI * d * d / 4;
-    const I = Math.PI * Math.pow(d, 4) / 64;
-    const Wf = Math.PI * Math.pow(d, 3) / 32;
-    const Wt = Math.PI * Math.pow(d, 3) / 16;
-    const M = F * L;
-
-    let sigma = 0;
-    let deflection = 0;
-    let formulas: string[] = [];
-    let scheme = "";
-    let title = "";
-    let notes: string[] = [];
-
-    if (quickCalcForm.stressType === "flessione") {
-      sigma = M / Wf;
-      deflection = F * Math.pow(L, 3) / (3 * E * I);
-      title = "Verifica rapida a flessione";
-      scheme = "Schema statico semplificato: perno/albero assimilato a mensola con carico concentrato all'estremità.";
-      formulas = ["Mf = F · L", "Wf = π · d³ / 32", "σf = Mf / Wf", "f = F · L³ / (3 · E · I)", "n = Re / σf"];
-      notes = ["Modello conservativo per mensola semplice.", "Per un perno reale controllare anche taglio, pressione specifica e condizioni di vincolo."];
-    } else if (quickCalcForm.stressType === "taglio") {
-      sigma = (4 * F) / (3 * A);
-      title = "Verifica rapida a taglio";
-      scheme = "Schema statico semplificato: sezione circolare soggetta a taglio trasversale.";
-      formulas = ["A = π · d² / 4", "τmax ≈ 4F / 3A", "n = Re / τmax"];
-      notes = ["Per taglio su spine o perni verificare se il taglio è singolo o doppio.", "Per criteri più corretti usare tensione ammissibile a taglio o Von Mises."];
-    } else if (quickCalcForm.stressType === "torsione") {
-      sigma = M / Wt;
-      title = "Verifica rapida a torsione";
-      scheme = "Schema statico semplificato: albero circolare pieno soggetto a momento torcente.";
-      formulas = ["Mt = F · L", "Wt = π · d³ / 16", "τt = Mt / Wt", "n = Re / τt"];
-      notes = ["Il braccio inserito viene usato come leva per generare il momento torcente.", "Per alberi reali verificare anche fatica, cave linguetta e concentrazioni di tensione."];
-    } else {
-      sigma = F / A;
-      deflection = F * L / (E * A);
-      title = "Verifica rapida a trazione/compressione";
-      scheme = "Schema statico semplificato: barra circolare caricata assialmente.";
-      formulas = ["A = π · d² / 4", "σ = F / A", "ΔL = F · L / (E · A)", "n = Re / σ"];
-      notes = ["Per compressione controllare anche instabilità di punta se il pezzo è snello."];
-    }
-
-    const n = Re / sigma;
-    const outcome = n >= nRequired ? "OK" : "NON OK";
-    const values = [
-      `Materiale usato: ${material ? `${material.name} (${material.en})` : `${quickCalcForm.material} non trovato: usato Re indicativo = ${Re} MPa`}`,
-      `Carico: F = ${F.toFixed(2)} N`,
-      `Distanza/braccio: L = ${L.toFixed(2)} mm`,
-      `Diametro: d = ${d.toFixed(2)} mm`,
-      `Momento indicativo: M = ${M.toFixed(2)} Nmm`,
-      `Tensione calcolata: ${sigma.toFixed(2)} MPa`,
-      `Deformazione indicativa: ${deflection > 0 ? deflection.toFixed(4) + " mm" : "non calcolata per questo modello"}`,
-      `Coefficiente di sicurezza: n = ${n.toFixed(2)}`,
-      `Re materiale indicativo: ${Re} MPa`,
-    ];
-
-    setQuickCalcResult({ title, scheme, formulas, values, sigma, deflection, safetyFactor: n, outcome, notes });
   };
 
   const handleDrawingReviewUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -1375,6 +1848,87 @@ Struttura:
     );
   };
 
+  const renderQuickCalcLoadInputs = () => {
+    const type = quickCalcForm.verificationType;
+
+    if (type === "pressione_interna") {
+      return (
+        <div style={s.checklistGrid}>
+          <Field label="Pressione p [bar]" value={quickCalcForm.pressure} onChange={v => updateQuickCalcField("pressure", v)} placeholder="30" theme={theme} isDark={isDark} />
+          <Field label="Raggio medio r [mm]" value={quickCalcForm.radius} onChange={v => updateQuickCalcField("radius", v)} placeholder="150" theme={theme} isDark={isDark} />
+          <Field label="Spessore s [mm]" value={quickCalcForm.thickness} onChange={v => updateQuickCalcField("thickness", v)} placeholder="4" theme={theme} isDark={isDark} />
+        </div>
+      );
+    }
+
+    if (type === "stato_piano") {
+      return (
+        <div style={s.checklistGrid}>
+          <Field label="σx [MPa]" value={quickCalcForm.sigmaX} onChange={v => updateQuickCalcField("sigmaX", v)} placeholder="80" theme={theme} isDark={isDark} />
+          <Field label="σy [MPa]" value={quickCalcForm.sigmaY} onChange={v => updateQuickCalcField("sigmaY", v)} placeholder="20" theme={theme} isDark={isDark} />
+          <Field label="τxy [MPa]" value={quickCalcForm.tauXY} onChange={v => updateQuickCalcField("tauXY", v)} placeholder="30" theme={theme} isDark={isDark} />
+        </div>
+      );
+    }
+
+    if (type === "fatica") {
+      return (
+        <div style={s.checklistGrid}>
+          <Field label="σmax [MPa]" value={quickCalcForm.sigmaMax} onChange={v => updateQuickCalcField("sigmaMax", v)} placeholder="180" theme={theme} isDark={isDark} />
+          <Field label="σmin [MPa]" value={quickCalcForm.sigmaMin} onChange={v => updateQuickCalcField("sigmaMin", v)} placeholder="20" theme={theme} isDark={isDark} />
+          <Field label="Sn limite fatica [MPa]" value={quickCalcForm.fatigueLimit} onChange={v => updateQuickCalcField("fatigueLimit", v)} placeholder="Lascia vuoto per 0,5 Rm" theme={theme} isDark={isDark} />
+        </div>
+      );
+    }
+
+    return (
+      <div style={s.checklistGrid}>
+        <Field label="Carico assiale N [N]" value={quickCalcForm.axialLoad} onChange={v => updateQuickCalcField("axialLoad", v)} placeholder="0" theme={theme} isDark={isDark} />
+        <Field label="Forza tagliante T [N]" value={quickCalcForm.shearLoad} onChange={v => updateQuickCalcField("shearLoad", v)} placeholder="2500" theme={theme} isDark={isDark} />
+        <Field label="Braccio L [mm]" value={quickCalcForm.distance} onChange={v => updateQuickCalcField("distance", v)} placeholder="120" theme={theme} isDark={isDark} />
+        <Field label="Momento flettente Mf [Nmm]" value={quickCalcForm.bendingMoment} onChange={v => updateQuickCalcField("bendingMoment", v)} placeholder="Vuoto = T·L" theme={theme} isDark={isDark} />
+        <Field label="Momento torcente Mt [Nmm]" value={quickCalcForm.torque} onChange={v => updateQuickCalcField("torque", v)} placeholder="80000" theme={theme} isDark={isDark} />
+      </div>
+    );
+  };
+
+  const renderQuickCalcSectionInputs = () => {
+    if (quickCalcForm.sectionType === "circolare_piena") {
+      return (
+        <div style={s.checklistGrid}>
+          <Field label="Diametro d [mm]" value={quickCalcForm.diameter} onChange={v => updateQuickCalcField("diameter", v)} placeholder="25" theme={theme} isDark={isDark} />
+        </div>
+      );
+    }
+
+    if (quickCalcForm.sectionType === "circolare_cava") {
+      return (
+        <div style={s.checklistGrid}>
+          <Field label="Diametro esterno D [mm]" value={quickCalcForm.outerDiameter} onChange={v => updateQuickCalcField("outerDiameter", v)} placeholder="40" theme={theme} isDark={isDark} />
+          <Field label="Diametro interno d [mm]" value={quickCalcForm.innerDiameter} onChange={v => updateQuickCalcField("innerDiameter", v)} placeholder="25" theme={theme} isDark={isDark} />
+        </div>
+      );
+    }
+
+    if (quickCalcForm.sectionType === "rettangolare_piena") {
+      return (
+        <div style={s.checklistGrid}>
+          <Field label="Base b [mm]" value={quickCalcForm.base} onChange={v => updateQuickCalcField("base", v)} placeholder="30" theme={theme} isDark={isDark} />
+          <Field label="Altezza h [mm]" value={quickCalcForm.height} onChange={v => updateQuickCalcField("height", v)} placeholder="50" theme={theme} isDark={isDark} />
+        </div>
+      );
+    }
+
+    return (
+      <div style={s.checklistGrid}>
+        <Field label="Base esterna B [mm]" value={quickCalcForm.outerBase} onChange={v => updateQuickCalcField("outerBase", v)} placeholder="60" theme={theme} isDark={isDark} />
+        <Field label="Altezza esterna H [mm]" value={quickCalcForm.outerHeight} onChange={v => updateQuickCalcField("outerHeight", v)} placeholder="80" theme={theme} isDark={isDark} />
+        <Field label="Base interna b [mm]" value={quickCalcForm.innerBase} onChange={v => updateQuickCalcField("innerBase", v)} placeholder="40" theme={theme} isDark={isDark} />
+        <Field label="Altezza interna h [mm]" value={quickCalcForm.innerHeight} onChange={v => updateQuickCalcField("innerHeight", v)} placeholder="60" theme={theme} isDark={isDark} />
+      </div>
+    );
+  };
+
   return (
     <div style={{ ...s.app, background: theme.bg, color: theme.text }}>
       <style>{globalCss}</style>
@@ -1490,29 +2044,57 @@ Struttura:
       )}
 
       {showQuickCalc && (
-        <Modal title="Verifica dimensionale rapida" subtitle="Modulo preliminare per alberi, perni, staffe e componenti semplici." theme={theme} isDark={isDark} onClose={() => setShowQuickCalc(false)} wide>
+        <Modal title="Verifica dimensionale rapida" subtitle="Sollecitazioni semplici, composte, pressione interna, stato piano e fatica." theme={theme} isDark={isDark} onClose={() => setShowQuickCalc(false)} wide>
           <div style={s.quickCalcLayout}>
             <div style={s.checklistFormArea}>
               <div style={s.checklistGrid}>
                 <Field label="Tipo componente" value={quickCalcForm.componentType} onChange={v => updateQuickCalcField("componentType", v)} placeholder="Perno, albero, staffa..." theme={theme} isDark={isDark} />
+
                 <div>
                   <label style={s.label}>Tipo verifica</label>
-                  <select style={{ ...s.input, background: isDark ? "#050505" : "#fff", color: theme.text, border: `1px solid ${theme.border}` }} value={quickCalcForm.stressType} onChange={e => updateQuickCalcField("stressType", e.target.value)}>
-                    <option value="flessione">Flessione</option>
-                    <option value="taglio">Taglio</option>
-                    <option value="torsione">Torsione</option>
+                  <select style={{ ...s.input, background: isDark ? "#050505" : "#fff", color: theme.text, border: `1px solid ${theme.border}` }} value={quickCalcForm.verificationType} onChange={e => updateQuickCalcField("verificationType", e.target.value)}>
                     <option value="assiale">Trazione / compressione</option>
+                    <option value="taglio">Taglio</option>
+                    <option value="flessione">Flessione</option>
+                    <option value="torsione">Torsione</option>
+                    <option value="flessione_torsione">Flessione + torsione</option>
+                    <option value="flessione_taglio">Flessione + taglio</option>
+                    <option value="trazione_flessione">Trazione/compressione + flessione</option>
+                    <option value="trazione_torsione">Trazione/compressione + torsione</option>
+                    <option value="generale">Flessione + torsione + taglio + assiale</option>
+                    <option value="pressione_interna">Pressione interna recipiente cilindrico</option>
+                    <option value="stato_piano">Stato piano di tensione</option>
+                    <option value="fatica">Fatica con σmax e σmin</option>
                   </select>
                 </div>
+
                 <Field label="Materiale" value={quickCalcForm.material} onChange={v => updateQuickCalcField("material", v)} placeholder="C45" theme={theme} isDark={isDark} />
-                <Field label="Carico F [N]" value={quickCalcForm.load} onChange={v => updateQuickCalcField("load", v)} placeholder="2500" theme={theme} isDark={isDark} />
-                <Field label="Distanza / braccio L [mm]" value={quickCalcForm.distance} onChange={v => updateQuickCalcField("distance", v)} placeholder="120" theme={theme} isDark={isDark} />
-                <Field label="Diametro d [mm]" value={quickCalcForm.diameter} onChange={v => updateQuickCalcField("diameter", v)} placeholder="20" theme={theme} isDark={isDark} />
+
+                <div>
+                  <label style={s.label}>Tipo sezione</label>
+                  <select style={{ ...s.input, background: isDark ? "#050505" : "#fff", color: theme.text, border: `1px solid ${theme.border}` }} value={quickCalcForm.sectionType} onChange={e => updateQuickCalcField("sectionType", e.target.value)}>
+                    <option value="circolare_piena">Circolare piena</option>
+                    <option value="circolare_cava">Circolare cava</option>
+                    <option value="rettangolare_piena">Rettangolare piena</option>
+                    <option value="rettangolare_cava">Rettangolare cava</option>
+                  </select>
+                </div>
               </div>
+
+              <h3 style={{ margin: "12px 0", color: theme.primary }}>Dati sezione</h3>
+              {renderQuickCalcSectionInputs()}
+
+              <h3 style={{ margin: "12px 0", color: theme.primary }}>Dati carico / tensioni</h3>
+              {renderQuickCalcLoadInputs()}
+
               <Field label="Coefficiente sicurezza richiesto" value={quickCalcForm.safetyFactorRequired} onChange={v => updateQuickCalcField("safetyFactorRequired", v)} placeholder="2" theme={theme} isDark={isDark} />
+
               <button style={{ ...s.primaryBtn, background: theme.primary }} onClick={runQuickCalc} type="button">Calcola verifica</button>
-              <div style={{ ...s.warningBox, border: `1px solid ${theme.border}` }}>Calcolo preliminare: non sostituisce verifica normativa, FEM o relazione firmata.</div>
+              <div style={{ ...s.warningBox, border: `1px solid ${theme.border}` }}>
+                Calcolo preliminare. Per progetto reale controllare norme, intagli, fatica, saldature, vincoli, frecce, instabilità, coefficienti correttivi e dati certificati del materiale.
+              </div>
             </div>
+
             <div style={s.checklistResultsArea}>
               {!quickCalcResult ? <div style={{ ...s.emptyChecklist, border: `1px dashed ${theme.border}` }}>Inserisci i dati e premi “Calcola verifica”.</div> : <QuickCalcCard result={quickCalcResult} theme={theme} isDark={isDark} />}
             </div>
@@ -1679,10 +2261,39 @@ function QuickCalcCard({ result, theme, isDark }: { result: QuickCalcResult; the
         <strong>{result.title}</strong>
         <span style={{ color: result.outcome === "OK" ? "#16a34a" : "#dc2626", fontWeight: 950 }}>{result.outcome}</span>
       </div>
+
       <p style={s.resultDetail}>{result.scheme}</p>
-      <div style={s.formulaBlock}>{result.formulas.map((formula, index) => <div key={index}>• {formula}</div>)}</div>
-      {result.values.map((value, index) => <div key={index} style={s.valueRow}>• {value}</div>)}
-      <div style={{ ...s.finalBox, borderLeft: `4px solid ${result.outcome === "OK" ? "#16a34a" : "#dc2626"}` }}>Esito: {result.outcome}. Coefficiente calcolato n = {result.safetyFactor.toFixed(2)}.</div>
+
+      <div style={{ ...s.finalBox, borderLeft: `4px solid ${theme.primary}` }}>
+        Sezione: {result.section}
+      </div>
+
+      {result.sectionValues.length > 0 && (
+        <>
+          <h4 style={{ marginBottom: 8 }}>Dati sezione/materiale</h4>
+          {result.sectionValues.map((value, index) => <div key={index} style={s.valueRow}>• {value}</div>)}
+        </>
+      )}
+
+      {result.formulas.length > 0 && (
+        <>
+          <h4 style={{ marginBottom: 8 }}>Formule usate</h4>
+          <div style={s.formulaBlock}>{result.formulas.map((formula, index) => <div key={index}>• {formula}</div>)}</div>
+        </>
+      )}
+
+      {result.values.length > 0 && (
+        <>
+          <h4 style={{ marginBottom: 8 }}>Risultati</h4>
+          {result.values.map((value, index) => <div key={index} style={s.valueRow}>• {value}</div>)}
+        </>
+      )}
+
+      <div style={{ ...s.finalBox, borderLeft: `4px solid ${result.outcome === "OK" ? "#16a34a" : "#dc2626"}` }}>
+        Esito: {result.outcome}. Tensione equivalente = {result.equivalentStress.toFixed(2)} MPa. Coefficiente calcolato n = {result.safetyFactor.toFixed(2)}.
+        {result.trescaStress !== undefined && result.trescaStress > 0 ? ` Tresca indicativo = ${result.trescaStress.toFixed(2)} MPa.` : ""}
+      </div>
+
       {result.notes.map((note, index) => <p key={index} style={s.resultSuggestion}>{note}</p>)}
     </div>
   );
@@ -1857,7 +2468,7 @@ const s: Record<string, React.CSSProperties> = {
   secondaryBtn: { width: "100%", padding: 13, borderRadius: 14, background: "transparent", fontWeight: 850, cursor: "pointer", marginTop: 10 },
   errorBox: { marginTop: 12, padding: "10px 12px", borderRadius: 12, color: "#b91c1c", background: "#fee2e2", fontSize: 13, fontWeight: 700 },
   checklistLayout: { flex: 1, minHeight: 0, display: "grid", gridTemplateColumns: "minmax(340px, 0.9fr) minmax(360px, 1.1fr)", gap: 22, overflow: "hidden" },
-  quickCalcLayout: { flex: 1, minHeight: 0, display: "grid", gridTemplateColumns: "minmax(340px, 0.85fr) minmax(400px, 1.15fr)", gap: 22, overflow: "hidden" },
+  quickCalcLayout: { flex: 1, minHeight: 0, display: "grid", gridTemplateColumns: "minmax(390px, 0.95fr) minmax(430px, 1.05fr)", gap: 22, overflow: "hidden" },
   checklistFormArea: { overflowY: "auto", paddingRight: 6 },
   checklistResultsArea: { overflowY: "auto", display: "flex", flexDirection: "column", gap: 12, paddingRight: 6 },
   checklistGrid: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 },

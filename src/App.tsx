@@ -647,6 +647,22 @@ export default function App() {
     setChecklistForm(prev => ({ ...prev, [field]: value }));
   };
 
+  const resetChecklist = () => {
+  setChecklistForm({
+    componentType: "",
+    material: "",
+    load: "",
+    environment: "",
+    machining: "",
+    safetyFactor: "",
+    tolerances: "",
+    roughness: "",
+    notes: "",
+  });
+
+  setChecklistResults([]);
+};
+
   const updateQuickCalcField = (field: keyof QuickCalcForm, value: string) => {
     setQuickCalcForm(prev => ({ ...prev, [field]: value }));
   };

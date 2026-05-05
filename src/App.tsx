@@ -2975,6 +2975,46 @@ quickDetailList: {
   gap: 8,
 },
 
+quickStepsBox: {
+  borderRadius: 18,
+  padding: 15,
+},
+
+quickStepsList: {
+  display: "flex",
+  flexDirection: "column",
+  gap: 12,
+},
+
+quickStepItem: {
+  display: "grid",
+  gridTemplateColumns: "28px 1fr",
+  gap: 10,
+  alignItems: "flex-start",
+  fontSize: 13,
+  lineHeight: 1.45,
+},
+
+quickStepNumber: {
+  width: 24,
+  height: 24,
+  borderRadius: "50%",
+  color: "white",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  fontSize: 12,
+  fontWeight: 950,
+  marginTop: 2,
+},
+
+quickStepText: {
+  margin: "4px 0 0",
+  fontSize: 13,
+  lineHeight: 1.45,
+  opacity: 0.78,
+},
+  
 quickDetailRow: {
   display: "flex",
   alignItems: "flex-start",

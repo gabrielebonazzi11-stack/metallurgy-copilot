@@ -163,6 +163,67 @@ type DrawingForm = {
   productionQuantity: string;
 };
 
+type ProjectSavedItem = {
+  id: string;
+  type: "checklist" | "quickcalc" | "drawing" | "file" | "bom" | "solidworks" | "advanced";
+  title: string;
+  createdAt: string;
+  summary: string;
+  payload?: any;
+};
+
+type ProjectRecord = {
+  id: string;
+  name: string;
+  description: string;
+  createdAt: string;
+  updatedAt: string;
+  items: ProjectSavedItem[];
+};
+
+type ProjectFileMeta = {
+  name: string;
+  type: string;
+  sizeKb: string;
+  extension: string;
+  category: string;
+  note: string;
+};
+
+type SeriousVerificationForm = {
+  mode: "fatigue" | "contact" | "bolts";
+  material: string;
+  rm: string;
+  re: string;
+  sn: string;
+  sigmaMax: string;
+  sigmaMin: string;
+  normalLoad: string;
+  contactArea: string;
+  contactDiameter: string;
+  contactLength: string;
+  boltClass: string;
+  boltSize: string;
+  boltArea: string;
+  boltCount: string;
+  shearForce: string;
+  tensileForce: string;
+};
+
+type SeriousVerificationResult = {
+  title: string;
+  status: "OK" | "NON OK" | "DA VERIFICARE";
+  rows: string[];
+  suggestions: string[];
+};
+
+type BomIssue = {
+  row: number;
+  severity: IssueSeverity;
+  message: string;
+  suggestion: string;
+};
+
 type SectionData = {
   name: string;
   A: number;
@@ -314,6 +375,7 @@ export default function App() {
   const [showQuickCalc, setShowQuickCalc] = useState(false);
   const [showMaterials, setShowMaterials] = useState(false);
   const [showDrawingGenerator, setShowDrawingGenerator] = useState(false);
+  const [showProjects, setShowProjects] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [activeTab, setActiveTab] = useState("Aspetto");
 
@@ -411,23 +473,44 @@ export default function App() {
   const [drawingAiLoading, setDrawingAiLoading] = useState(false);
   const [drawingResults, setDrawingResults] = useState<DrawingResult[]>([]);
   const [drawingIssues, setDrawingIssues] = useState<DrawingIssue[]>([]);
-  const [drawingForm, setDrawingForm] = useState<DrawingForm>({
-    partName: "",
-    partType: "",
-    material: "",
-    manufacturing: "",
-    mainFeatures: "",
-    functionalSurfaces: "",
-    holesThreads: "",
-    fits: "",
-    tolerances: "",
-    roughness: "",
-    assemblyFunction: "",
-    productionQuantity: "",
+  const [projects, setProjects] = useState<ProjectRecord[]>([]);
+  const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
+  const [newProjectName, setNewProjectName] = useState("");
+  const [newProjectDescription, setNewProjectDescription] = useState("");
+  const [projectSmartFile, setProjectSmartFile] = useState<ProjectFileMeta | null>(null);
+
+  const [seriousForm, setSeriousForm] = useState<SeriousVerificationForm>({
+    mode: "fatigue",
+    material: "C45",
+    rm: "650",
+    re: "370",
+    sn: "260",
+    sigmaMax: "180",
+    sigmaMin: "20",
+    normalLoad: "2500",
+    contactArea: "120",
+    contactDiameter: "20",
+    contactLength: "15",
+    boltClass: "8.8",
+    boltSize: "M8",
+    boltArea: "36.6",
+    boltCount: "4",
+    shearForce: "4000",
+    tensileForce: "2000",
   });
+  const [seriousResult, setSeriousResult] = useState<SeriousVerificationResult | null>(null);
+
+  const [bomText, setBomText] = useState("");
+  const [bomFileName, setBomFileName] = useState("");
+  const [bomIssues, setBomIssues] = useState<BomIssue[]>([]);
+
+  const [solidWorksTask, setSolidWorksTask] = useState("modellare_pezzo");
+  const [solidWorksNotes, setSolidWorksNotes] = useState("");
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const drawingReviewInputRef = useRef<HTMLInputElement>(null);
+  const projectFileInputRef = useRef<HTMLInputElement>(null);
+  const bomFileInputRef = useRef<HTMLInputElement>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
 
   const isDark =
@@ -446,6 +529,11 @@ export default function App() {
       .filter((m: MaterialInfo) => `${m.name} ${m.en} ${m.uni} ${m.din} ${m.aisi} ${m.jis} ${m.iso} ${m.uses} ${m.notes}`.toLowerCase().includes(q))
       .slice(0, 180);
   }, [materialSearch, allMaterials]);
+
+  const activeProject = useMemo(
+    () => projects.find(project => project.id === activeProjectId) || projects[0] || null,
+    [projects, activeProjectId]
+  );
 
   const makeUserStorageKey = (email: string) => {
     const cleanEmail = String(email || "utente")
@@ -471,6 +559,13 @@ export default function App() {
     setDrawingReviewFile(null);
     setDrawingResults([]);
     setDrawingIssues([]);
+    setProjects([]);
+    setActiveProjectId(null);
+    setProjectSmartFile(null);
+    setSeriousResult(null);
+    setBomIssues([]);
+    setBomText("");
+    setBomFileName("");
   };
 
   const loadWorkspaceFromStorage = (storageKey: string) => {
@@ -485,6 +580,8 @@ export default function App() {
       setInterest("Ingegneria Meccanica");
       setSidebarOpen(true);
       setCustomMaterials([]);
+      setProjects([]);
+      setActiveProjectId(null);
       setStorageReady(true);
       return;
     }
@@ -503,6 +600,8 @@ export default function App() {
     setActiveChatId(data.activeChatId || null);
     setSidebarOpen(data.sidebarOpen ?? true);
     setCustomMaterials(Array.isArray(data.customMaterials) ? data.customMaterials : []);
+    setProjects(Array.isArray(data.projects) ? data.projects : []);
+    setActiveProjectId(data.activeProjectId || null);
     setPendingFile(null);
     setQuery("");
     setStorageReady(true);
@@ -579,9 +678,11 @@ export default function App() {
         isLoggedIn,
         isGuest,
         customMaterials,
+        projects,
+        activeProjectId,
       })
     );
-  }, [theme, user, interest, chats, activeChatId, sidebarOpen, isLoggedIn, isGuest, customMaterials, storageReady, activeStorageKey]);
+  }, [theme, user, interest, chats, activeChatId, sidebarOpen, isLoggedIn, isGuest, customMaterials, projects, activeProjectId, storageReady, activeStorageKey]);
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -734,6 +835,335 @@ export default function App() {
     });
 
     if (drawingReviewInputRef.current) drawingReviewInputRef.current.value = "";
+  };
+
+  const updateSeriousField = (field: keyof SeriousVerificationForm, value: string) => {
+    setSeriousForm(prev => ({ ...prev, [field]: value }));
+  };
+
+  const createProject = (name?: string, description?: string) => {
+    const projectName = String(name || newProjectName || "Nuovo progetto").trim();
+    const now = new Date().toISOString();
+    const project: ProjectRecord = {
+      id: createId(),
+      name: projectName || "Nuovo progetto",
+      description: String(description || newProjectDescription || "").trim(),
+      createdAt: now,
+      updatedAt: now,
+      items: [],
+    };
+
+    setProjects(prev => [project, ...prev]);
+    setActiveProjectId(project.id);
+    setNewProjectName("");
+    setNewProjectDescription("");
+    return project.id;
+  };
+
+  const deleteProject = (projectId: string) => {
+    setProjects(prev => prev.filter(project => project.id !== projectId));
+    if (activeProjectId === projectId) setActiveProjectId(null);
+  };
+
+  const addProjectItem = (item: Omit<ProjectSavedItem, "id" | "createdAt">, preferredProjectId?: string) => {
+    const targetId = preferredProjectId || activeProject?.id || createProject("Progetto automatico", "Creato automaticamente da TechAI.");
+    const now = new Date().toISOString();
+    const completeItem: ProjectSavedItem = {
+      id: createId(),
+      createdAt: now,
+      ...item,
+    };
+
+    setProjects(prev =>
+      prev.map(project =>
+        project.id === targetId
+          ? { ...project, updatedAt: now, items: [completeItem, ...project.items] }
+          : project
+      )
+    );
+
+    setActiveProjectId(targetId);
+  };
+
+  const saveChecklistToProject = () => {
+    if (checklistResults.length === 0) {
+      alert("Prima esegui la checklist, poi salvala nel progetto.");
+      return;
+    }
+
+    addProjectItem({
+      type: "checklist",
+      title: `Checklist - ${checklistForm.componentType || "Componente"}`,
+      summary: `${checklistResults.length} controlli salvati. Materiale: ${checklistForm.material || "non indicato"}.`,
+      payload: { checklistForm, checklistResults },
+    });
+  };
+
+  const saveQuickCalcToProject = () => {
+    if (!quickCalcResult) {
+      alert("Prima esegui una verifica, poi salvala nel progetto.");
+      return;
+    }
+
+    addProjectItem({
+      type: "quickcalc",
+      title: quickCalcResult.title,
+      summary: `Esito ${quickCalcResult.outcome}. σeq = ${quickCalcResult.equivalentStress.toFixed(2)} MPa, n = ${quickCalcResult.safetyFactor.toFixed(2)}.`,
+      payload: { quickCalcForm, quickCalcResult },
+    });
+  };
+
+  const saveDrawingToProject = () => {
+    if (drawingResults.length === 0 && !drawingReviewFile) {
+      alert("Prima carica/analizza una tavola oppure compila il controllo base.");
+      return;
+    }
+
+    addProjectItem({
+      type: "drawing",
+      title: `Tavola - ${drawingForm.partName || drawingReviewFile?.fileAttachment.name || "senza nome"}`,
+      summary: drawingResults.length > 0 ? `${drawingResults.length} risultati/controlli salvati.` : "File tavola salvato come riferimento.",
+      payload: { drawingForm, drawingResults, drawingIssues, file: drawingReviewFile?.fileAttachment },
+    });
+  };
+
+  const runSeriousVerification = () => {
+    const mode = seriousForm.mode;
+    const Rm = toNumber(seriousForm.rm, 650);
+    const Re = toNumber(seriousForm.re, 370);
+    const Sn = toNumber(seriousForm.sn, 0.5 * Rm);
+    const suggestions: string[] = [];
+    let rows: string[] = [];
+    let status: SeriousVerificationResult["status"] = "DA VERIFICARE";
+    let title = "Verifica avanzata";
+
+    if (mode === "fatigue") {
+      const sigmaMax = toNumber(seriousForm.sigmaMax);
+      const sigmaMin = toNumber(seriousForm.sigmaMin);
+      const sigmaM = (sigmaMax + sigmaMin) / 2;
+      const sigmaA = Math.abs(sigmaMax - sigmaMin) / 2;
+      const sigmaMPositive = Math.max(sigmaM, 0);
+      const nGoodman = 1 / (sigmaA / Sn + sigmaMPositive / Rm);
+      const nSoderberg = 1 / (sigmaA / Sn + sigmaMPositive / Re);
+      status = nGoodman >= 1.5 && nSoderberg >= 1.3 ? "OK" : "NON OK";
+      title = "Fatica - Goodman e Soderberg";
+      rows = [
+        `Materiale: ${seriousForm.material}`,
+        `Rm = ${Rm.toFixed(1)} MPa; Re/Rp0.2 = ${Re.toFixed(1)} MPa; Sn = ${Sn.toFixed(1)} MPa`,
+        `σmax = ${sigmaMax.toFixed(2)} MPa; σmin = ${sigmaMin.toFixed(2)} MPa`,
+        `σm = ${sigmaM.toFixed(2)} MPa; σa = ${sigmaA.toFixed(2)} MPa`,
+        `Goodman: n = ${nGoodman.toFixed(2)}`,
+        `Soderberg: n = ${nSoderberg.toFixed(2)}`,
+      ];
+      suggestions.push("Per progetto reale correggere Sn con rugosità, dimensione, tipo carico, affidabilità e intaglio Kf.");
+      suggestions.push("Soderberg è più conservativo perché usa Re al posto di Rm sulla tensione media.");
+    }
+
+    if (mode === "contact") {
+      const F = toNumber(seriousForm.normalLoad);
+      const area = toNumber(seriousForm.contactArea);
+      const d = toNumber(seriousForm.contactDiameter);
+      const L = toNumber(seriousForm.contactLength);
+      const projectedArea = d > 0 && L > 0 ? d * L : area;
+      const pSpecific = F / Math.max(projectedArea, 1);
+      status = pSpecific <= 80 ? "OK" : pSpecific <= 150 ? "DA VERIFICARE" : "NON OK";
+      title = "Contatto - pressione specifica";
+      rows = [
+        `Carico normale F = ${F.toFixed(2)} N`,
+        `Area inserita = ${area.toFixed(2)} mm²`,
+        `Area proiettata d·L = ${projectedArea.toFixed(2)} mm²`,
+        `Pressione specifica p = F/A = ${pSpecific.toFixed(2)} MPa`,
+      ];
+      suggestions.push("Per rulli, perni e camme usare questa come verifica preliminare; per progetto serio fare Hertz.");
+      suggestions.push("Se p è alta: aumentare area di contatto, diametro, lunghezza oppure usare materiale/trattamento più resistente all'usura.");
+    }
+
+    if (mode === "bolts") {
+      const boltCount = Math.max(1, toNumber(seriousForm.boltCount, 1));
+      const area = toNumber(seriousForm.boltArea, 36.6);
+      const shearForce = toNumber(seriousForm.shearForce);
+      const tensileForce = toNumber(seriousForm.tensileForce);
+      const preload = 0.75 * Re * area;
+      const shearStress = shearForce / (boltCount * area);
+      const tensileStress = tensileForce / (boltCount * area);
+      const vm = Math.sqrt(tensileStress ** 2 + 3 * shearStress ** 2);
+      const n = Re / Math.max(vm, 0.001);
+      status = n >= 2 ? "OK" : n >= 1.3 ? "DA VERIFICARE" : "NON OK";
+      title = "Bulloni - precarico, taglio e trazione";
+      rows = [
+        `Classe: ${seriousForm.boltClass}; vite: ${seriousForm.boltSize}; n° viti = ${boltCount}`,
+        `Area resistente usata Ares = ${area.toFixed(2)} mm²`,
+        `Precarico consigliato indicativo Fp ≈ 0,75·Re·Ares = ${preload.toFixed(0)} N per vite`,
+        `Taglio medio per vite: τ = ${shearStress.toFixed(2)} MPa`,
+        `Trazione media per vite: σ = ${tensileStress.toFixed(2)} MPa`,
+        `Von Mises vite: σVM = ${vm.toFixed(2)} MPa`,
+        `Coefficiente indicativo n = ${n.toFixed(2)}`,
+      ];
+      suggestions.push("Verifica anche schiacciamento dei pezzi collegati, rifollamento fori, attrito se giunto precaricato e normativa applicabile.");
+      suggestions.push("Per classi 8.8 e 10.9 usare dati reali UNI EN ISO 898-1 e coppia di serraggio coerente.");
+    }
+
+    const result = { title, status, rows, suggestions };
+    setSeriousResult(result);
+    addProjectItem({ type: "advanced", title, summary: `${status} - ${rows[rows.length - 1] || "verifica avanzata"}`, payload: { seriousForm, result } });
+  };
+
+  const resetSeriousVerification = () => {
+    setSeriousResult(null);
+    setSeriousForm(prev => ({ ...prev, sigmaMax: "180", sigmaMin: "20", normalLoad: "2500", shearForce: "4000", tensileForce: "2000" }));
+  };
+
+  const parseBomRows = (raw: string) => {
+    const trimmed = raw.trim();
+    if (!trimmed) return [];
+
+    if (trimmed.startsWith("[") || trimmed.startsWith("{")) {
+      const parsed = JSON.parse(trimmed);
+      const array = Array.isArray(parsed) ? parsed : Array.isArray(parsed.items) ? parsed.items : [];
+      return array.map((row: any, index: number) => ({ index: index + 1, data: row }));
+    }
+
+    const lines = trimmed.split(/\r?\n/).filter(Boolean);
+    const separator = lines[0].includes(";") ? ";" : ",";
+    const headers = lines[0].split(separator).map(h => h.trim().toLowerCase());
+    return lines.slice(1).map((line, index) => {
+      const cells = line.split(separator).map(c => c.trim());
+      const data: Record<string, string> = {};
+      headers.forEach((header, i) => { data[header] = cells[i] || ""; });
+      return { index: index + 2, data };
+    });
+  };
+
+  const getBomValue = (row: any, keys: string[]) => {
+    for (const key of keys) {
+      const foundKey = Object.keys(row || {}).find(k => k.toLowerCase().replaceAll(" ", "") === key.toLowerCase().replaceAll(" ", ""));
+      if (foundKey && String(row[foundKey] || "").trim()) return String(row[foundKey]).trim();
+    }
+    return "";
+  };
+
+  const runBomCheck = () => {
+    try {
+      const rows = parseBomRows(bomText);
+      const issues: BomIssue[] = [];
+      const codes = new Map<string, number[]>();
+
+      rows.forEach(({ index, data }) => {
+        const code = getBomValue(data, ["codice", "code", "partnumber", "part number", "codiceparticolare"]);
+        const description = getBomValue(data, ["descrizione", "description", "desc", "nome"]);
+        const material = getBomValue(data, ["materiale", "material", "mat"]);
+        const qtyRaw = getBomValue(data, ["quantita", "quantità", "qty", "qta", "quantity"]);
+        const standard = getBomValue(data, ["norma", "standard", "normativa", "uni", "iso", "din"]);
+        const joined = `${code} ${description} ${material} ${standard}`.toLowerCase();
+        const qty = Number(qtyRaw.replace(",", "."));
+
+        if (code) codes.set(code, [...(codes.get(code) || []), index]);
+        if (!code) issues.push({ row: index, severity: "errore", message: "Codice mancante", suggestion: "Aggiungere un codice univoco componente." });
+        if (!description) issues.push({ row: index, severity: "errore", message: "Descrizione incompleta", suggestion: "Inserire descrizione tecnica chiara del componente." });
+        if (!qtyRaw || !Number.isFinite(qty) || qty <= 0) issues.push({ row: index, severity: "errore", message: "Quantità mancante o incoerente", suggestion: "Inserire quantità numerica maggiore di zero." });
+        if (!material && !/(vite|bullone|dado|rondella|cuscinetto|oring|o-ring|commerciale|motore|valvola)/i.test(joined)) issues.push({ row: index, severity: "attenzione", message: "Materiale mancante", suggestion: "Inserire materiale o indicare che il componente è commerciale." });
+        if (/(vite|bullone)/i.test(joined) && !/(4\.6|5\.8|8\.8|10\.9|12\.9|a2|a4)/i.test(joined)) issues.push({ row: index, severity: "errore", message: "Vite/bullone senza classe di resistenza", suggestion: "Aggiungere classe, esempio 8.8 / 10.9 / A2-70." });
+        if (/cuscinetto|bearing/i.test(joined) && !/(6|7|2|3|nu|nj|nup|na|hk)\d{2,}[a-z0-9-]*/i.test(joined)) issues.push({ row: index, severity: "attenzione", message: "Cuscinetto senza sigla completa", suggestion: "Inserire sigla completa, gioco, schermatura e marca se richiesto." });
+        if (/(vite|bullone|dado|rondella|cuscinetto|oring|o-ring|seeger|spina)/i.test(joined) && !standard) issues.push({ row: index, severity: "attenzione", message: "Componente commerciale senza norma", suggestion: "Aggiungere norma UNI/ISO/DIN o codice fornitore." });
+      });
+
+      codes.forEach((indexes, code) => {
+        if (indexes.length > 1) {
+          indexes.forEach(index => issues.push({ row: index, severity: "errore", message: `Codice duplicato: ${code}`, suggestion: "Usare codici univoci oppure verificare se è davvero lo stesso componente." }));
+        }
+      });
+
+      setBomIssues(issues);
+      addProjectItem({ type: "bom", title: `Controllo distinta ${bomFileName || "manuale"}`, summary: `${issues.length} anomalie trovate su ${rows.length} righe.`, payload: { bomText, bomFileName, issues } });
+    } catch (error: any) {
+      setBomIssues([{ row: 0, severity: "errore", message: "File distinta non leggibile", suggestion: error?.message || "Controlla formato CSV/JSON." }]);
+    }
+  };
+
+  const handleBomFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    const text = await file.text();
+    setBomText(text);
+    setBomFileName(file.name);
+    setBomIssues([]);
+    event.target.value = "";
+  };
+
+  const handleProjectSmartFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const extension = file.name.includes(".") ? file.name.split(".").pop()!.toLowerCase() : "";
+    const category = extension === "step" || extension === "stp" ? "STEP 3D" : file.type.includes("pdf") ? "PDF" : file.type.startsWith("image/") ? "Immagine" : "File tecnico";
+    const note =
+      category === "STEP 3D"
+        ? "Metadata STEP acquisiti. Per ora non viene ricostruita la geometria, ma il file viene salvato nel progetto come riferimento."
+        : category === "PDF"
+          ? "PDF acquisito. Se contiene testo, può essere analizzato dalla chat/tavole."
+          : category === "Immagine"
+            ? "Immagine acquisita. In futuro potrà ricevere annotazioni tecniche."
+            : "File acquisito come riferimento progetto.";
+
+    const meta: ProjectFileMeta = {
+      name: file.name,
+      type: file.type || "sconosciuto",
+      sizeKb: (file.size / 1024).toFixed(1),
+      extension,
+      category,
+      note,
+    };
+
+    setProjectSmartFile(meta);
+    const projectId = activeProject?.id || createProject(file.name.replace(/\.[^.]+$/, ""), "Creato automaticamente da upload file tecnico.");
+    addProjectItem({ type: "file", title: `File caricato - ${file.name}`, summary: `${category} · ${meta.sizeKb} KB. ${note}`, payload: meta }, projectId);
+    event.target.value = "";
+  };
+
+  const solidWorksGuide = useMemo(() => {
+    const guides: Record<string, { title: string; method: string[]; commands: string[]; errors: string[]; avoid: string[] }> = {
+      modellare_pezzo: {
+        title: "Modellare un pezzo da zero",
+        method: ["Parti dalla funzione principale del pezzo", "Crea lo schizzo base sulla vista più stabile", "Usa estrusioni/rivoluzioni semplici", "Aggiungi fori, raccordi e smussi alla fine"],
+        commands: ["Nuovo > Parte", "Schizzo", "Quota intelligente", "Estrusione base/base", "Taglio estruso", "Creazione guidata fori", "Raccordo", "Smusso"],
+        errors: ["Schizzo non completamente definito", "Raccordi messi troppo presto", "Quote riferite a spigoli che cambiano"],
+        avoid: ["Non partire da dettagli piccoli", "Non usare superfici se basta un solido", "Non lasciare schizzi blu non definiti"],
+      },
+      tubo_piegato: {
+        title: "Creare un tubo piegato",
+        method: ["Definisci asse/percorso del tubo", "Imposta diametro esterno e spessore", "Controlla raggi minimi di piega", "Genera distinta/taglio se serve"],
+        commands: ["Schizzo 3D", "Membro strutturale / Saldature", "Sweep/Base con sweep", "Libreria profili", "Appiattimento se lamiera"],
+        errors: ["Raggio piega troppo piccolo", "Percorso 3D non vincolato", "Profilo non normale al percorso"],
+        avoid: ["Non modellare ogni tratto come corpo separato se deve essere un unico tubo", "Non ignorare lo spessore reale"],
+      },
+      sottoassieme: {
+        title: "Creare un sottoassieme",
+        method: ["Raggruppa componenti funzionalmente collegati", "Definisci parte fissa", "Aggiungi accoppiamenti essenziali", "Controlla gradi di libertà"],
+        commands: ["Nuovo > Assieme", "Inserisci componenti", "Accoppiamento", "Fissa/Libera", "Rilevamento interferenze", "Salva come sottoassieme"],
+        errors: ["Troppi accoppiamenti ridondanti", "Componenti non fissati", "Origini non coerenti"],
+        avoid: ["Non mettere tutto nell'assieme principale", "Non usare accoppiamenti casuali su facce poco stabili"],
+      },
+      cartiglio: {
+        title: "Collegare materiale al cartiglio",
+        method: ["Assegna materiale alla parte", "Compila proprietà personalizzate", "Collega note del cartiglio alle proprietà", "Aggiorna tavola"],
+        commands: ["Materiale > Modifica materiale", "File > Proprietà", "Proprietà personalizzate", "Formato foglio", "Collega a proprietà"],
+        errors: ["Materiale scritto a mano nel cartiglio", "Proprietà non aggiornate", "Nome proprietà diverso tra parte e tavola"],
+        avoid: ["Non scrivere materiale solo come testo libero", "Non duplicare dati in cartiglio e note"],
+      },
+      step_modificabile: {
+        title: "Rendere un file STEP modificabile",
+        method: ["Importa STEP come solido", "Esegui diagnostica importazione", "Riconosci funzioni se possibile", "Ricostruisci quote critiche manualmente"],
+        commands: ["Apri STEP", "Diagnostica importazione", "FeatureWorks / Riconoscimento funzioni", "Modifica diretta", "Sposta faccia", "Elimina faccia"],
+        errors: ["Pensare che lo STEP abbia lo storico feature", "Modificare facce senza controllare quote", "Perdere riferimenti dell'assieme"],
+        avoid: ["Non usare FeatureWorks su geometrie troppo complesse se crea feature sporche", "Non fidarti senza verificare le misure"],
+      },
+    };
+
+    return guides[solidWorksTask] || guides.modellare_pezzo;
+  }, [solidWorksTask]);
+
+  const saveSolidWorksGuideToProject = () => {
+    addProjectItem({ type: "solidworks", title: solidWorksGuide.title, summary: `Procedura guidata SolidWorks salvata. Note: ${solidWorksNotes || "nessuna"}`, payload: { solidWorksTask, solidWorksNotes, solidWorksGuide } });
   };
 
   const normalizeMaterialKey = (value?: string) => {
@@ -2040,6 +2470,7 @@ Struttura:
             {iconBtn("∑", "Verifica", () => setShowQuickCalc(true))}
             {iconBtn("▦", "Materiali", () => setShowMaterials(true))}
             {iconBtn("▣", "Tavole", () => setShowDrawingGenerator(true))}
+            {iconBtn("⌘", "Progetti", () => setShowProjects(true))}
           </div>
         </div>
 
@@ -2139,6 +2570,14 @@ Struttura:
                   Reset
                 </button>
               </div>
+
+              <button
+                style={{ ...s.secondaryBtn, color: theme.primary, border: `1px solid ${theme.border}` }}
+                onClick={saveChecklistToProject}
+                type="button"
+              >
+                Salva checklist nel progetto
+              </button>
             </div>
 
             <div style={s.checklistResultsArea}>
@@ -2216,6 +2655,14 @@ Struttura:
                   Reset
                 </button>
               </div>
+
+              <button
+                style={{ ...s.secondaryBtn, color: theme.primary, border: `1px solid ${theme.border}` }}
+                onClick={saveQuickCalcToProject}
+                type="button"
+              >
+                Salva verifica nel progetto
+              </button>
               <div style={{ ...s.warningBox, border: `1px solid ${theme.border}` }}>
                 Calcolo preliminare. Per progetto reale controllare norme, intagli, fatica, saldature, vincoli, frecce, instabilità, coefficienti correttivi e dati certificati del materiale.
               </div>
@@ -2321,11 +2768,190 @@ Struttura:
                   Reset
                 </button>
               </div>
+
+              <button
+                style={{ ...s.secondaryBtn, color: theme.primary, border: `1px solid ${theme.border}` }}
+                onClick={saveDrawingToProject}
+                type="button"
+              >
+                Salva tavola nel progetto
+              </button>
             </div>
 
             <div style={s.checklistResultsArea}>
               <DrawingPreview issues={drawingIssues} previewUrl={drawingReviewFile?.previewUrl} fileName={drawingReviewFile?.fileAttachment.name} theme={theme} isDark={isDark} />
               {drawingResults.length === 0 ? <div style={{ ...s.emptyChecklist, border: `1px dashed ${theme.border}` }}>Carica una tavola e premi il pulsante di analisi, oppure compila i dati per il controllo base.</div> : drawingResults.map((item, index) => <DrawingResultCard key={index} item={item} theme={theme} isDark={isDark} renderFormattedText={renderFormattedText} />)}
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {showProjects && (
+        <Modal title="Progetti e controlli avanzati" subtitle="Raccogli verifiche, tavole, file, distinte e procedure SolidWorks in un unico progetto." theme={theme} isDark={isDark} onClose={() => setShowProjects(false)} wide>
+          <div style={s.projectLayout}>
+            <div style={s.projectLeft}>
+              <div style={{ ...s.projectPanel, background: isDark ? "#050505" : "#f8fafc", border: `1px solid ${theme.border}` }}>
+                <h3 style={s.projectTitle}>Crea progetto</h3>
+                <Field label="Nome progetto" value={newProjectName} onChange={setNewProjectName} placeholder="Es. Rullatrice risana filetti" theme={theme} isDark={isDark} />
+                <Field label="Descrizione" value={newProjectDescription} onChange={setNewProjectDescription} placeholder="Cliente, assieme, revisione, obiettivo..." theme={theme} isDark={isDark} />
+                <button style={{ ...s.primaryBtn, background: theme.primary }} onClick={() => createProject()} type="button">Crea progetto</button>
+              </div>
+
+              <div style={{ ...s.projectPanel, background: isDark ? "#050505" : "#f8fafc", border: `1px solid ${theme.border}` }}>
+                <h3 style={s.projectTitle}>Progetti salvati</h3>
+                {projects.length === 0 ? (
+                  <div style={s.emptyText}>Nessun progetto creato. Carica un file o premi “Crea progetto”.</div>
+                ) : projects.map(project => (
+                  <div key={project.id} style={{ ...s.projectListItem, border: `1px solid ${project.id === activeProject?.id ? theme.primary : theme.border}`, background: project.id === activeProject?.id ? "rgba(96,165,250,0.10)" : "transparent" }}>
+                    <button style={s.projectListMain} onClick={() => setActiveProjectId(project.id)} type="button">
+                      <strong>{project.name}</strong>
+                      <span>{project.items.length} elementi · {new Date(project.updatedAt).toLocaleDateString("it-IT")}</span>
+                    </button>
+                    <button style={s.smallDeleteMaterialBtn} onClick={() => deleteProject(project.id)} type="button">Elimina</button>
+                  </div>
+                ))}
+              </div>
+
+              <div style={{ ...s.projectPanel, background: isDark ? "#050505" : "#f8fafc", border: `1px solid ${theme.border}` }}>
+                <h3 style={s.projectTitle}>Upload intelligente</h3>
+                <p style={s.muted}>Carica PDF, STEP/STP, immagini o file tecnici. TechAI crea automaticamente un progetto se non esiste e salva metadata iniziali.</p>
+                <input ref={projectFileInputRef} type="file" accept=".pdf,.step,.stp,.txt,.csv,.json,image/*" style={{ display: "none" }} onChange={handleProjectSmartFileUpload} />
+                <button style={{ ...s.secondaryBtn, color: theme.text, border: `1px solid ${theme.border}` }} onClick={() => projectFileInputRef.current?.click()} type="button">Carica file progetto</button>
+                {projectSmartFile && (
+                  <div style={{ ...s.projectMiniCard, border: `1px solid ${theme.border}` }}>
+                    <strong>{projectSmartFile.category}</strong>
+                    <span>{projectSmartFile.name} · {projectSmartFile.sizeKb} KB</span>
+                    <p>{projectSmartFile.note}</p>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div style={s.projectRight}>
+              <div style={{ ...s.projectPanel, background: isDark ? "#050505" : "#f8fafc", border: `1px solid ${theme.border}` }}>
+                <h3 style={s.projectTitle}>Archivio progetto attivo</h3>
+                {!activeProject ? (
+                  <div style={s.emptyChecklist}>Seleziona o crea un progetto per rivedere verifiche, tavole, file e distinte salvate.</div>
+                ) : (
+                  <>
+                    <div style={s.projectHeaderCard}>
+                      <strong>{activeProject.name}</strong>
+                      <span>{activeProject.description || "Nessuna descrizione"}</span>
+                    </div>
+                    {activeProject.items.length === 0 ? <div style={s.emptyText}>Nessun elemento salvato in questo progetto.</div> : activeProject.items.map(item => (
+                      <div key={item.id} style={{ ...s.projectSavedItem, border: `1px solid ${theme.border}`, background: isDark ? "#0b0b0b" : "#ffffff" }}>
+                        <div style={s.resultTop}>
+                          <strong>{item.title}</strong>
+                          <span>{item.type}</span>
+                        </div>
+                        <p style={s.resultDetail}>{item.summary}</p>
+                        <p style={s.muted}>{new Date(item.createdAt).toLocaleString("it-IT")}</p>
+                      </div>
+                    ))}
+                  </>
+                )}
+              </div>
+
+              <div style={{ ...s.projectPanel, background: isDark ? "#050505" : "#f8fafc", border: `1px solid ${theme.border}` }}>
+                <h3 style={s.projectTitle}>Verifiche serie</h3>
+                <div style={s.checklistGrid}>
+                  <div>
+                    <label style={s.label}>Tipo verifica</label>
+                    <select style={{ ...s.input, background: isDark ? "#050505" : "#fff", color: theme.text, border: `1px solid ${theme.border}` }} value={seriousForm.mode} onChange={e => updateSeriousField("mode", e.target.value as any)}>
+                      <option value="fatigue">Fatica Goodman/Soderberg</option>
+                      <option value="contact">Contatto pressione specifica</option>
+                      <option value="bolts">Bulloni precarico/taglio</option>
+                    </select>
+                  </div>
+                  <Field label="Materiale" value={seriousForm.material} onChange={v => updateSeriousField("material", v)} placeholder="C45" theme={theme} isDark={isDark} />
+                  <Field label="Rm [MPa]" value={seriousForm.rm} onChange={v => updateSeriousField("rm", v)} placeholder="650" theme={theme} isDark={isDark} />
+                  <Field label="Re/Rp0.2 [MPa]" value={seriousForm.re} onChange={v => updateSeriousField("re", v)} placeholder="370" theme={theme} isDark={isDark} />
+                </div>
+
+                {seriousForm.mode === "fatigue" && (
+                  <div style={s.checklistGrid}>
+                    <Field label="Sn [MPa]" value={seriousForm.sn} onChange={v => updateSeriousField("sn", v)} placeholder="260" theme={theme} isDark={isDark} />
+                    <Field label="σmax [MPa]" value={seriousForm.sigmaMax} onChange={v => updateSeriousField("sigmaMax", v)} placeholder="180" theme={theme} isDark={isDark} />
+                    <Field label="σmin [MPa]" value={seriousForm.sigmaMin} onChange={v => updateSeriousField("sigmaMin", v)} placeholder="20" theme={theme} isDark={isDark} />
+                  </div>
+                )}
+
+                {seriousForm.mode === "contact" && (
+                  <div style={s.checklistGrid}>
+                    <Field label="Carico normale F [N]" value={seriousForm.normalLoad} onChange={v => updateSeriousField("normalLoad", v)} placeholder="2500" theme={theme} isDark={isDark} />
+                    <Field label="Area contatto [mm²]" value={seriousForm.contactArea} onChange={v => updateSeriousField("contactArea", v)} placeholder="120" theme={theme} isDark={isDark} />
+                    <Field label="Diametro d [mm]" value={seriousForm.contactDiameter} onChange={v => updateSeriousField("contactDiameter", v)} placeholder="20" theme={theme} isDark={isDark} />
+                    <Field label="Lunghezza L [mm]" value={seriousForm.contactLength} onChange={v => updateSeriousField("contactLength", v)} placeholder="15" theme={theme} isDark={isDark} />
+                  </div>
+                )}
+
+                {seriousForm.mode === "bolts" && (
+                  <div style={s.checklistGrid}>
+                    <Field label="Classe vite" value={seriousForm.boltClass} onChange={v => updateSeriousField("boltClass", v)} placeholder="8.8" theme={theme} isDark={isDark} />
+                    <Field label="Vite" value={seriousForm.boltSize} onChange={v => updateSeriousField("boltSize", v)} placeholder="M8" theme={theme} isDark={isDark} />
+                    <Field label="Ares [mm²]" value={seriousForm.boltArea} onChange={v => updateSeriousField("boltArea", v)} placeholder="36.6" theme={theme} isDark={isDark} />
+                    <Field label="Numero viti" value={seriousForm.boltCount} onChange={v => updateSeriousField("boltCount", v)} placeholder="4" theme={theme} isDark={isDark} />
+                    <Field label="Forza taglio totale [N]" value={seriousForm.shearForce} onChange={v => updateSeriousField("shearForce", v)} placeholder="4000" theme={theme} isDark={isDark} />
+                    <Field label="Forza trazione totale [N]" value={seriousForm.tensileForce} onChange={v => updateSeriousField("tensileForce", v)} placeholder="2000" theme={theme} isDark={isDark} />
+                  </div>
+                )}
+
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                  <button style={{ ...s.primaryBtn, background: theme.primary }} onClick={runSeriousVerification} type="button">Calcola e salva</button>
+                  <button style={{ ...s.secondaryBtn, color: theme.text, border: `1px solid ${theme.border}`, marginTop: 8 }} onClick={resetSeriousVerification} type="button">Reset</button>
+                </div>
+
+                {seriousResult && (
+                  <div style={{ ...s.resultCard, background: isDark ? "#0b0b0b" : "#fff", border: `1px solid ${theme.border}` }}>
+                    <div style={s.resultTop}><strong>{seriousResult.title}</strong><span>{seriousResult.status}</span></div>
+                    {seriousResult.rows.map((row, index) => <p key={index} style={s.valueRow}>{row}</p>)}
+                    {seriousResult.suggestions.map((row, index) => <p key={index} style={{ ...s.resultSuggestion, borderLeft: `3px solid ${theme.primary}` }}>{row}</p>)}
+                  </div>
+                )}
+              </div>
+
+              <div style={{ ...s.projectPanel, background: isDark ? "#050505" : "#f8fafc", border: `1px solid ${theme.border}` }}>
+                <h3 style={s.projectTitle}>Assistente SolidWorks pratico</h3>
+                <div>
+                  <label style={s.label}>Procedura guidata</label>
+                  <select style={{ ...s.input, background: isDark ? "#050505" : "#fff", color: theme.text, border: `1px solid ${theme.border}` }} value={solidWorksTask} onChange={e => setSolidWorksTask(e.target.value)}>
+                    <option value="modellare_pezzo">Devo modellare questo pezzo</option>
+                    <option value="tubo_piegato">Devo fare un tubo piegato</option>
+                    <option value="sottoassieme">Devo creare un sottoassieme</option>
+                    <option value="cartiglio">Collegare materiale al cartiglio</option>
+                    <option value="step_modificabile">Rendere un file STEP modificabile</option>
+                  </select>
+                </div>
+                <Field label="Note sul caso" value={solidWorksNotes} onChange={setSolidWorksNotes} placeholder="Es. pezzo tornito con cave e fori..." theme={theme} isDark={isDark} />
+                <div style={{ ...s.resultCard, background: isDark ? "#0b0b0b" : "#fff", border: `1px solid ${theme.border}` }}>
+                  <h3 style={{ marginTop: 0, color: theme.primary }}>{solidWorksGuide.title}</h3>
+                  <strong>Metodo consigliato</strong>
+                  {solidWorksGuide.method.map((row, i) => <p key={`m-${i}`} style={s.valueRow}>• {row}</p>)}
+                  <strong>Comandi SolidWorks in italiano</strong>
+                  {solidWorksGuide.commands.map((row, i) => <p key={`c-${i}`} style={s.valueRow}>• {row}</p>)}
+                  <strong>Errori comuni</strong>
+                  {solidWorksGuide.errors.map((row, i) => <p key={`e-${i}`} style={s.valueRow}>• {row}</p>)}
+                  <strong>Quando NON usare questo metodo</strong>
+                  {solidWorksGuide.avoid.map((row, i) => <p key={`a-${i}`} style={s.valueRow}>• {row}</p>)}
+                </div>
+                <button style={{ ...s.secondaryBtn, color: theme.primary, border: `1px solid ${theme.border}` }} onClick={saveSolidWorksGuideToProject} type="button">Salva procedura nel progetto</button>
+              </div>
+
+              <div style={{ ...s.projectPanel, background: isDark ? "#050505" : "#f8fafc", border: `1px solid ${theme.border}` }}>
+                <h3 style={s.projectTitle}>Controllo distinta CSV/JSON</h3>
+                <p style={s.muted}>Controlla codici duplicati, materiali mancanti, quantità incoerenti, norme, viti senza classe e cuscinetti senza sigla.</p>
+                <input ref={bomFileInputRef} type="file" accept=".csv,.json,.txt" style={{ display: "none" }} onChange={handleBomFileUpload} />
+                <button style={{ ...s.secondaryBtn, color: theme.text, border: `1px solid ${theme.border}` }} onClick={() => bomFileInputRef.current?.click()} type="button">Carica distinta CSV/JSON</button>
+                <textarea style={{ ...s.checklistTextarea, minHeight: 130, background: isDark ? "#050505" : "#fff", color: theme.text, border: `1px solid ${theme.border}` }} value={bomText} onChange={e => setBomText(e.target.value)} placeholder={'codice;descrizione;materiale;quantita;norma\nP001;vite M8x20;;4;UNI ...'} />
+                <button style={{ ...s.primaryBtn, background: theme.primary }} onClick={runBomCheck} type="button">Controlla distinta e salva</button>
+                {bomIssues.length > 0 && bomIssues.map((issue, index) => (
+                  <div key={index} style={{ ...s.resultCard, background: isDark ? "#0b0b0b" : "#fff", border: `1px solid ${theme.border}` }}>
+                    <div style={s.resultTop}><strong>Riga {issue.row}</strong><span>{issue.severity}</span></div>
+                    <p style={s.resultDetail}>{issue.message}</p>
+                    <p style={{ ...s.resultSuggestion, borderLeft: `3px solid ${theme.primary}` }}>{issue.suggestion}</p>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
         </Modal>
@@ -3672,4 +4298,15 @@ quickNoteText: {
   fontWeight: 700,
   opacity: 0.82,
 },
+  projectLayout: { flex: 1, minHeight: 0, display: "grid", gridTemplateColumns: "minmax(300px, 0.72fr) minmax(520px, 1.28fr)", gap: 18, overflow: "hidden" },
+  projectLeft: { overflowY: "auto", display: "flex", flexDirection: "column", gap: 14, paddingRight: 4 },
+  projectRight: { overflowY: "auto", display: "flex", flexDirection: "column", gap: 14, paddingRight: 6 },
+  projectPanel: { borderRadius: 20, padding: 16, boxShadow: "0 12px 34px rgba(0,0,0,0.10)" },
+  projectTitle: { margin: "0 0 12px", fontSize: 16, fontWeight: 950, letterSpacing: -0.3 },
+  projectListItem: { borderRadius: 16, padding: 10, display: "flex", alignItems: "center", gap: 10, marginBottom: 8 },
+  projectListMain: { flex: 1, minWidth: 0, background: "transparent", border: "none", textAlign: "left", cursor: "pointer", display: "flex", flexDirection: "column", gap: 3, color: "inherit" },
+  projectHeaderCard: { borderRadius: 16, padding: 14, background: "rgba(120,120,120,0.10)", display: "flex", flexDirection: "column", gap: 5, marginBottom: 12 },
+  projectSavedItem: { borderRadius: 16, padding: 14, marginBottom: 10 },
+  projectMiniCard: { borderRadius: 16, padding: 12, marginTop: 10, display: "flex", flexDirection: "column", gap: 4, fontSize: 13 },
+
 };

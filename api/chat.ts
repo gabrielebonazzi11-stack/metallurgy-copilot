@@ -43,7 +43,7 @@ type ModelRoute = {
 };
 
 const GUEST_TEXT_LIMIT_24H = 10;
-const GUEST_FILE_LIMIT_24H = 1;
+const GUEST_FILE_LIMIT_24H = 2;
 const GUEST_WINDOW_HOURS = 24;
 const GUEST_WINDOW_MS = GUEST_WINDOW_HOURS * 60 * 60 * 1000;
 

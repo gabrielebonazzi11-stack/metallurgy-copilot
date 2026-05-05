@@ -2011,7 +2011,7 @@ Struttura:
               <h1 style={s.welcomeText}>Benvenuto {user.name.split(" ")[0]}, come posso aiutarti?</h1>
               {isGuest && <p style={{ ...s.fileHint, color: theme.primary, fontWeight: 800 }}>Modalità ospite attiva · {Math.max(GUEST_LIMIT - guestUsed, 0)}/{GUEST_LIMIT} richieste rimaste nelle 24h · {GUEST_FILE_LIMIT} file ogni 24h</p>}
               {renderInputBar("Chiedi a TechAI o carica un file...")}
-              <p style={s.fileHint}>Il file viene mandato al backend. La chiave AI non è nel frontend.</p>
+            
             </div>
           ) : (
             <div style={s.chatView}>

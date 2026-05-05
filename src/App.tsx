@@ -2697,4 +2697,229 @@ const s: Record<string, React.CSSProperties> = {
   issueRow: { display: "flex", alignItems: "flex-start", gap: 8, fontSize: 12, lineHeight: 1.35 },
   issueDot: { width: 9, height: 9, borderRadius: "50%", marginTop: 5, flexShrink: 0 },
   emptyText: { fontSize: 12, opacity: 0.6, padding: 8 },
+  quickResultShell: {
+  borderRadius: 22,
+  padding: 18,
+  display: "flex",
+  flexDirection: "column",
+  gap: 16,
+  boxShadow: "0 18px 50px rgba(0,0,0,0.22)",
+},
+
+quickHero: {
+  display: "flex",
+  alignItems: "flex-start",
+  justifyContent: "space-between",
+  gap: 16,
+  paddingBottom: 14,
+  borderBottom: "1px solid rgba(120,120,120,0.18)",
+},
+
+quickHeroText: {
+  minWidth: 0,
+  flex: 1,
+},
+
+quickEyebrow: {
+  fontSize: 11,
+  fontWeight: 950,
+  textTransform: "uppercase",
+  letterSpacing: 0.8,
+  opacity: 0.55,
+  marginBottom: 6,
+},
+
+quickHeroTitle: {
+  margin: 0,
+  fontSize: 19,
+  lineHeight: 1.2,
+  fontWeight: 950,
+  letterSpacing: -0.4,
+},
+
+quickHeroSubtitle: {
+  margin: "8px 0 0",
+  fontSize: 13,
+  lineHeight: 1.55,
+  opacity: 0.72,
+},
+
+quickOutcomeBadge: {
+  flexShrink: 0,
+  minWidth: 92,
+  minHeight: 38,
+  borderRadius: 999,
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  fontSize: 13,
+  fontWeight: 950,
+  letterSpacing: 0.4,
+  padding: "8px 13px",
+},
+
+quickMetricsGrid: {
+  display: "grid",
+  gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+  gap: 10,
+},
+
+quickMetricCard: {
+  borderRadius: 18,
+  padding: "14px 14px 13px",
+  minHeight: 98,
+  display: "flex",
+  flexDirection: "column",
+  justifyContent: "space-between",
+  gap: 8,
+},
+
+quickMetricLabel: {
+  fontSize: 11,
+  fontWeight: 900,
+  textTransform: "uppercase",
+  opacity: 0.58,
+  lineHeight: 1.25,
+},
+
+quickMetricValue: {
+  fontSize: 22,
+  lineHeight: 1.05,
+  fontWeight: 950,
+  letterSpacing: -0.6,
+},
+
+quickMetricSub: {
+  fontSize: 11,
+  lineHeight: 1.3,
+  opacity: 0.55,
+},
+
+quickFinalBanner: {
+  borderRadius: 20,
+  padding: 16,
+  display: "flex",
+  alignItems: "flex-start",
+  gap: 13,
+},
+
+quickFinalIcon: {
+  width: 32,
+  height: 32,
+  minWidth: 32,
+  borderRadius: "50%",
+  color: "white",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  fontWeight: 950,
+  fontSize: 18,
+  marginTop: 2,
+},
+
+quickFinalTitle: {
+  margin: 0,
+  fontSize: 18,
+  lineHeight: 1.2,
+  fontWeight: 950,
+},
+
+quickFinalText: {
+  margin: "7px 0 0",
+  fontSize: 14,
+  lineHeight: 1.55,
+  fontWeight: 700,
+},
+
+quickFinalWarning: {
+  margin: "9px 0 0",
+  fontSize: 13,
+  lineHeight: 1.45,
+  fontWeight: 750,
+  opacity: 0.86,
+},
+
+quickFinalOk: {
+  margin: "9px 0 0",
+  fontSize: 13,
+  lineHeight: 1.45,
+  fontWeight: 750,
+  opacity: 0.86,
+},
+
+quickSectionBadge: {
+  borderRadius: 18,
+  padding: "13px 15px",
+  display: "flex",
+  flexDirection: "column",
+  gap: 4,
+},
+
+quickDetailSection: {
+  borderRadius: 18,
+  padding: 15,
+},
+
+quickDetailTitle: {
+  margin: "0 0 12px",
+  fontSize: 14,
+  fontWeight: 950,
+  letterSpacing: -0.2,
+},
+
+quickDetailList: {
+  display: "flex",
+  flexDirection: "column",
+  gap: 8,
+},
+
+quickDetailRow: {
+  display: "flex",
+  alignItems: "flex-start",
+  gap: 8,
+  fontSize: 13,
+  lineHeight: 1.45,
+  fontWeight: 650,
+},
+
+quickDot: {
+  width: 7,
+  height: 7,
+  borderRadius: "50%",
+  marginTop: 7,
+  flexShrink: 0,
+},
+
+quickFormulaSection: {
+  borderRadius: 18,
+  padding: 15,
+},
+
+quickFormulaGrid: {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))",
+  gap: 8,
+},
+
+quickFormulaChip: {
+  borderRadius: 13,
+  padding: "10px 12px",
+  fontSize: 13,
+  lineHeight: 1.35,
+  fontWeight: 800,
+  fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
+},
+
+quickNotesBox: {
+  borderRadius: 18,
+  padding: 15,
+},
+
+quickNoteText: {
+  margin: "8px 0 0",
+  fontSize: 13,
+  lineHeight: 1.5,
+  fontWeight: 700,
+  opacity: 0.82,
+},
 };

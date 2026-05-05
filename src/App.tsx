@@ -2020,7 +2020,7 @@ Struttura:
                   <div key={index} style={message.role === "utente" ? s.uRow : s.aRow}>
                     {message.role === "AI" && <div style={{ ...s.aiAvatar, background: theme.primary }}>T</div>}
                     <div style={message.role === "utente" ? { ...s.uBox, background: theme.surface, border: `1px solid ${theme.border}` } : { ...s.aBox, background: isDark ? "#0b0b0b" : "#fff", border: `1px solid ${theme.border}` }}>
-                      {message.role === "AI" && <div style={s.aiHeader}><strong>TechAI</strong><span}
+                     
                       {renderFormattedText(message.text)}
                       {message.fileAttachment && <div style={s.attachmentBox}>📄 {message.fileAttachment.name} · {(message.fileAttachment.size / 1024).toFixed(1)} KB</div>}
                     </div>

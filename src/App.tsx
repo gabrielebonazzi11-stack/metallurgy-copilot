@@ -174,7 +174,6 @@ type SectionData = {
   values: string[];
   notes: string[];
 };
-
 const THEMES: Theme[] = [
   { name: "Industrial Blue", primary: "#3b82f6", bg: "#f8fafc", surface: "#eff6ff", text: "#1e293b", border: "#dbeafe" },
   { name: "Slate Grey", primary: "#475569", bg: "#f1f5f9", surface: "#e2e8f0", text: "#1e293b", border: "#cbd5e1" },
@@ -182,8 +181,9 @@ const THEMES: Theme[] = [
   { name: "Deep Burgundy", primary: "#dc2626", bg: "#fef2f2", surface: "#fee2e2", text: "#7f1d1d", border: "#fecaca" },
   { name: "Sandstone", primary: "#a8a29e", bg: "#fafaf9", surface: "#f5f5f4", text: "#44403c", border: "#e7e5e4" },
   { name: "Dark Black", primary: "#60a5fa", bg: "#050505", surface: "#111111", text: "#f8fafc", border: "#262626" },
-  { name: "Black Red", primary: "#ef4444", bg: "#050505", surface: "#111111", text: "#f87171", border: "#3a1a1a" },
-  { name: "Black Green", primary: "#22c55e", bg: "#050505", surface: "#111111", text: "#4ade80", border: "#163322" },
+
+  { name: "Black Red", primary: "#ef4444", bg: "#050505", surface: "#111111", text: "#ef4444", border: "#262626" },
+  { name: "Black Green", primary: "#22c55e", bg: "#050505", surface: "#111111", text: "#22c55e", border: "#262626" },
 ];
 
 const STORAGE_KEY_BASE = "techai_stable_app_v7_scoped";

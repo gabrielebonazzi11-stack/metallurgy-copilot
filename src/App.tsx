@@ -428,7 +428,10 @@ export default function App() {
   const drawingReviewInputRef = useRef<HTMLInputElement>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
 
-  const isDark = theme.name === "Dark Black";
+  const isDark =
+  theme.name === "Dark Black" ||
+  theme.name === "Black Red" ||
+  theme.name === "Black Green";
   const activeChat = chats.find(chat => chat.id === activeChatId);
   const currentMessages = activeChat?.messages || [];
   const allMaterials = useMemo(() => [...MATERIALS_DB, ...customMaterials], [customMaterials]);

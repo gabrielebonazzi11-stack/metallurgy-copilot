@@ -2135,7 +2135,28 @@ Struttura:
 
               <Field label="Coefficiente sicurezza richiesto" value={quickCalcForm.safetyFactorRequired} onChange={v => updateQuickCalcField("safetyFactorRequired", v)} placeholder="2" theme={theme} isDark={isDark} />
 
-              <button style={{ ...s.primaryBtn, background: theme.primary }} onClick={runQuickCalc} type="button">Calcola verifica</button>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+  <button
+    style={{ ...s.primaryBtn, background: theme.primary }}
+    onClick={runQuickCalc}
+    type="button"
+  >
+    Calcola verifica
+  </button>
+
+  <button
+    style={{
+      ...s.secondaryBtn,
+      color: theme.text,
+      border: `1px solid ${theme.border}`,
+      marginTop: 8,
+    }}
+    onClick={resetQuickCalc}
+    type="button"
+  >
+    Reset
+  </button>
+</div>
               <div style={{ ...s.warningBox, border: `1px solid ${theme.border}` }}>
                 Calcolo preliminare. Per progetto reale controllare norme, intagli, fatica, saldature, vincoli, frecce, instabilità, coefficienti correttivi e dati certificati del materiale.
               </div>

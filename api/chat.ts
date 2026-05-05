@@ -179,9 +179,8 @@ async function readRequestBody(req: Request): Promise<RequestBodyData> {
 }
 
 /**
- * IMPORTANTE:
- * La scelta del modello viene fatta SOLO sul prompt attuale + file.
- * La cronologia NON viene usata per decidere fast / medium / hard.
+ * La scelta del modello usa SOLO il prompt attuale + eventuale file.
+ * La cronologia chat NON influenza più fast / medium / hard.
  */
 function chooseGroqModel(params: {
   message: string;
@@ -206,7 +205,7 @@ function chooseGroqModel(params: {
     process.env.GROQ_MODEL_HARD ||
     process.env.GROQ_MODEL_MEDIUM ||
     process.env.GROQ_MODEL ||
-    mediumModel;
+    "llama-3.3-70b-versatile";
 
   let score = 0;
   const reasons: string[] = [];
@@ -268,8 +267,8 @@ function chooseGroqModel(params: {
     return {
       level: "hard",
       model: hardModel,
-      maxTokens: 900,
-      timeoutMs: 20000,
+      maxTokens: 1000,
+      timeoutMs: 21000,
       reason: reasons.join(", ") || "richiesta complessa",
     };
   }
@@ -283,7 +282,23 @@ function chooseGroqModel(params: {
   };
 }
 
-function buildTechAiSystemPrompt(params: {
+function buildLightSystemPrompt(params: {
+  userName: string;
+  focus: string;
+  route: ModelRoute;
+}) {
+  const { userName, focus, route } = params;
+
+  return (
+    `Sei TechAI, assistente tecnico per meccanica industriale e sviluppo React/TypeScript.\n` +
+    `Utente: ${userName}. Focus: ${focus}. Modalità leggera: ${route.level}. Motivo: ${route.reason}.\n` +
+    `Rispondi nella stessa lingua dell'utente. Sii diretto, pratico e ordinato. ` +
+    `Non inventare dati. Se mancano dati, chiedili. ` +
+    `Per codice, dai modifiche complete e copiabili.`
+  );
+}
+
+function buildCompactTechAiSystemPrompt(params: {
   userName: string;
   focus: string;
   route: ModelRoute;
@@ -297,7 +312,7 @@ function buildTechAiSystemPrompt(params: {
 
     `REGOLE RISPOSTA:\n` +
     `- Rispondi nella stessa lingua dell'utente.\n` +
-    `- Sii diretto, ordinato, tecnico e pratico in tono amichevole e cordiale.\n` +
+    `- Sii diretto, ordinato, tecnico e pratico.\n` +
     `- Usa Markdown e formule leggibili.\n` +
     `- Cita sempre le unità di misura.\n` +
     `- Se mancano dati, chiedili e non inventare.\n` +
@@ -318,7 +333,7 @@ function buildTechAiSystemPrompt(params: {
   );
 }
 
-function buildLightSystemPrompt(params: {
+function buildFullTechAiSystemPrompt(params: {
   userName: string;
   focus: string;
   route: ModelRoute;
@@ -326,11 +341,97 @@ function buildLightSystemPrompt(params: {
   const { userName, focus, route } = params;
 
   return (
-    `Sei TechAI, assistente tecnico per meccanica e sviluppo React/TypeScript.\n` +
-    `Utente: ${userName}. Focus: ${focus}. Modalità leggera: ${route.level}.\n` +
-    `Rispondi nella stessa lingua dell'utente. Sii diretto, pratico e ordinato. ` +
-    `Non inventare dati. Se mancano dati, chiedili. ` +
-    `Per codice, dai modifiche complete e copiabili.`
+    `Sei TechAI, copilot tecnico per ingegneria meccanica industriale. Utente: ${userName}. Focus: ${focus}.\n` +
+    `Livello selezionato automaticamente: ${route.level}. Motivo scelta: ${route.reason}.\n` +
+    `Rispondi in italiano, tecnico e preciso. Usa Markdown e notazione chiara per formule. Cita sempre le unità. Se mancano dati, chiedi.\n` +
+    `Se la richiesta riguarda codice, dai modifiche precise, copiabili e complete. Se chiede un file completo, riscrivi il file completo.\n\n` +
+
+    `## MECCANICA BASE E STATICA\n` +
+    `Newton: F=ma. Equilibrio: ΣF=0, ΣM=0. Gdl piano: 3 (2 traslazioni+1 rotazione). Spazio: 6. Isostatica=vincoli necessari e sufficienti.\n` +
+    `Cinematica: MRU s=v·t; MRUA v=v0+at, s=v0t+½at², v²=v0²+2as. Caduta libera g=9,81m/s².\n` +
+    `Moto circolare: v=ω·r; ac=v²/r=ω²r; ω=2πn/60. Energia cinetica Ec=½mv². Potenziale Ep=mgz.\n` +
+    `Momento inerzia: I=Σmi·ri². Huygens-Steiner: I=Icm+Mh². Dinamica rotaz.: M=I·α. Ec_rot=½Iω².\n` +
+    `Lavoro: L=F·s·cosθ. Potenza: P=F·v=M·ω. P[kW]=Mt[Nm]·n[giri/min]/9550.\n\n` +
+
+    `## SOLLECITAZIONI E SCIENZA DELLE COSTRUZIONI\n` +
+    `E acciaio=206000MPa; E alluminio=70000MPa; E ghisa=100000MPa; ν acciaio=0,3; G acciaio=79000MPa.\n` +
+    `Trazione: σ=F/A; ε=ΔL/L0; σ=E·ε; ΔL=FL/(EA). Deformazione trasversale: εt=-ν·ε.\n` +
+    `Flessione (Navier): σ=Mf·y/Jf; σmax=Mf/Wf. Sez.circolare: Jf=πd⁴/64; Wf=πd³/32. Sez.rettang. b×h: Jf=bh³/12; Wf=bh²/6. Sez.cava D,d: Jf=π(D⁴-d⁴)/64; Wf=π(D⁴-d⁴)/(32D).\n` +
+    `Torsione: τ=Mt·r/Jp; τmax=Mt/Wt. Sez.circolare: Jp=πd⁴/32; Wt=πd³/16. θ=Mt·L/(G·Jp). Limite: θ≤0,0044rad/m.\n` +
+    `Taglio: τmedio=T/A. Sez.circolare: τmax=4T/(3A). Sez.rett.: τmax=3T/(2bh).\n` +
+    `Frecce travi: appoggiata+carico centrale f=FL³/(48EJ); appoggiata+q_distrib f=5qL⁴/(384EJ); mensola+F f=FL³/(3EJ); mensola+q f=qL⁴/(8EJ). Carico in C (bracci a,b): fC=Fa²b²/(3EJL).\n` +
+    `Travi incastrate: R_A=5qL/8, R_B=3qL/8, M_A=qL²/8 (incastro-appoggio+q). Doppio incastro+q: M_incastri=qL²/12; M_mezzeria=qL²/24.\n` +
+    `Proprietà materiale dalla prova di trazione: Rm(rottura), Re/Rp0.2(snervamento), A%(duttilità), tenacità=area sotto curva σ-ε, resilienza=σe²/(2E).\n\n` +
+
+    `## CONDIZIONE DI RESISTENZA E CRITERI\n` +
+    `σe≤σam=σcr/n. n: statico 1,5÷2; variabile 2÷3; dinamico 3÷5. c(servizio): uniforme 1÷1,25; variabile 1,5÷2,5.\n` +
+    `Von Mises (duttili): σid=√(σ²+3τ²)≤σam. Alberi: σid=√(σf²+3τt²); Mid=√(Mf²+¾Mt²); σid=Mid/Wf.\n` +
+    `Tresca (duttili): σid=σ1-σ3; piano: σid=√(σ²+4τ²). Rankine (fragili): σid=σ1.\n` +
+    `Mohr: σ1,2=(σx+σy)/2±√[((σx-σy)/2)²+τxy²]; τmax=√[((σx-σy)/2)²+τxy²].\n` +
+    `Concentrazione tensioni: Kt da grafici; Kf=1+q(Kt-1); q=1/(1+a/r). a[mm]: Rm=600→0,21; Rm=800→0,145; Rm=1000→0,094.\n` +
+    `Dim.statico albero: d≥∛(32·Mid/(π·σam)). Freccia max: L/2000 (comune); L/5000 (utensili). θmax sede cuscinetto sfere: 0,003rad; rulli: 0,0009rad.\n\n` +
+
+    `## FATICA\n` +
+    `σm=(σmax+σmin)/2; σa=(σmax-σmin)/2; R=σmin/σmax. Alterno simm.: σm=0,R=-1. Pulsante: R=0.\n` +
+    `Se≈0,5Rm (acciaio). Se=ka·kb·kc·kd·ke·S'e. ka(rugosità): lucido=1,0; lavorato≈0,7÷0,8. kb(dim): d<8mm→1; d=8÷50mm→0,85÷0,9. kc: flessione=1; trazione=0,85; torsione=0,59. ke: 90%→0,897; 99%→0,814.\n` +
+    `Haigh: Se,m=Se·(1-σm/Rm). nf=Se,m/σa≥1,5. Miner: D=Σ(ni/Ni)≤1.\n\n` +
+
+    `## TECNOLOGIA MECCANICA\n` +
+    `Lavorazioni: fonderia (colata sabbia, bassa precisione); stampaggio a caldo (alta resistenza meccanica); tranciatura/piegatura/imbutitura (lamiera a freddo); tornitura (moto taglio rotatorio pezzo); fresatura (moto taglio rotatorio utensile); rettifica (alta precisione).\n` +
+    `Saldatura autogena: fonde metallo base (arco elettrico MIG/MAG/TIG/elettrodo rivestito, laser, a resistenza). Eterogenea (brasatura): fonde solo metallo d'apporto.\n` +
+    `Giunti saldati: testa-testa (piena penetrazione), d'angolo, a T, sovrapposizione.\n` +
+    `Cordone d'angolo: σeq=√(σ⊥²+τ⊥²+τ∥²)≤fu/(βw·γm). βw: S235=0,80; S275=0,85; S355=0,90. γm=1,25. Fatica EN3: giunto testa-testa=cat.71÷90; cordone angolo=cat.36÷50.\n` +
+    `Additive manufacturing: libertà di forma totale, bassa precisione, costo unitario alto.\n\n` +
+
+    `## MATERIALI\n` +
+    `Acciaio=Fe-C con C≤2,06%; Ghisa=Fe-C con C>2,06%.\n` +
+    `Strutturali: S235(Rm=360,Re=235); S275(Rm=430,Re=275); S355(Rm=510,Re=355) MPa. Buona saldabilità.\n` +
+    `Bonifica: C45(640÷870/410÷510); 41Cr4(740÷1130/540÷735); 42CrMo4(740÷1230/510÷835); 39NiCrMo3(900÷1000/700÷800) [Rm/Re MPa].\n` +
+    `Cementazione (superficie dura 58÷62HRC, cuore tenace): 16MnCr5, 16NiCr4. Automatici (alta lavorabilità): 11SMn37, ETG100.\n` +
+    `Inox austenitici (non magnetici, non temprabile): AISI304(EN1.4301,Rm=520,Re=210); AISI316L(Rm=500,Re=200) MPa. Inox martensitici (temprabile): AISI420, AISI440C.\n` +
+    `Ghise GJL (grigia lamellare, fragile, buon smorzamento): GJL-200(Rm=200); GJL-250(Rm=250); GJL-300(Rm=300). GJS (sferoidale, duttile): GJS-400-15(Rm=400,A=15%); GJS-500-7(Rm=500,A=7%) MPa.\n` +
+    `Alluminio (E=70000MPa, ρ=2700kg/m³): 6082-T6(Rm=310,Re=260); 7075-T6(Rm=540,Re=480); 6061-T6(Rm=290,Re=240) MPa.\n` +
+    `Titanio Ti-6Al-4V: Rm=900MPa, Re=830MPa, E=110000MPa. Alta resistenza specifica, lavorabilità difficile, costo elevato.\n` +
+    `Polimeri: PA66(Nylon,Rm=80MPa,assorbe umidità); POM(acetalico,Rm=65MPa,basso attrito); PTFE(Rm=25MPa,ottima resistenza chimica). CFRP: Rm=600MPa, anisotropo, non saldabile.\n` +
+    `Ceramiche tecniche: alta durezza, fragilità, resistenza ad alta T. Al2O3, Si3N4, SiC. Uso: cuscinetti ceramici, utensili.\n\n` +
+
+    `## TRASMISSIONI DI POTENZA\n` +
+    `i=n1/n2=z2/z1=D2/D1. Mt[Nm]=9550·P[kW]/n[giri/min].\n` +
+    `Ingranaggi denti dritti: m=dp/z; φ=20°; de=dp+2m; df=dp-7/3m. Lewis: m=∛[2Mt/(λYzk)]; λ=b/m≈10; k=k0·5,6/(5,6+v). Y(φ=20°): z=17→0,302; z=20→0,320; z=30→0,358; z=50→0,408. Moduli UNI[mm]: 1;1,25;1,5;2;2,5;3;4;5;6;8;10;12;16;20.\n` +
+    `Ingranaggi elicoidali: mn=mf·cosψ; z_eq=z/cos³ψ; Wa=Wt·tanψ.\n` +
+    `Cinghie trapezoidali: Lp≈2C+π(D+d)/2+(D-d)²/(4C); θ=π-(D-d)/C; F1-F2=2Mt/d; feff≈0,44 (φ=40°). Sezioni: A(13×8mm,≤7,5kW,dmin=75mm); B(17×11mm,≤19kW,dmin=125mm); C(22×14mm,≤75kW,dmin=220mm); D(32×20mm,≤186kW,dmin=330mm).\n` +
+    `Cuscinetti SKF: L10=(C/P)^p Mln giri (p=3 sfere; p=10/3 rulli); L10h=[10⁶/(60n)]·(C/P)³. P=XFr+YFa. Per sfere: P=Fr se Fa/Fr≤e; P=0,56Fr+YFa se Fa/Fr>e. Verifica statica: F≤C0/s0 (s0=0,5 sfere norm.; s0=1,0 rulli norm.). Durata: 20000÷30000h (macchine 8h); 40000÷60000h (continuo).\n` +
+    `Bulloni: classi Rm/Re[MPa]: 4.6(400/240); 5.6(500/300); 8.8(800/640); 10.9(1000/900). Ares[mm²]: M6=20,1; M8=36,6; M10=58; M12=84; M16=157; M20=245; M24=353. Fp=0,8·fy·Ares; Ts=0,2·Fp·d. Taglio: Fv,R=0,6·fu·Ares/1,25. Trazione: FT,R=0,9·Ares·fu/1,25.\n` +
+    `Linguette: τ=2T/(wLDn); p=4T/(hLDn)≤pam. pam acciaio bonifica=100÷150MPa; ghisa GJL=40÷70MPa.\n` +
+    `Interferenza: Mt=μ·p·π·D²·L/2. μ acciaio-acciaio: 0,15 unto; 0,20 secco.\n` +
+    `Hertz cilindro: b=√(2PC/(πL)); pmax=4P/(π·2bL); σGuest=0,801·pmax a z0=0,489b. Sfera: a=∛(3PdC/8); pmax=1,5P/(πa²).\n` +
+    `Tolleranze ISO 286: sede cuscinetto foro H7; albero rotante k6/m6; scorrevole H7/f7; fisso H7/s6. Ra: superfici generiche 3,2÷6,3μm; sedi cuscin./tenute 0,8÷1,6μm; O-ring 0,4÷0,8μm.\n\n` +
+
+    `## OLEOIDRAULICA\n` +
+    `Fluidi (ISO 6743-4): HL(antiruggine); HM/HLP(antiusura—uso comune); HV(alto VI per T variabili). HFA/HFB/HFC/HFD: fluidi resistenti alla fiamma. ISO VG=viscosità cSt a 40°C (tipico: VG32, VG46, VG68).\n` +
+    `Pompe volumetriche: a ingranaggi (semplici/economiche); a palette (silenziose, cilindrata variabile); a pistoni assiali/radiali (alta p, alta η). Q_th=Vg·n. ηv=Qreale/Qth≈0,90÷0,98. ηhm≈0,85÷0,95. ηtot=ηv·ηhm. P=QΔp/ηtot. M_th=Vg·Δp/(2π).\n` +
+    `Motori idraulici: inverso della pompa. ηv_motore=Qth/Qreale. Vg·Δp=2π·Mc,m. Pm=Mc,m·ωm.\n` +
+    `Cilindri: semplice effetto (forza in un senso); doppio effetto (forza in entrambi i sensi). As=πD²/4; Ar=π(D²-d²)/4. F_est=p·As-pret·Ar; F_rit=p·Ar. v_est=Q/As; v_rit=Q/Ar.\n` +
+    `Valvole: limitatrice di pressione (VLP, norm.chiusa, protegge da sovrapressione, diretta o pilotata); riduttrice (norm.aperta, mantiene p_valle costante); regolatrice portata 2 bocche (influenzata da Δp); regolatrice 3 bocche con compensatore (Q costante indip.da Δp).\n` +
+    `Distributori: N bocche/M posizioni. 4/3: P,T,A,B; 3 posizioni. Centro aperto: P→T a riposo. Centro chiuso: tutto bloccato. Proporzionali: posizione proporzionale al segnale elettrico.\n` +
+    `Fluidodinamica: continuità Q=A1v1=A2v2. Bernoulli: p/(ρg)+v²/(2g)+z=cost. Con perdite: +hf. Hagen-Poiseuille (laminare): Δp=128μLQ/(πD⁴). Re=ρvD/μ: laminare<2300; turbolento>4000. Pressioni: bassa≤50bar; media 50÷200bar; alta 200÷350bar.\n\n` +
+
+    `## TERMODINAMICA E FISICA TECNICA\n` +
+    `Sistema chiuso: Q-L=ΔU. Sistema aperto stazionario: Q̇-Ẇ=ṁ·(Δh+Δv²/2+gΔz). h=u+pv. Gas ideale: Δh=cpΔT; Δu=cvΔT.\n` +
+    `p·v=Rs·T. Aria: Rs=287J/(kgK); cp=1005J/(kgK); cv=718J/(kgK); γ=1,4.\n` +
+    `II principio: η=L/QC=1-QF/QC≤ηCarnot=1-TF/TC. Frigorifero: COP=QF/L. Pompa calore: COP=QC/L.\n` +
+    `Vapore: titolo x=m_vapore/m_tot. h=hf+x·hfg. Acqua 1atm: Tsat=100°C; hfg=2257kJ/kg.\n` +
+    `Statica fluidi: dp/dz=-γ; p=p0+γh (γ=ρg). Archimede: FA=γfluido·Vimmerso. p_ass=p_rel+p_atm (patm≈101325Pa=1,013bar).\n` +
+    `Equazione continuità: ṁ=ρAv=cost. Viscosità dinamica μ[Pa·s]: acqua 20°C≈10⁻³; olio VG46 a 40°C≈0,046.\n\n` +
+
+    `## TRASMISSIONE DEL CALORE\n` +
+    `Conduzione (Fourier): q=-λA(dT/dx)=λAΔT/L. Rt_cond=L/(λA). Guscio cilindrico: Rt=ln(r2/r1)/(2πLλ).\n` +
+    `λ[W/(mK)]: acciaio=50; alluminio=237; rame=401; aria=0,026; acqua=0,607; PTFE=0,25.\n` +
+    `Convezione (Newton): q=hA(Ts-T∞). Rt_conv=1/(hA). h[W/(m²K)]: libera gas 2÷25; forzata gas 25÷250; forzata liquidi 50÷20000; ebollizione/condensazione 2500÷100000.\n` +
+    `Nu=hL/λ; Re=ρvL/μ; Pr=cpμ/λ; Ra=Gr·Pr; Gr=gβΔTL³/ν².\n` +
+    `Irraggiamento: E=ε·σ·T⁴; σ=5,67×10⁻⁸W/(m²K⁴). ε: corpo nero=1; superfici reali 0<ε<1. α+ρ+τ=1; mezzo opaco: α+ρ=1.\n` +
+    `Circuiti termici: q=ΔT/Rt (analogo I=ΔV/R). Serie: Rtot=ΣRi. Parallelo: 1/Rtot=Σ(1/Ri). U=1/(Rtot·A).\n` +
+    `Scambiatori: q=UAΔTml. LMTD: ΔTml=(ΔT1-ΔT2)/ln(ΔT1/ΔT2). Equicorrente: ΔT1=Tci-Tfi; ΔT2=Tcu-Tfu. Controcorrente: ΔT1=Tci-Tfu; ΔT2=Tcu-Tfi (più efficiente). ε-NTU: ε=Q_reale/Q_max=f(Cr,NTU); NTU=UA/Cmin; Cr=Cmin/Cmax.\n`
   );
 }
 
@@ -375,7 +476,7 @@ async function callGroqText(params: {
       "```env\n" +
       "GROQ_API_KEY=la_tua_chiave_groq\n" +
       "GROQ_MODEL_FAST=llama-3.1-8b-instant\n" +
-      "GROQ_MODEL_MEDIUM=llama-3.3-70b-versatile\n" +
+      "GROQ_MODEL_MEDIUM=llama-3.1-8b-instant\n" +
       "GROQ_MODEL_HARD=llama-3.3-70b-versatile\n" +
       "```\n\n" +
       "Poi fai Redeploy del progetto."
@@ -428,7 +529,7 @@ async function callGroqText(params: {
           }))
       : [];
 
-    const fileTextLimit = isFallback ? 3500 : 9000;
+    const fileTextLimit = isFallback ? 3500 : currentRoute.level === "hard" ? 10000 : 7000;
 
     const finalUserContent =
       `${params.message || "Rispondi all'utente."}` +
@@ -440,11 +541,17 @@ async function callGroqText(params: {
           focus,
           route: currentRoute,
         })
-      : buildTechAiSystemPrompt({
-          userName,
-          focus,
-          route: currentRoute,
-        });
+      : currentRoute.level === "hard"
+        ? buildFullTechAiSystemPrompt({
+            userName,
+            focus,
+            route: currentRoute,
+          })
+        : buildCompactTechAiSystemPrompt({
+            userName,
+            focus,
+            route: currentRoute,
+          });
 
     let response: Response;
 
@@ -1001,7 +1108,7 @@ export default async function handler(req: Request) {
           process.env.GROQ_MODEL_HARD ||
           process.env.GROQ_MODEL_MEDIUM ||
           process.env.GROQ_MODEL ||
-          "llama-3.1-8b-instant",
+          "llama-3.3-70b-versatile",
         hasOpenRouterKey: Boolean(process.env.OPENROUTER_API_KEY),
         openRouterVisionModel: process.env.OPENROUTER_VISION_MODEL || "openai/gpt-4o-mini",
         hasSupabase: Boolean(process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY),

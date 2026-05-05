@@ -2528,9 +2528,72 @@ function QuickCalcCard({ result, theme, isDark }: { result: QuickCalcResult; the
         <span style={s.quickSectionLabel}>Sezione</span>
         <strong style={s.quickSectionValue}>{result.section}</strong>
       </div>
+          <div
+        style={{
+          ...s.quickStepsBox,
+          background: isDark ? "#080808" : "#f8fafc",
+          border: `1px solid ${theme.border}`,
+        }}
+      >
+        <h4 style={{ ...s.quickDetailTitle, color: theme.primary }}>
+          Passaggi di calcolo
+        </h4>
 
+        <div style={s.quickStepsList}>
+          <div style={s.quickStepItem}>
+            <span style={{ ...s.quickStepNumber, background: theme.primary }}>1</span>
+            <div>
+              <strong>Materiale</strong>
+              <p style={s.quickStepText}>
+                Vengono letti i dati del materiale selezionato, in particolare Re/Rp0.2 e Rm.
+              </p>
+            </div>
+          </div>
+
+          <div style={s.quickStepItem}>
+            <span style={{ ...s.quickStepNumber, background: theme.primary }}>2</span>
+            <div>
+              <strong>Sezione</strong>
+              <p style={s.quickStepText}>
+                In base alla sezione scelta vengono calcolati area A, momento d’inerzia Jf, modulo resistente Wf e modulo torsionale Wt.
+              </p>
+            </div>
+          </div>
+
+          <div style={s.quickStepItem}>
+            <span style={{ ...s.quickStepNumber, background: theme.primary }}>3</span>
+            <div>
+              <strong>Sollecitazioni</strong>
+              <p style={s.quickStepText}>
+                Dai carichi inseriti vengono calcolate le tensioni normali e tangenziali.
+              </p>
+            </div>
+          </div>
+
+          <div style={s.quickStepItem}>
+            <span style={{ ...s.quickStepNumber, background: theme.primary }}>4</span>
+            <div>
+              <strong>Tensione equivalente</strong>
+              <p style={s.quickStepText}>
+                Le tensioni vengono combinate con Von Mises. Se previsto viene mostrato anche Tresca.
+              </p>
+            </div>
+          </div>
+
+          <div style={s.quickStepItem}>
+            <span style={{ ...s.quickStepNumber, background: theme.primary }}>5</span>
+            <div>
+              <strong>Esito</strong>
+              <p style={s.quickStepText}>
+                Il coefficiente calcolato viene confrontato con quello richiesto per stabilire OK o NON OK.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+      
       {detailSection("Dati sezione / materiale", result.sectionValues)}
-
+  
       {result.formulas.length > 0 && (
         <div
           style={{

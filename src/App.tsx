@@ -648,65 +648,63 @@ export default function App() {
   };
 
   const resetChecklist = () => {
-  setChecklistForm({
-    componentType: "",
-    material: "",
-    load: "",
-    environment: "",
-    machining: "",
-    safetyFactor: "",
-    tolerances: "",
-    roughness: "",
-    notes: "",
-  });
+    setChecklistForm({
+      componentType: "",
+      material: "",
+      load: "",
+      environment: "",
+      machining: "",
+      safetyFactor: "",
+      tolerances: "",
+      roughness: "",
+      notes: "",
+    });
 
-  setChecklistResults([]);
-};
+    setChecklistResults([]);
+  };
 
   const updateQuickCalcField = (field: keyof QuickCalcForm, value: string) => {
     setQuickCalcForm(prev => ({ ...prev, [field]: value }));
   };
 
- const resetQuickCalc = () => {
-  setQuickCalcForm(prev => ({
-    ...prev,
+  const resetQuickCalc = () => {
+    setQuickCalcForm(prev => ({
+      ...prev,
 
-    axialLoad: "0",
-    shearLoad: "2500",
-    bendingMoment: "",
-    torque: "80000",
-    distance: "120",
+      axialLoad: "0",
+      shearLoad: "2500",
+      bendingMoment: "",
+      torque: "80000",
+      distance: "120",
 
-    diameter: "25",
-    outerDiameter: "40",
-    innerDiameter: "25",
+      diameter: "25",
+      outerDiameter: "40",
+      innerDiameter: "25",
 
-    base: "30",
-    height: "50",
-    outerBase: "60",
-    outerHeight: "80",
-    innerBase: "40",
-    innerHeight: "60",
+      base: "30",
+      height: "50",
+      outerBase: "60",
+      outerHeight: "80",
+      innerBase: "40",
+      innerHeight: "60",
 
-    pressure: "30",
-    radius: "150",
-    thickness: "4",
+      pressure: "30",
+      radius: "150",
+      thickness: "4",
 
-    sigmaX: "80",
-    sigmaY: "20",
-    tauXY: "30",
+      sigmaX: "80",
+      sigmaY: "20",
+      tauXY: "30",
 
-    sigmaMax: "180",
-    sigmaMin: "20",
-    fatigueLimit: "",
+      sigmaMax: "180",
+      sigmaMin: "20",
+      fatigueLimit: "",
 
-    safetyFactorRequired: "2",
-  }));
+      safetyFactorRequired: "2",
+    }));
 
- 
-
-  setQuickCalcResult(null);
-};
+    setQuickCalcResult(null);
+  };
 
   const updateDrawingField = (field: keyof DrawingForm, value: string) => {
     setDrawingForm(prev => ({ ...prev, [field]: value }));
@@ -2053,7 +2051,6 @@ Struttura:
               <h1 style={s.welcomeText}>Benvenuto {user.name.split(" ")[0]}, come posso aiutarti?</h1>
               {isGuest && <p style={{ ...s.fileHint, color: theme.primary, fontWeight: 800 }}>Modalità ospite attiva · {Math.max(GUEST_LIMIT - guestUsed, 0)}/{GUEST_LIMIT} richieste rimaste nelle 24h · {GUEST_FILE_LIMIT} file ogni 24h</p>}
               {renderInputBar("Chiedi a TechAI o carica un file...")}
-            
             </div>
           ) : (
             <div style={s.chatView}>
@@ -2062,7 +2059,6 @@ Struttura:
                   <div key={index} style={message.role === "utente" ? s.uRow : s.aRow}>
                     {message.role === "AI" && <div style={{ ...s.aiAvatar, background: theme.primary }}>T</div>}
                     <div style={message.role === "utente" ? { ...s.uBox, background: theme.surface, border: `1px solid ${theme.border}` } : { ...s.aBox, background: isDark ? "#0b0b0b" : "#fff", border: `1px solid ${theme.border}` }}>
-                     
                       {renderFormattedText(message.text)}
                       {message.fileAttachment && <div style={s.attachmentBox}>📄 {message.fileAttachment.name} · {(message.fileAttachment.size / 1024).toFixed(1)} KB</div>}
                     </div>
@@ -2095,29 +2091,29 @@ Struttura:
               <Field label="Rugosità" value={checklistForm.roughness} onChange={v => updateChecklistField("roughness", v)} placeholder="Ra 3.2 generale, Ra 1.6 sedi..." theme={theme} isDark={isDark} />
               <label style={s.label}>Note tecniche</label>
               <textarea style={{ ...s.checklistTextarea, background: isDark ? "#050505" : "#fff", color: theme.text, border: `1px solid ${theme.border}` }} value={checklistForm.notes} onChange={e => updateChecklistField("notes", e.target.value)} placeholder="Smussi, raggi, filetti, trattamenti..." />
-             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-  <button
-    style={{ ...s.primaryBtn, background: theme.primary }}
-    onClick={runProjectChecklist}
-    type="button"
-  >
-    Esegui checklist
-  </button>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                <button
+                  style={{ ...s.primaryBtn, background: theme.primary }}
+                  onClick={runProjectChecklist}
+                  type="button"
+                >
+                  Esegui checklist
+                </button>
 
-  <button
-    style={{
-      ...s.secondaryBtn,
-      color: theme.text,
-      border: `1px solid ${theme.border}`,
-      marginTop: 8,
-    }}
-    onClick={resetChecklist}
-    type="button"
-  >
-    Reset
-  </button>
-</div>
-            
+                <button
+                  style={{
+                    ...s.secondaryBtn,
+                    color: theme.text,
+                    border: `1px solid ${theme.border}`,
+                    marginTop: 8,
+                  }}
+                  onClick={resetChecklist}
+                  type="button"
+                >
+                  Reset
+                </button>
+              </div>
+            </div>
 
             <div style={s.checklistResultsArea}>
               {checklistResults.length === 0 ? <div style={{ ...s.emptyChecklist, border: `1px dashed ${theme.border}` }}>Inserisci i dati del pezzo e premi “Esegui checklist”.</div> : checklistResults.map((item, index) => <ResultCard key={index} item={item} theme={theme} isDark={isDark} />)}
@@ -2173,27 +2169,27 @@ Struttura:
               <Field label="Coefficiente sicurezza richiesto" value={quickCalcForm.safetyFactorRequired} onChange={v => updateQuickCalcField("safetyFactorRequired", v)} placeholder="2" theme={theme} isDark={isDark} />
 
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-  <button
-    style={{ ...s.primaryBtn, background: theme.primary }}
-    onClick={runQuickCalc}
-    type="button"
-  >
-    Calcola verifica
-  </button>
+                <button
+                  style={{ ...s.primaryBtn, background: theme.primary }}
+                  onClick={runQuickCalc}
+                  type="button"
+                >
+                  Calcola verifica
+                </button>
 
-  <button
-    style={{
-      ...s.secondaryBtn,
-      color: theme.text,
-      border: `1px solid ${theme.border}`,
-      marginTop: 8,
-    }}
-    onClick={resetQuickCalc}
-    type="button"
-  >
-    Reset
-  </button>
-</div>
+                <button
+                  style={{
+                    ...s.secondaryBtn,
+                    color: theme.text,
+                    border: `1px solid ${theme.border}`,
+                    marginTop: 8,
+                  }}
+                  onClick={resetQuickCalc}
+                  type="button"
+                >
+                  Reset
+                </button>
+              </div>
               <div style={{ ...s.warningBox, border: `1px solid ${theme.border}` }}>
                 Calcolo preliminare. Per progetto reale controllare norme, intagli, fatica, saldature, vincoli, frecce, instabilità, coefficienti correttivi e dati certificati del materiale.
               </div>

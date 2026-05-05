@@ -710,6 +710,32 @@ export default function App() {
     setDrawingForm(prev => ({ ...prev, [field]: value }));
   };
 
+  const resetDrawingGenerator = () => {
+    if (drawingReviewFile?.previewUrl) URL.revokeObjectURL(drawingReviewFile.previewUrl);
+
+    setDrawingReviewFile(null);
+    setDrawingResults([]);
+    setDrawingIssues([]);
+    setDrawingAiLoading(false);
+
+    setDrawingForm({
+      partName: "",
+      partType: "",
+      material: "",
+      manufacturing: "",
+      mainFeatures: "",
+      functionalSurfaces: "",
+      holesThreads: "",
+      fits: "",
+      tolerances: "",
+      roughness: "",
+      assemblyFunction: "",
+      productionQuantity: "",
+    });
+
+    if (drawingReviewInputRef.current) drawingReviewInputRef.current.value = "";
+  };
+
   const normalizeMaterialKey = (value?: string) => {
     return String(value || "").toLowerCase().replaceAll(" ", "").replaceAll("-", "").replaceAll("_", "");
   };
@@ -2271,7 +2297,30 @@ Struttura:
               <Field label="Accoppiamenti" value={drawingForm.fits} onChange={v => updateDrawingField("fits", v)} placeholder="H7/g6, sede cuscinetto..." theme={theme} isDark={isDark} />
               <Field label="Tolleranze già previste" value={drawingForm.tolerances} onChange={v => updateDrawingField("tolerances", v)} placeholder="ISO 2768, geometriche..." theme={theme} isDark={isDark} />
               <Field label="Rugosità già previste" value={drawingForm.roughness} onChange={v => updateDrawingField("roughness", v)} placeholder="Ra 3.2, Ra 1.6..." theme={theme} isDark={isDark} />
-              <button style={{ ...s.primaryBtn, background: theme.primary }} onClick={runDrawingGenerator} disabled={drawingAiLoading} type="button">{drawingAiLoading ? "Analisi in corso..." : isDrawingUpload(drawingReviewFile) ? "Analizza tavola con AI" : "Genera controllo tavola"}</button>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                <button
+                  style={{ ...s.primaryBtn, background: theme.primary }}
+                  onClick={runDrawingGenerator}
+                  disabled={drawingAiLoading}
+                  type="button"
+                >
+                  {drawingAiLoading ? "Analisi in corso..." : isDrawingUpload(drawingReviewFile) ? "Analizza tavola con AI" : "Genera controllo tavola"}
+                </button>
+
+                <button
+                  style={{
+                    ...s.secondaryBtn,
+                    color: theme.text,
+                    border: `1px solid ${theme.border}`,
+                    marginTop: 8,
+                  }}
+                  onClick={resetDrawingGenerator}
+                  disabled={drawingAiLoading}
+                  type="button"
+                >
+                  Reset
+                </button>
+              </div>
             </div>
 
             <div style={s.checklistResultsArea}>

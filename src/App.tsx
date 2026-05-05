@@ -2274,16 +2274,45 @@ function QuickCalcCard({ result, theme, isDark }: { result: QuickCalcResult; the
   const outcomeColor = isOk ? "#22c55e" : "#ef4444";
   const softOutcomeBg = isOk ? "rgba(34,197,94,0.12)" : "rgba(239,68,68,0.12)";
 
+  const getNumberFromText = (text: string) => {
+    const matches = text.match(/-?\d+(?:[.,]\d+)?/g);
+    if (!matches || matches.length === 0) return null;
+    const value = Number(matches[matches.length - 1].replace(",", "."));
+    return Number.isFinite(value) ? value : null;
+  };
+
+  const findNumberInRows = (rows: string[], patterns: RegExp[]) => {
+    const row = rows.find(value => patterns.some(pattern => pattern.test(value)));
+    return row ? getNumberFromText(row) : null;
+  };
+
+  const diameterValue =
+    findNumberInRows(result.sectionValues || [], [/diametro/i, /\bd\b/i]) ??
+    findNumberInRows(result.values || [], [/diametro/i, /\bd\b/i]);
+
+  const requiredSafety =
+    findNumberInRows(result.values || [], [/n richiesto/i, /n_req/i, /coefficiente.*richiesto/i]) ?? 2;
+
+  const suggestedDiameter =
+    !isOk && diameterValue && result.safetyFactor > 0
+      ? diameterValue * Math.pow(requiredSafety / result.safetyFactor, 1 / 3)
+      : null;
+
+  const normalizedSuggestedDiameter =
+    suggestedDiameter !== null
+      ? Math.ceil(suggestedDiameter / 2) * 2
+      : null;
+
   const loadRows = result.values.filter(value =>
     /carico|forza|braccio|momento/i.test(value)
   );
 
   const stressRows = result.values.filter(value =>
-    /σ|sigma|τ|tau|von mises|tresca|tensione equivalente/i.test(value)
+    /σ|sigma|τ|tau|von mises|tresca|tensione equivalente|mpa/i.test(value)
   );
 
   const safetyRows = result.values.filter(value =>
-    /coefficiente|sicurezza|n_req|n =/i.test(value)
+    /coefficiente|sicurezza|n_req|n =|n richiesto/i.test(value)
   );
 
   const otherRows = result.values.filter(value =>
@@ -2291,6 +2320,22 @@ function QuickCalcCard({ result, theme, isDark }: { result: QuickCalcResult; the
     !stressRows.includes(value) &&
     !safetyRows.includes(value)
   );
+
+  const beautifyFormula = (formula: string) => {
+    return formula
+      .replaceAll("sigma", "σ")
+      .replaceAll("tau", "τ")
+      .replaceAll("sqrt", "√")
+      .replaceAll("pi", "π")
+      .replaceAll("*", "·")
+      .replaceAll("sigmaN", "σN")
+      .replaceAll("sigmaf", "σf")
+      .replaceAll("sigmaVM", "σVM")
+      .replaceAll("taut", "τt")
+      .replaceAll("tauV", "τV")
+      .replaceAll("sigma_tot", "σtot")
+      .replaceAll("tau_tot", "τtot");
+  };
 
   const detailSection = (title: string, rows: string[]) => {
     if (!rows || rows.length === 0) return null;
@@ -2380,13 +2425,11 @@ function QuickCalcCard({ result, theme, isDark }: { result: QuickCalcResult; the
             border: `1px solid ${theme.border}`,
           }}
         >
-          <span style={s.quickMetricLabel}>Criterio Tresca</span>
+          <span style={s.quickMetricLabel}>n richiesto</span>
           <strong style={s.quickMetricValue}>
-            {result.trescaStress !== undefined && result.trescaStress > 0
-              ? `${result.trescaStress.toFixed(2)} MPa`
-              : "—"}
+            {requiredSafety.toFixed(2)}
           </strong>
-          <span style={s.quickMetricSub}>Confronto indicativo</span>
+          <span style={s.quickMetricSub}>Valore minimo impostato</span>
         </div>
       </div>
 
@@ -2431,6 +2474,36 @@ function QuickCalcCard({ result, theme, isDark }: { result: QuickCalcResult; the
         </div>
       </div>
 
+      {!isOk && suggestedDiameter !== null && normalizedSuggestedDiameter !== null && (
+        <div
+          style={{
+            ...s.quickSuggestionBox,
+            background: isDark ? "#120b04" : "#fff7ed",
+            border: "1px solid #f97316",
+            borderLeft: "6px solid #f97316",
+          }}
+        >
+          <div style={s.quickSuggestionTop}>
+            <span style={s.quickSuggestionIcon}>↗</span>
+            <div>
+              <h4 style={s.quickSuggestionTitle}>Diametro minimo suggerito</h4>
+              <p style={s.quickSuggestionText}>
+                Diametro attuale: <strong>{diameterValue?.toFixed(2)} mm</strong>
+              </p>
+              <p style={s.quickSuggestionText}>
+                Diametro minimo stimato: <strong>{suggestedDiameter.toFixed(2)} mm</strong>
+              </p>
+              <p style={s.quickSuggestionText}>
+                Diametro normalizzato consigliato: <strong>{normalizedSuggestedDiameter.toFixed(0)} mm</strong>
+              </p>
+              <p style={s.quickSuggestionNote}>
+                Stima preliminare ricavata scalando il diametro in funzione del rapporto tra n richiesto e n calcolato.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div
         style={{
           ...s.quickSectionBadge,
@@ -2439,8 +2512,8 @@ function QuickCalcCard({ result, theme, isDark }: { result: QuickCalcResult; the
           borderLeft: `5px solid ${theme.primary}`,
         }}
       >
-        <span>Sezione</span>
-        <strong>{result.section}</strong>
+        <span style={s.quickSectionLabel}>Sezione</span>
+        <strong style={s.quickSectionValue}>{result.section}</strong>
       </div>
 
       {detailSection("Dati sezione / materiale", result.sectionValues)}
@@ -2465,7 +2538,7 @@ function QuickCalcCard({ result, theme, isDark }: { result: QuickCalcResult; the
                   border: `1px solid ${theme.border}`,
                 }}
               >
-                {formula}
+                {beautifyFormula(formula)}
               </div>
             ))}
           </div>
@@ -2497,6 +2570,7 @@ function QuickCalcCard({ result, theme, isDark }: { result: QuickCalcResult; the
     </div>
   );
 }
+
 function MaterialCard({ material: m, isCustom, theme, isDark, onDelete }: { material: MaterialInfo; isCustom: boolean; theme: Theme; isDark: boolean; onDelete: () => void }) {
   return (
     <div style={{ ...s.materialCard, background: isDark ? "#050505" : "#f8fafc", border: `1px solid ${theme.border}` }}>

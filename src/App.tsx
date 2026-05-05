@@ -2095,8 +2095,29 @@ Struttura:
               <Field label="Rugosità" value={checklistForm.roughness} onChange={v => updateChecklistField("roughness", v)} placeholder="Ra 3.2 generale, Ra 1.6 sedi..." theme={theme} isDark={isDark} />
               <label style={s.label}>Note tecniche</label>
               <textarea style={{ ...s.checklistTextarea, background: isDark ? "#050505" : "#fff", color: theme.text, border: `1px solid ${theme.border}` }} value={checklistForm.notes} onChange={e => updateChecklistField("notes", e.target.value)} placeholder="Smussi, raggi, filetti, trattamenti..." />
-              <button style={{ ...s.primaryBtn, background: theme.primary }} onClick={runProjectChecklist} type="button">Esegui checklist</button>
-            </div>
+             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+  <button
+    style={{ ...s.primaryBtn, background: theme.primary }}
+    onClick={runProjectChecklist}
+    type="button"
+  >
+    Esegui checklist
+  </button>
+
+  <button
+    style={{
+      ...s.secondaryBtn,
+      color: theme.text,
+      border: `1px solid ${theme.border}`,
+      marginTop: 8,
+    }}
+    onClick={resetChecklist}
+    type="button"
+  >
+    Reset
+  </button>
+</div>
+            
 
             <div style={s.checklistResultsArea}>
               {checklistResults.length === 0 ? <div style={{ ...s.emptyChecklist, border: `1px dashed ${theme.border}` }}>Inserisci i dati del pezzo e premi “Esegui checklist”.</div> : checklistResults.map((item, index) => <ResultCard key={index} item={item} theme={theme} isDark={isDark} />)}

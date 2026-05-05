@@ -646,6 +646,21 @@ export default function App() {
     setQuickCalcForm(prev => ({ ...prev, [field]: value }));
   };
 
+  const resetQuickCalc = () => {
+  setQuickCalcForm(prev => ({
+    ...prev,
+    diameter: "",
+    axialLoad: "",
+    shearForce: "",
+    leverArm: "",
+    bendingMoment: "",
+    torqueMoment: "",
+    safetyFactorRequired: "2",
+  }));
+
+  setQuickCalcResult(null);
+};
+
   const updateDrawingField = (field: keyof DrawingForm, value: string) => {
     setDrawingForm(prev => ({ ...prev, [field]: value }));
   };

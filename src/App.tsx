@@ -2203,78 +2203,232 @@ Struttura:
       )}
 
       {showSettings && (
-        <div style={s.overlay}>
-          <div style={{ ...s.modal, background: isDark ? "#111" : "#fff", color: theme.text, border: `1px solid ${theme.border}` }}>
-            <div style={{ ...s.modalSide, background: isDark ? "#050505" : "#f8fafc", borderRight: `1px solid ${theme.border}` }}>
-              {["Account", "Aspetto", "AI Focus"].map(tab => <button key={tab} style={{ ...s.tabBtn, color: activeTab === tab ? theme.primary : theme.text }} onClick={() => setActiveTab(tab)} type="button">{tab}</button>)}
+        <div style={s.settingsOverlay}>
+          <div style={{ ...s.settingsModal, color: isDark ? "#f8fafc" : "#0f172a" }}>
+            <div style={s.settingsSidePanel}>
+              <div style={s.settingsTabsArea}>
+                {[
+                  { key: "Account", icon: "♙", subtitle: "Profilo" },
+                  { key: "Aspetto", icon: "◒", subtitle: "Tema" },
+                  { key: "AI Focus", icon: "◎", subtitle: "Preferenze" },
+                ].map(tab => {
+                  const selected = activeTab === tab.key;
+
+                  return (
+                    <button
+                      key={tab.key}
+                      style={{
+                        ...s.settingsTabBtn,
+                        background: selected ? "rgba(96,165,250,0.16)" : "transparent",
+                        color: selected ? "#60a5fa" : "rgba(226,232,240,0.78)",
+                        boxShadow: selected ? "inset 3px 0 0 #60a5fa" : "none",
+                      }}
+                      onClick={() => setActiveTab(tab.key)}
+                      type="button"
+                    >
+                      <span
+                        style={{
+                          ...s.settingsTabIcon,
+                          borderColor: selected ? "rgba(96,165,250,0.62)" : "rgba(148,163,184,0.22)",
+                          color: selected ? "#60a5fa" : "rgba(226,232,240,0.72)",
+                        }}
+                      >
+                        {tab.icon}
+                      </span>
+
+                      <span style={s.settingsTabText}>
+                        <strong>{tab.key}</strong>
+                        <small>{tab.subtitle}</small>
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              <div style={s.settingsSideFooter}>
+                <div style={s.settingsFooterLine} />
+                <div style={s.settingsInfoRow}>
+                  <span style={s.settingsInfoIcon}>ⓘ</span>
+                  <div>
+                    <strong>Impostazioni</strong>
+                    <small>Gestisci le tue preferenze</small>
+                  </div>
+                </div>
+              </div>
             </div>
-            <div style={s.modalMain}>
-              <div style={s.modalHeader}>
-                <h2>{activeTab}</h2>
-                <button style={{ ...s.backBtn, color: theme.text, border: `1px solid ${theme.border}` }} onClick={() => setShowSettings(false)} type="button">×</button>
+
+            <div style={{ ...s.settingsMainPanel, background: isDark ? "#101010" : "#f8fbff" }}>
+              <button
+                style={{ ...s.settingsCloseBtn, color: isDark ? "#e2e8f0" : "#334155" }}
+                onClick={() => setShowSettings(false)}
+                type="button"
+                aria-label="Chiudi impostazioni"
+              >
+                ×
+              </button>
+
+              <div style={s.settingsHeader}>
+                <h2 style={s.settingsTitle}>{activeTab}</h2>
+                <p style={s.settingsSubtitle}>
+                  {activeTab === "Account"
+                    ? "Gestisci le informazioni del tuo account."
+                    : activeTab === "Aspetto"
+                      ? "Scegli il tema grafico dell'interfaccia."
+                      : "Imposta l'ambito principale delle risposte AI."}
+                </p>
               </div>
 
               {activeTab === "Account" && (
-                <>
-                  <Field label="Nome" value={user.name} onChange={v => setUser(prev => ({ ...prev, name: v }))} theme={theme} isDark={isDark} />
-                  <Field label="Email" value={user.email} onChange={() => {}} theme={theme} isDark={isDark} />
-                  {isGuest && <div style={{ ...s.warningBox, border: `1px solid ${theme.border}`, marginBottom: 10 }}>Sei in modalità ospite. Richieste rimaste: {Math.max(GUEST_LIMIT - guestUsed, 0)}/{GUEST_LIMIT} nelle 24h. Puoi caricare massimo {GUEST_FILE_LIMIT} file ogni 24h.</div>}
-                  <button style={{ ...s.secondaryBtn, color: "#ef4444", border: "1px solid #ef4444", marginTop: 8 }} onClick={handleLogout} type="button">{isGuest ? "Esci dalla modalità ospite" : "Logout"}</button>
-                </>
-              )}
+                <div style={s.settingsContentStack}>
+                  <div>
+                    <label style={s.settingsLabel}>Nome</label>
+                    <div
+                      style={{
+                        ...s.settingsInputCard,
+                        background: isDark ? "#050505" : "rgba(255,255,255,0.9)",
+                        border: `1px solid ${isDark ? "#262626" : "#dbe3ee"}`,
+                      }}
+                    >
+                      <span style={s.settingsInputIcon}>♙</span>
+                      <input
+                        style={{ ...s.settingsInlineInput, color: isDark ? "#f8fafc" : "#1e293b" }}
+                        value={user.name}
+                        onChange={e => setUser(prev => ({ ...prev, name: e.target.value }))}
+                        placeholder="Nome utente"
+                      />
+                    </div>
+                  </div>
 
-              {activeTab === "Aspetto" && (
-                <div style={s.themeGrid}>
-                 {THEMES.map(t => {
-  const optionTextColor =
-    t.name === "Black Red"
-      ? "#ef4444"
-      : t.name === "Black Green"
-      ? "#22c55e"
-      : theme.text;
+                  <div>
+                    <label style={s.settingsLabel}>Email</label>
+                    <div
+                      style={{
+                        ...s.settingsInputCard,
+                        background: isDark ? "#050505" : "rgba(255,255,255,0.9)",
+                        border: `1px solid ${isDark ? "#262626" : "#dbe3ee"}`,
+                      }}
+                    >
+                      <span style={s.settingsInputIcon}>✉</span>
+                      <input
+                        style={{ ...s.settingsInlineInput, color: isDark ? "#f8fafc" : "#1e293b", cursor: "default" }}
+                        value={user.email}
+                        readOnly
+                      />
+                    </div>
+                  </div>
 
-  const optionDotBackground =
-    t.name === "Dark Black"
-      ? "#050505"
-      : t.name === "Black Red"
-      ? "linear-gradient(90deg, #050505 50%, #ef4444 50%)"
-      : t.name === "Black Green"
-      ? "linear-gradient(90deg, #050505 50%, #22c55e 50%)"
-      : t.primary;
+                  {isGuest && (
+                    <div
+                      style={{
+                        ...s.settingsGuestNotice,
+                        background: isDark ? "rgba(245,158,11,0.08)" : "#fffbeb",
+                        border: `1px solid ${isDark ? "rgba(245,158,11,0.26)" : "#fde68a"}`,
+                      }}
+                    >
+                      <strong>Modalità ospite attiva</strong>
+                      <span>
+                        Richieste rimaste: {Math.max(GUEST_LIMIT - guestUsed, 0)}/{GUEST_LIMIT} nelle 24h · massimo {GUEST_FILE_LIMIT} file ogni 24h.
+                      </span>
+                    </div>
+                  )}
 
-  const optionDotBorder =
-    t.name === "Dark Black" ||
-    t.name === "Black Red" ||
-    t.name === "Black Green"
-      ? "1px solid #cbd5e1"
-      : "none";
-
-  return (
-    <button
-      key={t.name}
-      style={{
-        ...s.themeOption,
-        color: optionTextColor,
-        border: `1px solid ${theme.name === t.name ? t.primary : theme.border}`,
-      }}
-      onClick={() => setTheme(t)}
-      type="button"
-    >
-      <span
-        style={{
-          ...s.themeDot,
-          background: optionDotBackground,
-          border: optionDotBorder,
-        }}
-      />
-      {t.name}
-    </button>
-  );
-})}
+                  <button style={s.settingsLogoutBtn} onClick={handleLogout} type="button">
+                    <span style={s.settingsLogoutIcon}>↪</span>
+                    <strong>{isGuest ? "Esci dalla modalità ospite" : "Logout"}</strong>
+                  </button>
                 </div>
               )}
 
-              {activeTab === "AI Focus" && <Field label="Ambito tecnico principale" value={interest} onChange={setInterest} theme={theme} isDark={isDark} />}
+              {activeTab === "Aspetto" && (
+                <div style={s.settingsThemeGrid}>
+                  {THEMES.map(t => {
+                    const selected = theme.name === t.name;
+                    const optionTextColor =
+                      t.name === "Black Red"
+                        ? "#ef4444"
+                        : t.name === "Black Green"
+                          ? "#22c55e"
+                          : isDark
+                            ? "#f8fafc"
+                            : "#1e293b";
+
+                    const optionDotBackground =
+                      t.name === "Dark Black"
+                        ? "#050505"
+                        : t.name === "Black Red"
+                          ? "linear-gradient(90deg, #050505 50%, #ef4444 50%)"
+                          : t.name === "Black Green"
+                            ? "linear-gradient(90deg, #050505 50%, #22c55e 50%)"
+                            : t.primary;
+
+                    const optionDotBorder =
+                      t.name === "Dark Black" ||
+                      t.name === "Black Red" ||
+                      t.name === "Black Green"
+                        ? "1px solid #cbd5e1"
+                        : "none";
+
+                    return (
+                      <button
+                        key={t.name}
+                        style={{
+                          ...s.settingsThemeOption,
+                          background: isDark ? "#050505" : "rgba(255,255,255,0.9)",
+                          color: optionTextColor,
+                          border: `1px solid ${selected ? t.primary : isDark ? "#262626" : "#dbe3ee"}`,
+                          boxShadow: selected ? `0 18px 35px ${t.primary}24` : "none",
+                        }}
+                        onClick={() => setTheme(t)}
+                        type="button"
+                      >
+                        <span
+                          style={{
+                            ...s.themeDot,
+                            background: optionDotBackground,
+                            border: optionDotBorder,
+                          }}
+                        />
+                        <span>{t.name}</span>
+                        {selected && <span style={{ marginLeft: "auto", color: t.primary, fontWeight: 950 }}>✓</span>}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+
+              {activeTab === "AI Focus" && (
+                <div style={s.settingsContentStack}>
+                  <div>
+                    <label style={s.settingsLabel}>Ambito tecnico principale</label>
+                    <div
+                      style={{
+                        ...s.settingsInputCard,
+                        background: isDark ? "#050505" : "rgba(255,255,255,0.9)",
+                        border: `1px solid ${isDark ? "#262626" : "#dbe3ee"}`,
+                      }}
+                    >
+                      <span style={s.settingsInputIcon}>◎</span>
+                      <input
+                        style={{ ...s.settingsInlineInput, color: isDark ? "#f8fafc" : "#1e293b" }}
+                        value={interest}
+                        onChange={e => setInterest(e.target.value)}
+                        placeholder="Ingegneria Meccanica"
+                      />
+                    </div>
+                  </div>
+
+                  <div
+                    style={{
+                      ...s.settingsGuestNotice,
+                      background: isDark ? "rgba(96,165,250,0.08)" : "#eff6ff",
+                      border: `1px solid ${isDark ? "rgba(96,165,250,0.26)" : "#bfdbfe"}`,
+                    }}
+                  >
+                    <strong>Consiglio</strong>
+                    <span>Scrivi un ambito specifico, ad esempio: Costruzione di Macchine, Oleodinamica, React/TypeScript, Disegno tecnico.</span>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -2860,6 +3014,139 @@ const s: Record<string, React.CSSProperties> = {
   modalSide: { width: 170, padding: 24, display: "flex", flexDirection: "column", gap: 15, flexShrink: 0 },
   modalMain: { flex: 1, minWidth: 0, padding: 32, display: "flex", flexDirection: "column", overflowY: "auto" },
   tabBtn: { textAlign: "left", border: "none", background: "transparent", cursor: "pointer", fontSize: 14, fontWeight: 850, padding: "8px 0" },
+  settingsOverlay: {
+    position: "fixed",
+    inset: 0,
+    background: "radial-gradient(circle at 30% 20%, rgba(96,165,250,0.18), transparent 30%), rgba(15,23,42,0.72)",
+    backdropFilter: "blur(14px)",
+    WebkitBackdropFilter: "blur(14px)",
+    display: "flex",
+    justifyContent: "center",
+    alignItems: "center",
+    zIndex: 1000,
+    padding: 18,
+  },
+  settingsModal: {
+    width: "min(1180px, calc(100vw - 44px))",
+    height: "min(760px, calc(100dvh - 44px))",
+    minHeight: 520,
+    display: "grid",
+    gridTemplateColumns: "310px minmax(0, 1fr)",
+    overflow: "hidden",
+    borderRadius: 34,
+    border: "1px solid rgba(226,232,240,0.38)",
+    boxShadow: "0 34px 110px rgba(0,0,0,0.42)",
+    background: "rgba(255,255,255,0.92)",
+  },
+  settingsSidePanel: {
+    background: "linear-gradient(180deg, rgba(15,23,42,0.96), rgba(15,23,42,0.985))",
+    padding: "38px 28px 30px",
+    display: "flex",
+    flexDirection: "column",
+    justifyContent: "space-between",
+    gap: 28,
+    borderRight: "1px solid rgba(255,255,255,0.12)",
+  },
+  settingsTabsArea: { display: "flex", flexDirection: "column", gap: 16 },
+  settingsTabBtn: {
+    width: "100%",
+    minHeight: 74,
+    border: "1px solid transparent",
+    borderRadius: 16,
+    cursor: "pointer",
+    display: "flex",
+    alignItems: "center",
+    gap: 16,
+    padding: "13px 14px",
+    textAlign: "left",
+  },
+  settingsTabIcon: {
+    width: 42,
+    height: 42,
+    minWidth: 42,
+    borderRadius: 14,
+    border: "1px solid rgba(148,163,184,0.28)",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    fontSize: 26,
+    lineHeight: 1,
+    fontWeight: 900,
+  },
+  settingsTabText: { display: "flex", flexDirection: "column", gap: 3, fontSize: 17, fontWeight: 900 },
+  settingsSideFooter: { marginTop: "auto" },
+  settingsFooterLine: { height: 1, background: "rgba(148,163,184,0.2)", marginBottom: 24 },
+  settingsInfoRow: { display: "flex", alignItems: "center", gap: 12, color: "rgba(226,232,240,0.76)", fontSize: 13, lineHeight: 1.35 },
+  settingsInfoIcon: { width: 26, height: 26, minWidth: 26, borderRadius: "50%", border: "1px solid rgba(148,163,184,0.42)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16 },
+  settingsMainPanel: {
+    position: "relative",
+    padding: "58px 68px",
+    overflowY: "auto",
+    background: "#f8fbff",
+  },
+  settingsCloseBtn: {
+    position: "absolute",
+    top: 36,
+    right: 38,
+    width: 54,
+    height: 54,
+    borderRadius: "50%",
+    border: "1px solid rgba(148,163,184,0.24)",
+    background: "rgba(255,255,255,0.72)",
+    boxShadow: "0 12px 30px rgba(15,23,42,0.10)",
+    cursor: "pointer",
+    fontSize: 34,
+    lineHeight: 1,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  settingsHeader: { marginBottom: 54, paddingRight: 72 },
+  settingsTitle: { margin: 0, fontSize: "clamp(34px, 4vw, 46px)", lineHeight: 1, fontWeight: 950, letterSpacing: -1.4 },
+  settingsSubtitle: { margin: "12px 0 0", fontSize: 16, lineHeight: 1.45, color: "#64748b", fontWeight: 650 },
+  settingsContentStack: { display: "flex", flexDirection: "column", gap: 26, maxWidth: 720 },
+  settingsLabel: { fontSize: 12, fontWeight: 950, color: "#94a3b8", textTransform: "uppercase", letterSpacing: 0.7, marginBottom: 12, display: "block" },
+  settingsInputCard: {
+    minHeight: 74,
+    borderRadius: 16,
+    display: "flex",
+    alignItems: "center",
+    gap: 18,
+    padding: "0 22px",
+    boxShadow: "0 14px 32px rgba(15,23,42,0.06)",
+  },
+  settingsInputIcon: { width: 28, minWidth: 28, color: "#94a3b8", fontSize: 28, lineHeight: 1, display: "flex", alignItems: "center", justifyContent: "center" },
+  settingsInlineInput: {
+    width: "100%",
+    minWidth: 0,
+    border: "none",
+    outline: "none",
+    background: "transparent",
+    fontSize: 18,
+    fontWeight: 700,
+    padding: "14px 0",
+  },
+  settingsLogoutBtn: {
+    position: "relative",
+    minHeight: 78,
+    width: "100%",
+    borderRadius: 16,
+    border: "1px solid rgba(239,68,68,0.24)",
+    background: "rgba(254,226,226,0.64)",
+    color: "#ef4444",
+    cursor: "pointer",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 16,
+    fontSize: 17,
+    fontWeight: 950,
+    marginTop: 8,
+  },
+  settingsLogoutIcon: { position: "absolute", left: 28, fontSize: 31, lineHeight: 1 },
+  settingsGuestNotice: { borderRadius: 18, padding: "14px 16px", display: "flex", flexDirection: "column", gap: 5, fontSize: 13, lineHeight: 1.45, color: "#92400e" },
+  settingsThemeGrid: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))", gap: 14, maxWidth: 800 },
+  settingsThemeOption: { padding: "15px 16px", minHeight: 60, borderRadius: 16, cursor: "pointer", display: "flex", alignItems: "center", gap: 13, fontSize: 14, fontWeight: 900 },
   label: { fontSize: 11, fontWeight: 800, color: "#94a3b8", textTransform: "uppercase", marginBottom: 8, display: "block" },
   input: { width: "100%", padding: 12, borderRadius: 12, marginBottom: 14, outline: "none", fontSize: 14 },
   primaryBtn: { width: "100%", padding: 15, border: "none", borderRadius: 14, color: "white", fontWeight: 850, cursor: "pointer", fontSize: 15, marginTop: 8 },

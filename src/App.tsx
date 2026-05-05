@@ -2255,50 +2255,233 @@ function ResultCard({ item, theme, isDark }: { item: ChecklistResult; theme: The
 }
 
 function QuickCalcCard({ result, theme, isDark }: { result: QuickCalcResult; theme: Theme; isDark: boolean }) {
+  const isOk = result.outcome === "OK";
+  const outcomeColor = isOk ? "#22c55e" : "#ef4444";
+  const softOutcomeBg = isOk ? "rgba(34,197,94,0.12)" : "rgba(239,68,68,0.12)";
+
+  const loadRows = result.values.filter(value =>
+    /carico|forza|braccio|momento/i.test(value)
+  );
+
+  const stressRows = result.values.filter(value =>
+    /σ|sigma|τ|tau|von mises|tresca|tensione equivalente/i.test(value)
+  );
+
+  const safetyRows = result.values.filter(value =>
+    /coefficiente|sicurezza|n_req|n =/i.test(value)
+  );
+
+  const otherRows = result.values.filter(value =>
+    !loadRows.includes(value) &&
+    !stressRows.includes(value) &&
+    !safetyRows.includes(value)
+  );
+
+  const detailSection = (title: string, rows: string[]) => {
+    if (!rows || rows.length === 0) return null;
+
+    return (
+      <div
+        style={{
+          ...s.quickDetailSection,
+          background: isDark ? "#080808" : "#f8fafc",
+          border: `1px solid ${theme.border}`,
+        }}
+      >
+        <h4 style={{ ...s.quickDetailTitle, color: theme.primary }}>{title}</h4>
+
+        <div style={s.quickDetailList}>
+          {rows.map((value, index) => (
+            <div key={index} style={s.quickDetailRow}>
+              <span style={{ ...s.quickDot, background: theme.primary }} />
+              <span>{value}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  };
+
   return (
-    <div style={{ ...s.resultCard, background: isDark ? "#050505" : "#f8fafc", border: `1px solid ${theme.border}` }}>
-      <div style={s.resultTop}>
-        <strong>{result.title}</strong>
-        <span style={{ color: result.outcome === "OK" ? "#16a34a" : "#dc2626", fontWeight: 950 }}>{result.outcome}</span>
+    <div
+      style={{
+        ...s.quickResultShell,
+        background: isDark ? "#050505" : "#ffffff",
+        border: `1px solid ${theme.border}`,
+      }}
+    >
+      <div style={s.quickHero}>
+        <div style={s.quickHeroText}>
+          <div style={s.quickEyebrow}>Risultato verifica</div>
+          <h3 style={s.quickHeroTitle}>{result.title}</h3>
+          <p style={s.quickHeroSubtitle}>{result.scheme}</p>
+        </div>
+
+        <div
+          style={{
+            ...s.quickOutcomeBadge,
+            background: softOutcomeBg,
+            color: outcomeColor,
+            border: `1px solid ${outcomeColor}`,
+          }}
+        >
+          {result.outcome}
+        </div>
       </div>
 
-      <p style={s.resultDetail}>{result.scheme}</p>
+      <div style={s.quickMetricsGrid}>
+        <div
+          style={{
+            ...s.quickMetricCard,
+            background: softOutcomeBg,
+            border: `1px solid ${outcomeColor}`,
+          }}
+        >
+          <span style={s.quickMetricLabel}>Tensione equivalente</span>
+          <strong style={{ ...s.quickMetricValue, color: outcomeColor }}>
+            {result.equivalentStress.toFixed(2)} MPa
+          </strong>
+          <span style={s.quickMetricSub}>Valore usato per il confronto</span>
+        </div>
 
-      <div style={{ ...s.finalBox, borderLeft: `4px solid ${theme.primary}` }}>
-        Sezione: {result.section}
+        <div
+          style={{
+            ...s.quickMetricCard,
+            background: softOutcomeBg,
+            border: `1px solid ${outcomeColor}`,
+          }}
+        >
+          <span style={s.quickMetricLabel}>n calcolato</span>
+          <strong style={{ ...s.quickMetricValue, color: outcomeColor }}>
+            {result.safetyFactor.toFixed(2)}
+          </strong>
+          <span style={s.quickMetricSub}>Coefficiente ottenuto</span>
+        </div>
+
+        <div
+          style={{
+            ...s.quickMetricCard,
+            background: isDark ? "#0b0b0b" : "#ffffff",
+            border: `1px solid ${theme.border}`,
+          }}
+        >
+          <span style={s.quickMetricLabel}>Criterio Tresca</span>
+          <strong style={s.quickMetricValue}>
+            {result.trescaStress !== undefined && result.trescaStress > 0
+              ? `${result.trescaStress.toFixed(2)} MPa`
+              : "—"}
+          </strong>
+          <span style={s.quickMetricSub}>Confronto indicativo</span>
+        </div>
       </div>
 
-      {result.sectionValues.length > 0 && (
-        <>
-          <h4 style={{ marginBottom: 8 }}>Dati sezione/materiale</h4>
-          {result.sectionValues.map((value, index) => <div key={index} style={s.valueRow}>• {value}</div>)}
-        </>
-      )}
+      <div
+        style={{
+          ...s.quickFinalBanner,
+          background: softOutcomeBg,
+          border: `1px solid ${outcomeColor}`,
+          borderLeft: `6px solid ${outcomeColor}`,
+        }}
+      >
+        <div style={{ ...s.quickFinalIcon, background: outcomeColor }}>
+          {isOk ? "✓" : "!"}
+        </div>
+
+        <div>
+          <h3 style={{ ...s.quickFinalTitle, color: outcomeColor }}>
+            Esito finale: {result.outcome}
+          </h3>
+
+          <p style={s.quickFinalText}>
+            Tensione equivalente = <strong>{result.equivalentStress.toFixed(2)} MPa</strong>.{" "}
+            Coefficiente calcolato n = <strong>{result.safetyFactor.toFixed(2)}</strong>.
+            {result.trescaStress !== undefined && result.trescaStress > 0 && (
+              <>
+                {" "}Tresca indicativo = <strong>{result.trescaStress.toFixed(2)} MPa</strong>.
+              </>
+            )}
+          </p>
+
+          {!isOk && (
+            <p style={s.quickFinalWarning}>
+              La verifica non è soddisfatta: aumenta il diametro, cambia materiale oppure riduci carico e momenti applicati.
+            </p>
+          )}
+
+          {isOk && (
+            <p style={s.quickFinalOk}>
+              La verifica preliminare risulta soddisfatta rispetto al coefficiente di sicurezza richiesto.
+            </p>
+          )}
+        </div>
+      </div>
+
+      <div
+        style={{
+          ...s.quickSectionBadge,
+          background: isDark ? "#0b0b0b" : "#f8fafc",
+          border: `1px solid ${theme.border}`,
+          borderLeft: `5px solid ${theme.primary}`,
+        }}
+      >
+        <span>Sezione</span>
+        <strong>{result.section}</strong>
+      </div>
+
+      {detailSection("Dati sezione / materiale", result.sectionValues)}
 
       {result.formulas.length > 0 && (
-        <>
-          <h4 style={{ marginBottom: 8 }}>Formule usate</h4>
-          <div style={s.formulaBlock}>{result.formulas.map((formula, index) => <div key={index}>• {formula}</div>)}</div>
-        </>
+        <div
+          style={{
+            ...s.quickFormulaSection,
+            background: isDark ? "#0b0b0b" : "#f8fafc",
+            border: `1px solid ${theme.border}`,
+          }}
+        >
+          <h4 style={{ ...s.quickDetailTitle, color: theme.primary }}>Formule usate</h4>
+
+          <div style={s.quickFormulaGrid}>
+            {result.formulas.map((formula, index) => (
+              <div
+                key={index}
+                style={{
+                  ...s.quickFormulaChip,
+                  background: isDark ? "#050505" : "#ffffff",
+                  border: `1px solid ${theme.border}`,
+                }}
+              >
+                {formula}
+              </div>
+            ))}
+          </div>
+        </div>
       )}
 
-      {result.values.length > 0 && (
-        <>
-          <h4 style={{ marginBottom: 8 }}>Risultati</h4>
-          {result.values.map((value, index) => <div key={index} style={s.valueRow}>• {value}</div>)}
-        </>
+      {detailSection("Carichi e momenti applicati", loadRows)}
+      {detailSection("Risultati tensioni / deformazioni", stressRows)}
+      {detailSection("Coefficienti di sicurezza", safetyRows)}
+      {detailSection("Altri risultati", otherRows)}
+
+      {result.notes.length > 0 && (
+        <div
+          style={{
+            ...s.quickNotesBox,
+            background: isDark ? "#080808" : "#f8fafc",
+            border: `1px solid ${theme.border}`,
+          }}
+        >
+          <h4 style={{ ...s.quickDetailTitle, color: theme.primary }}>Note progettuali</h4>
+
+          {result.notes.map((note, index) => (
+            <p key={index} style={s.quickNoteText}>
+              {note}
+            </p>
+          ))}
+        </div>
       )}
-
-      <div style={{ ...s.finalBox, borderLeft: `4px solid ${result.outcome === "OK" ? "#16a34a" : "#dc2626"}` }}>
-        Esito: {result.outcome}. Tensione equivalente = {result.equivalentStress.toFixed(2)} MPa. Coefficiente calcolato n = {result.safetyFactor.toFixed(2)}.
-        {result.trescaStress !== undefined && result.trescaStress > 0 ? ` Tresca indicativo = ${result.trescaStress.toFixed(2)} MPa.` : ""}
-      </div>
-
-      {result.notes.map((note, index) => <p key={index} style={s.resultSuggestion}>{note}</p>)}
     </div>
   );
 }
-
 function MaterialCard({ material: m, isCustom, theme, isDark, onDelete }: { material: MaterialInfo; isCustom: boolean; theme: Theme; isDark: boolean; onDelete: () => void }) {
   return (
     <div style={{ ...s.materialCard, background: isDark ? "#050505" : "#f8fafc", border: `1px solid ${theme.border}` }}>

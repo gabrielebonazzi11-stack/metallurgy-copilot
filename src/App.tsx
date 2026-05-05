@@ -2225,7 +2225,52 @@ Struttura:
 
               {activeTab === "Aspetto" && (
                 <div style={s.themeGrid}>
-                  {THEMES.map(t => <button key={t.name} style={{ ...s.themeOption, color: theme.text, border: `1px solid ${theme.name === t.name ? t.primary : theme.border}` }} onClick={() => setTheme(t)} type="button"><span style={{ ...s.themeDot, background: t.name === "Dark Black" ? "#050505" : t.primary, border: t.name === "Dark Black" ? "1px solid #fff" : "none" }} />{t.name}</button>)}
+                 {THEMES.map(t => {
+  const optionTextColor =
+    t.name === "Black Red"
+      ? "#ef4444"
+      : t.name === "Black Green"
+      ? "#22c55e"
+      : theme.text;
+
+  const optionDotBackground =
+    t.name === "Dark Black"
+      ? "#050505"
+      : t.name === "Black Red"
+      ? "linear-gradient(90deg, #050505 50%, #ef4444 50%)"
+      : t.name === "Black Green"
+      ? "linear-gradient(90deg, #050505 50%, #22c55e 50%)"
+      : t.primary;
+
+  const optionDotBorder =
+    t.name === "Dark Black" ||
+    t.name === "Black Red" ||
+    t.name === "Black Green"
+      ? "1px solid #cbd5e1"
+      : "none";
+
+  return (
+    <button
+      key={t.name}
+      style={{
+        ...s.themeOption,
+        color: optionTextColor,
+        border: `1px solid ${theme.name === t.name ? t.primary : theme.border}`,
+      }}
+      onClick={() => setTheme(t)}
+      type="button"
+    >
+      <span
+        style={{
+          ...s.themeDot,
+          background: optionDotBackground,
+          border: optionDotBorder,
+        }}
+      />
+      {t.name}
+    </button>
+  );
+})}
                 </div>
               )}
 

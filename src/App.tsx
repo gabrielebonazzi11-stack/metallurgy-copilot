@@ -2474,35 +2474,48 @@ function QuickCalcCard({ result, theme, isDark }: { result: QuickCalcResult; the
         </div>
       </div>
 
-      {!isOk && suggestedDiameter !== null && normalizedSuggestedDiameter !== null && (
-        <div
-          style={{
-            ...s.quickSuggestionBox,
-            background: isDark ? "#120b04" : "#fff7ed",
-            border: "1px solid #f97316",
-            borderLeft: "6px solid #f97316",
-          }}
-        >
-          <div style={s.quickSuggestionTop}>
-            <span style={s.quickSuggestionIcon}>↗</span>
-            <div>
-              <h4 style={s.quickSuggestionTitle}>Diametro minimo suggerito</h4>
-              <p style={s.quickSuggestionText}>
-                Diametro attuale: <strong>{diameterValue?.toFixed(2)} mm</strong>
-              </p>
-              <p style={s.quickSuggestionText}>
-                Diametro minimo stimato: <strong>{suggestedDiameter.toFixed(2)} mm</strong>
-              </p>
-              <p style={s.quickSuggestionText}>
-                Diametro normalizzato consigliato: <strong>{normalizedSuggestedDiameter.toFixed(0)} mm</strong>
-              </p>
-              <p style={s.quickSuggestionNote}>
-                Stima preliminare ricavata scalando il diametro in funzione del rapporto tra n richiesto e n calcolato.
-              </p>
-            </div>
-          </div>
-        </div>
-      )}
+     {!isOk && suggestedDiameter !== null && normalizedSuggestedDiameter !== null && (
+  <div
+    style={{
+      ...s.quickSuggestionBox,
+      background: isDark ? "#0b0b0b" : "#fff7ed",
+      border: `1px solid ${theme.border}`,
+      borderLeft: "5px solid #f97316",
+    }}
+  >
+    <div style={s.quickSuggestionHeader}>
+      <div>
+        <span style={s.quickSuggestionKicker}>Suggerimento automatico</span>
+        <h4 style={s.quickSuggestionTitle}>Aumentare il diametro</h4>
+      </div>
+
+      <span style={s.quickSuggestionBadge}>
+        Ø {normalizedSuggestedDiameter.toFixed(0)} mm
+      </span>
+    </div>
+
+    <div style={s.quickSuggestionGrid}>
+      <div style={s.quickSuggestionMiniCard}>
+        <span>Diametro attuale</span>
+        <strong>{diameterValue?.toFixed(2)} mm</strong>
+      </div>
+
+      <div style={s.quickSuggestionMiniCard}>
+        <span>Diametro minimo stimato</span>
+        <strong>{suggestedDiameter.toFixed(2)} mm</strong>
+      </div>
+
+      <div style={s.quickSuggestionMiniCard}>
+        <span>Diametro normalizzato</span>
+        <strong>{normalizedSuggestedDiameter.toFixed(0)} mm</strong>
+      </div>
+    </div>
+
+    <p style={s.quickSuggestionNote}>
+      Stima preliminare: verifica poi il diametro scelto considerando intagli, cava linguetta, fatica e diametri normalizzati reali.
+    </p>
+  </div>
+)}
 
       <div
         style={{

@@ -297,7 +297,7 @@ function buildTechAiSystemPrompt(params: {
 
     `REGOLE RISPOSTA:\n` +
     `- Rispondi nella stessa lingua dell'utente.\n` +
-    `- Sii diretto, ordinato, tecnico e pratico.\n` +
+    `- Sii diretto, ordinato, tecnico e pratico e non essere arrogante.\n` +
     `- Usa Markdown e formule leggibili.\n` +
     `- Cita sempre le unità di misura.\n` +
     `- Se mancano dati, chiedili e non inventare.\n` +

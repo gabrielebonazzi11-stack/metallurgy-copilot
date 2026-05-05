@@ -11,6 +11,16 @@ type ChatMessage = {
   text?: string;
 };
 
+type AnalysisMode =
+  | "chat"
+  | "project"
+  | "bom"
+  | "solidworks"
+  | "advanced_check"
+  | "drawing"
+  | "step"
+  | "file";
+
 type RequestBodyData = {
   message: string;
   messages: ChatMessage[];
@@ -19,6 +29,7 @@ type RequestBodyData = {
   imageDataUrl: string;
   fileMeta: string;
   hasFile: boolean;
+  analysisMode: AnalysisMode;
 };
 
 type GuestUsageInfo = {
@@ -64,6 +75,24 @@ function safeJsonParse<T>(value: string, fallback: T): T {
   }
 }
 
+function normalizeAnalysisMode(value: string | null | undefined): AnalysisMode {
+  const mode = String(value || "chat").trim().toLowerCase();
+
+  if (
+    mode === "project" ||
+    mode === "bom" ||
+    mode === "solidworks" ||
+    mode === "advanced_check" ||
+    mode === "drawing" ||
+    mode === "step" ||
+    mode === "file"
+  ) {
+    return mode;
+  }
+
+  return "chat";
+}
+
 function arrayBufferToBase64(buffer: ArrayBuffer) {
   let binary = "";
   const bytes = new Uint8Array(buffer);
@@ -103,6 +132,21 @@ async function fetchWithTimeout(url: string, options: RequestInit, timeoutMs = 1
   }
 }
 
+function buildStepMetadata(file: File) {
+  const name = file.name || "file STEP";
+  const lowerName = name.toLowerCase();
+  const ext = lowerName.endsWith(".stp") ? "STP" : lowerName.endsWith(".step") ? "STEP" : "STEP/STP";
+  const sizeKb = (file.size / 1024).toFixed(1);
+
+  return (
+    `\n\nMetadata file CAD:\n` +
+    `Nome: ${name}\n` +
+    `Formato stimato: ${ext}\n` +
+    `Dimensione: ${sizeKb} KB\n` +
+    `Nota: in ambiente Edge non viene ricostruita la geometria 3D, ma posso analizzare metadata, intestazione STEP, nomi entità e testo tecnico se leggibile.\n`
+  );
+}
+
 async function readRequestBody(req: Request): Promise<RequestBodyData> {
   const contentType = req.headers.get("content-type") || "";
 
@@ -114,6 +158,7 @@ async function readRequestBody(req: Request): Promise<RequestBodyData> {
     const profileRaw = String(formData.get("profile") || "{}");
     const file = formData.get("file");
     const preExtractedText = formData.get("fileText");
+    const analysisMode = normalizeAnalysisMode(String(formData.get("analysisMode") || "chat"));
 
     const messages = safeJsonParse<ChatMessage[]>(messagesRaw, []);
     const profile = safeJsonParse<any>(profileRaw, {});
@@ -129,24 +174,37 @@ async function readRequestBody(req: Request): Promise<RequestBodyData> {
       const fileName = file.name || "file caricato";
       const fileType = file.type || "sconosciuto";
       const fileSizeKb = (file.size / 1024).toFixed(1);
+      const lowerName = fileName.toLowerCase();
 
       fileMeta =
         `File caricato:\n` +
         `Nome: ${fileName}\n` +
         `Tipo: ${fileType}\n` +
-        `Dimensione: ${fileSizeKb} KB\n`;
+        `Dimensione: ${fileSizeKb} KB\n` +
+        `Modalità analisi: ${analysisMode}\n`;
 
       if (file.type.startsWith("image/")) {
         const buffer = await file.arrayBuffer();
         const base64 = arrayBufferToBase64(buffer);
         imageDataUrl = `data:${file.type};base64,${base64}`;
+      } else if (lowerName.endsWith(".step") || lowerName.endsWith(".stp")) {
+        fileText = buildStepMetadata(file);
+
+        try {
+          const text = await file.text();
+          if (text.trim()) {
+            fileText += `\n\nEstratto iniziale STEP/STP:\n${text.slice(0, 16000)}`;
+          }
+        } catch {
+          fileText += "\n\nNon sono riuscito a leggere il contenuto testuale del file STEP/STP.";
+        }
       } else if (typeof preExtractedText === "string" && preExtractedText.trim()) {
-        fileText = `\n\nContenuto del file:\n${preExtractedText.slice(0, 18000)}`;
+        fileText = `\n\nContenuto del file:\n${preExtractedText.slice(0, 22000)}`;
       } else {
         try {
           const text = await file.text();
           fileText = text?.trim()
-            ? `\n\nContenuto del file:\n${text.slice(0, 12000)}`
+            ? `\n\nContenuto del file:\n${text.slice(0, 16000)}`
             : "\n\nIl file non contiene testo leggibile direttamente.";
         } catch {
           fileText = "\n\nNon sono riuscito a leggere il contenuto testuale del file.";
@@ -162,6 +220,7 @@ async function readRequestBody(req: Request): Promise<RequestBodyData> {
       imageDataUrl,
       fileMeta,
       hasFile,
+      analysisMode,
     };
   }
 
@@ -171,25 +230,24 @@ async function readRequestBody(req: Request): Promise<RequestBodyData> {
     message: body.message || "",
     messages: body.messages || [],
     profile: body.profile || {},
-    fileText: "",
+    fileText: body.fileText || "",
     imageDataUrl: "",
-    fileMeta: "",
-    hasFile: false,
+    fileMeta: body.fileMeta || "",
+    hasFile: Boolean(body.hasFile),
+    analysisMode: normalizeAnalysisMode(body.analysisMode),
   };
 }
 
-/**
- * La scelta del modello usa SOLO il prompt attuale + eventuale file.
- * La cronologia chat NON influenza più fast / medium / hard.
- */
 function chooseGroqModel(params: {
   message: string;
   fileText: string;
+  analysisMode: AnalysisMode;
 }): ModelRoute {
   const message = String(params.message || "");
   const fileText = String(params.fileText || "");
+  const analysisMode = params.analysisMode || "chat";
 
-  const routingText = `${message}\n${fileText}`.toLowerCase();
+  const routingText = `${message}\n${fileText}\n${analysisMode}`.toLowerCase();
 
   const fastModel =
     process.env.GROQ_MODEL_FAST ||
@@ -209,6 +267,26 @@ function chooseGroqModel(params: {
 
   let score = 0;
   const reasons: string[] = [];
+
+  if (analysisMode !== "chat") {
+    score += 3;
+    reasons.push(`modalità ${analysisMode}`);
+  }
+
+  if (analysisMode === "bom" || analysisMode === "advanced_check" || analysisMode === "project") {
+    score += 3;
+    reasons.push("analisi strutturata progetto/distinta/verifica");
+  }
+
+  if (analysisMode === "solidworks") {
+    score += 2;
+    reasons.push("procedura guidata SolidWorks");
+  }
+
+  if (analysisMode === "step") {
+    score += 3;
+    reasons.push("metadata STEP/STP");
+  }
 
   if (fileText.trim().length > 0) {
     score += 4;
@@ -233,17 +311,17 @@ function chooseGroqModel(params: {
   }
 
   if (
-    /calcola|verifica|dimensiona|flessione|torsione|taglio|von mises|tresca|fatica|coefficiente|momento|tensione|formula|meccanica|albero|perno|cuscinetto|linguetta|bullone/i.test(routingText)
+    /calcola|verifica|dimensiona|flessione|torsione|taglio|von mises|tresca|fatica|goodman|soderberg|precarico|bullone|bulloni|contatto|pressione specifica|coefficiente|momento|tensione|formula|meccanica|albero|perno|cuscinetto|linguetta/i.test(routingText)
   ) {
-    score += 2;
-    reasons.push("calcolo tecnico");
+    score += 3;
+    reasons.push("calcolo tecnico avanzato");
   }
 
   if (
-    /tavola|disegno tecnico|rugosità|rugosita|tolleranza|gd&t|quota|sezione|cartiglio|materiale|acciaio|c45|42crmo4|aisi|inventor|solidworks/i.test(routingText)
+    /tavola|disegno tecnico|rugosità|rugosita|tolleranza|gd&t|quota|sezione|cartiglio|materiale|acciaio|c45|42crmo4|aisi|inventor|solidworks|step|stp|distinta|bom|csv|json/i.test(routingText)
   ) {
-    score += 2;
-    reasons.push("argomento tecnico");
+    score += 3;
+    reasons.push("argomento tecnico CAD/progetto");
   }
 
   if (
@@ -267,8 +345,8 @@ function chooseGroqModel(params: {
     return {
       level: "hard",
       model: hardModel,
-      maxTokens: 1000,
-      timeoutMs: 21000,
+      maxTokens: 1200,
+      timeoutMs: 22000,
       reason: reasons.join(", ") || "richiesta complessa",
     };
   }
@@ -276,8 +354,8 @@ function chooseGroqModel(params: {
   return {
     level: "medium",
     model: mediumModel,
-    maxTokens: 650,
-    timeoutMs: 16000,
+    maxTokens: 750,
+    timeoutMs: 17000,
     reason: reasons.join(", ") || "richiesta media",
   };
 }
@@ -286,29 +364,144 @@ function buildLightSystemPrompt(params: {
   userName: string;
   focus: string;
   route: ModelRoute;
+  analysisMode: AnalysisMode;
 }) {
-  const { userName, focus, route } = params;
+  const { userName, focus, route, analysisMode } = params;
 
   return (
     `Sei TechAI, assistente tecnico per meccanica industriale e sviluppo React/TypeScript.\n` +
-    `Utente: ${userName}. Focus: ${focus}. Modalità leggera: ${route.level}. Motivo: ${route.reason}.\n` +
+    `Utente: ${userName}. Focus: ${focus}. Modalità: ${analysisMode}. Livello: ${route.level}. Motivo: ${route.reason}.\n` +
     `Rispondi nella stessa lingua dell'utente. Sii diretto, pratico e ordinato. ` +
     `Non inventare dati. Se mancano dati, chiedili. ` +
     `Per codice, dai modifiche complete e copiabili.`
   );
 }
 
+function buildModeInstructions(analysisMode: AnalysisMode) {
+  if (analysisMode === "project") {
+    return (
+      `\n\n## MODALITÀ PROGETTO\n` +
+      `Devi aiutare l'utente a gestire un progetto tecnico meccanico.\n` +
+      `Quando possibile struttura la risposta così:\n` +
+      `1. Stato progetto\n` +
+      `2. Verifiche salvabili\n` +
+      `3. File caricati e cosa rappresentano\n` +
+      `4. Criticità tecniche\n` +
+      `5. Prossime azioni consigliate\n` +
+      `Se l'utente carica un file, crea una prima analisi iniziale e suggerisci in quale sezione del progetto salvarlo.\n`
+    );
+  }
+
+  if (analysisMode === "bom") {
+    return (
+      `\n\n## MODALITÀ CONTROLLO DISTINTA BASE / BOM\n` +
+      `Analizza CSV/JSON o testo di distinta componenti.\n` +
+      `Controlla in modo concreto:\n` +
+      `- codici duplicati;\n` +
+      `- materiali mancanti;\n` +
+      `- quantità vuote, zero, negative o incoerenti;\n` +
+      `- descrizioni troppo generiche o incomplete;\n` +
+      `- componenti commerciali senza norma;\n` +
+      `- viti senza classe di resistenza, ad esempio 8.8 / 10.9;\n` +
+      `- cuscinetti senza sigla completa;\n` +
+      `- trattamenti superficiali mancanti se necessari;\n` +
+      `- unità di misura mancanti.\n\n` +
+      `Output richiesto:\n` +
+      `- tabella con Riga / Problema / Gravità / Correzione consigliata;\n` +
+      `- esempi tipo: "Riga 12: vite M8x20 senza classe → aggiungere 8.8 / 10.9";\n` +
+      `- riepilogo finale con numero errori critici e attenzioni.\n` +
+      `Non inventare righe non presenti: se il file non contiene numerazione, usa l'ordine progressivo letto.\n`
+    );
+  }
+
+  if (analysisMode === "solidworks") {
+    return (
+      `\n\n## MODALITÀ ASSISTENTE SOLIDWORKS PRATICO\n` +
+      `Non limitarti a dire "come si fa": devi dare una procedura guidata concreta.\n` +
+      `Usa questa struttura:\n` +
+      `1. Metodo consigliato\n` +
+      `2. Comandi SolidWorks in italiano\n` +
+      `3. Passaggi operativi numerati\n` +
+      `4. Errori comuni\n` +
+      `5. Quando NON usare questo metodo\n` +
+      `6. Controllo finale prima della messa in tavola\n\n` +
+      `Casi da gestire bene:\n` +
+      `- modellare un pezzo da zero;\n` +
+      `- tubo piegato / sweep / funzione lamiera / saldature;\n` +
+      `- sottoassieme;\n` +
+      `- collegare materiale al cartiglio;\n` +
+      `- rendere un file STEP modificabile;\n` +
+      `- ricostruire feature da geometria importata;\n` +
+      `- preparare tavola con viste, sezioni, quote, tolleranze e rugosità.\n`
+    );
+  }
+
+  if (analysisMode === "advanced_check") {
+    return (
+      `\n\n## MODALITÀ VERIFICHE SERIE\n` +
+      `Devi distinguerti da un calcolo base tipo σ=M/W.\n` +
+      `Quando l'utente chiede verifiche, considera anche:\n` +
+      `- statica: Von Mises, Tresca, coefficienti di sicurezza;\n` +
+      `- fatica: Goodman e Soderberg;\n` +
+      `- contatti: pressione specifica e, se applicabile, Hertz;\n` +
+      `- bulloni: precarico, verifica a taglio, trazione, schiacciamento, classe 8.8/10.9;\n` +
+      `- linguette: taglio e pressione specifica;\n` +
+      `- cuscinetti: sigla, carico equivalente, durata L10h;\n` +
+      `- tolleranze e rugosità delle superfici funzionali.\n\n` +
+      `Struttura output:\n` +
+      `1. Dati usati\n` +
+      `2. Formule\n` +
+      `3. Calcoli numerici con unità\n` +
+      `4. Esito OK/NON OK\n` +
+      `5. Cosa manca per una verifica definitiva\n`
+    );
+  }
+
+  if (analysisMode === "step") {
+    return (
+      `\n\n## MODALITÀ STEP/STP\n` +
+      `Analizza il file STEP/STP per quanto possibile dal testo/metadata.\n` +
+      `Non dire che puoi vedere perfettamente il 3D se non è disponibile.\n` +
+      `Cerca nel testo: nomi entità, unità, schema STEP, eventuali riferimenti a materiale, assembly, product name, geometrie nominate.\n` +
+      `Output:\n` +
+      `1. Metadata rilevati\n` +
+      `2. Possibile contenuto del file\n` +
+      `3. Limiti dell'analisi\n` +
+      `4. Come importarlo in SolidWorks\n` +
+      `5. Come renderlo modificabile o ricostruire le feature\n`
+    );
+  }
+
+  if (analysisMode === "drawing") {
+    return (
+      `\n\n## MODALITÀ TAVOLA TECNICA\n` +
+      `Analizza la tavola come revisione tecnica preliminare.\n` +
+      `Controlla: cartiglio, materiale, scala, viste, sezioni, quote, tolleranze, GD&T, rugosità, filetti, fori, lamature, note e producibilità.\n`
+    );
+  }
+
+  if (analysisMode === "file") {
+    return (
+      `\n\n## MODALITÀ FILE TECNICO\n` +
+      `Analizza il file caricato e produci un riepilogo tecnico, problemi rilevati, dati utili e azioni consigliate.\n`
+    );
+  }
+
+  return "";
+}
+
 function buildCompactTechAiSystemPrompt(params: {
   userName: string;
   focus: string;
   route: ModelRoute;
+  analysisMode: AnalysisMode;
 }) {
-  const { userName, focus, route } = params;
+  const { userName, focus, route, analysisMode } = params;
 
   return (
     `Sei TechAI, copilot tecnico per ingegneria meccanica industriale.\n` +
     `Utente: ${userName}. Focus: ${focus}.\n` +
-    `Livello selezionato automaticamente: ${route.level}. Motivo: ${route.reason}.\n\n` +
+    `Livello selezionato automaticamente: ${route.level}. Motivo: ${route.reason}. Modalità: ${analysisMode}.\n\n` +
 
     `REGOLE RISPOSTA:\n` +
     `- Rispondi nella stessa lingua dell'utente.\n` +
@@ -325,11 +518,13 @@ function buildCompactTechAiSystemPrompt(params: {
     `Trazione: σ=F/A; ΔL=FL/(EA). Flessione: σ=Mf/Wf. Torsione: τ=Mt/Wt.\n` +
     `Sezione circolare: Jf=πd⁴/64, Wf=πd³/32, Jp=πd⁴/32, Wt=πd³/16.\n` +
     `Von Mises: σid=√(σ²+3τ²). Alberi: Mid=√(Mf²+0,75Mt²), d≥∛(32Mid/(πσamm)).\n` +
-    `Fatica: σm=(σmax+σmin)/2, σa=(σmax-σmin)/2, Se≈0,5Rm corretto con fattori.\n` +
+    `Fatica: σm=(σmax+σmin)/2, σa=(σmax-σmin)/2, Goodman, Soderberg, Se≈0,5Rm corretto con fattori.\n` +
+    `Bulloni: precarico, taglio, trazione, classe 8.8/10.9. Contatti: pressione specifica e Hertz se serve.\n` +
     `Materiali: S235/S275/S355 per carpenteria; C45 per alberi/perni medi; 42CrMo4 e 39NiCrMo3 per carichi alti; 16MnCr5 per cementazione; 100Cr6 per rulli/cuscinetti.\n` +
     `Tolleranze: sede cuscinetto H7; albero rotante k6/m6; scorrimento H7/f7; fisso H7/s6.\n` +
     `Rugosità: generica Ra 3,2÷6,3 µm; sedi/tenute Ra 0,8÷1,6 µm; superfici molto funzionali Ra 0,4÷0,8 µm.\n` +
-    `Oleoidraulica: F=pA; v=Q/A; centro aperto P→T; centro chiuso vie bloccate.\n`
+    `Oleoidraulica: F=pA; v=Q/A; centro aperto P→T; centro chiuso vie bloccate.\n` +
+    buildModeInstructions(analysisMode)
   );
 }
 
@@ -337,14 +532,17 @@ function buildFullTechAiSystemPrompt(params: {
   userName: string;
   focus: string;
   route: ModelRoute;
+  analysisMode: AnalysisMode;
 }) {
-  const { userName, focus, route } = params;
+  const { userName, focus, route, analysisMode } = params;
 
   return (
     `Sei TechAI, copilot tecnico per ingegneria meccanica industriale. Utente: ${userName}. Focus: ${focus}.\n` +
-    `Livello selezionato automaticamente: ${route.level}. Motivo scelta: ${route.reason}.\n` +
+    `Livello selezionato automaticamente: ${route.level}. Motivo scelta: ${route.reason}. Modalità: ${analysisMode}.\n` +
     `Rispondi in italiano, tecnico e preciso. Usa Markdown e notazione chiara per formule. Cita sempre le unità. Se mancano dati, chiedi.\n` +
-    `Se la richiesta riguarda codice, dai modifiche precise, copiabili e complete. Se chiede un file completo, riscrivi il file completo.\n\n` +
+    `Se la richiesta riguarda codice, dai modifiche precise, copiabili e complete. Se chiede un file completo, riscrivi il file completo.\n` +
+    buildModeInstructions(analysisMode) +
+    `\n\n` +
 
     `## MECCANICA BASE E STATICA\n` +
     `Newton: F=ma. Equilibrio: ΣF=0, ΣM=0. Gdl piano: 3 (2 traslazioni+1 rotazione). Spazio: 6. Isostatica=vincoli necessari e sufficienti.\n` +
@@ -374,7 +572,7 @@ function buildFullTechAiSystemPrompt(params: {
     `## FATICA\n` +
     `σm=(σmax+σmin)/2; σa=(σmax-σmin)/2; R=σmin/σmax. Alterno simm.: σm=0,R=-1. Pulsante: R=0.\n` +
     `Se≈0,5Rm (acciaio). Se=ka·kb·kc·kd·ke·S'e. ka(rugosità): lucido=1,0; lavorato≈0,7÷0,8. kb(dim): d<8mm→1; d=8÷50mm→0,85÷0,9. kc: flessione=1; trazione=0,85; torsione=0,59. ke: 90%→0,897; 99%→0,814.\n` +
-    `Haigh: Se,m=Se·(1-σm/Rm). nf=Se,m/σa≥1,5. Miner: D=Σ(ni/Ni)≤1.\n\n` +
+    `Goodman: σa/Se + σm/Rm ≤ 1/n. Soderberg: σa/Se + σm/Re ≤ 1/n. Haigh: Se,m=Se·(1-σm/Rm). nf=Se,m/σa≥1,5. Miner: D=Σ(ni/Ni)≤1.\n\n` +
 
     `## TECNOLOGIA MECCANICA\n` +
     `Lavorazioni: fonderia (colata sabbia, bassa precisione); stampaggio a caldo (alta resistenza meccanica); tranciatura/piegatura/imbutitura (lamiera a freddo); tornitura (moto taglio rotatorio pezzo); fresatura (moto taglio rotatorio utensile); rettifica (alta precisione).\n` +
@@ -461,12 +659,15 @@ async function callGroqText(params: {
   messages: ChatMessage[];
   profile: any;
   fileText: string;
+  fileMeta: string;
+  analysisMode: AnalysisMode;
 }) {
   const groqApiKey = process.env.GROQ_API_KEY;
 
   const route = chooseGroqModel({
     message: params.message,
-    fileText: params.fileText,
+    fileText: `${params.fileMeta}\n${params.fileText}`,
+    analysisMode: params.analysisMode,
   });
 
   if (!groqApiKey) {
@@ -529,10 +730,11 @@ async function callGroqText(params: {
           }))
       : [];
 
-    const fileTextLimit = isFallback ? 3500 : currentRoute.level === "hard" ? 10000 : 7000;
+    const fileTextLimit = isFallback ? 3500 : currentRoute.level === "hard" ? 12000 : 8000;
 
     const finalUserContent =
       `${params.message || "Rispondi all'utente."}` +
+      `${params.fileMeta ? `\n\n${params.fileMeta}` : ""}` +
       `${params.fileText ? `\n\n${String(params.fileText).slice(0, fileTextLimit)}` : ""}`;
 
     const systemPrompt = isFallback
@@ -540,17 +742,20 @@ async function callGroqText(params: {
           userName,
           focus,
           route: currentRoute,
+          analysisMode: params.analysisMode,
         })
-      : currentRoute.level === "hard"
-        ? buildFullTechAiSystemPrompt({
+      : currentRoute.level === "fast"
+        ? buildCompactTechAiSystemPrompt({
             userName,
             focus,
             route: currentRoute,
+            analysisMode: params.analysisMode,
           })
-        : buildCompactTechAiSystemPrompt({
+        : buildFullTechAiSystemPrompt({
             userName,
             focus,
             route: currentRoute,
+            analysisMode: params.analysisMode,
           });
 
     let response: Response;
@@ -648,6 +853,7 @@ async function callOpenRouterVision(params: {
   profile: any;
   imageDataUrl: string;
   fileMeta: string;
+  analysisMode: AnalysisMode;
 }) {
   const openRouterKey = process.env.OPENROUTER_API_KEY;
   const model = process.env.OPENROUTER_VISION_MODEL || "openai/gpt-4o-mini";
@@ -668,8 +874,9 @@ async function callOpenRouterVision(params: {
   const focus = params.profile?.focus || "Ingegneria Meccanica";
 
   const prompt =
-    `${params.message || "Analizza questa tavola tecnica meccanica con la massima precisione."}\n\n` +
-    `${params.fileMeta ? `${params.fileMeta}\n` : ""}`;
+    `${params.message || "Analizza questa immagine tecnica con la massima precisione."}\n\n` +
+    `${params.fileMeta ? `${params.fileMeta}\n` : ""}` +
+    `Modalità analisi: ${params.analysisMode}\n`;
 
   let response: Response;
 
@@ -690,11 +897,12 @@ async function callOpenRouterVision(params: {
             {
               role: "system",
               content:
-                `Sei TechAI Vision, un ingegnere meccanico senior specializzato in disegno tecnico secondo norme ISO 128, ISO 1101, ISO 286 e ISO 1302. ` +
-                `Utente: ${userName}. Settore: ${focus}. ` +
-                "Il tuo compito è analizzare tavole tecniche meccaniche con la massima precisione. " +
-                "Leggi quote, tolleranze, rugosità, filetti, scale e cartiglio. " +
+                `Sei TechAI Vision, un ingegnere meccanico senior specializzato in disegno tecnico, tavole, CAD, componenti meccanici e distinte. ` +
+                `Utente: ${userName}. Settore: ${focus}. Modalità: ${params.analysisMode}. ` +
+                "Analizza immagini/tavole con precisione. Leggi quote, tolleranze, rugosità, filetti, scale e cartiglio quando visibili. " +
                 "Non inventare valori: se non è leggibile, scrivi non leggibile. " +
+                "Se è una tavola, controlla ISO 128, ISO 1101, ISO 286, ISO 1302 quando opportuno. " +
+                "Se è uno screenshot CAD/SolidWorks, dai anche consigli pratici sui comandi da usare. " +
                 "Rispondi in italiano tecnico preciso.",
             },
             {
@@ -714,7 +922,7 @@ async function callOpenRouterVision(params: {
             },
           ],
           temperature: 0.2,
-          max_tokens: 1000,
+          max_tokens: 1100,
         }),
       },
       18000
@@ -1141,12 +1349,15 @@ export default async function handler(req: Request) {
           profile: body.profile,
           imageDataUrl: body.imageDataUrl,
           fileMeta: body.fileMeta,
+          analysisMode: body.analysisMode,
         })
       : await callGroqText({
           message: body.message,
           messages: body.messages,
           profile: body.profile,
           fileText: body.fileText,
+          fileMeta: body.fileMeta,
+          analysisMode: body.analysisMode,
         });
 
     let usage: any = null;

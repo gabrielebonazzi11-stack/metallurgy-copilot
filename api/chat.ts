@@ -34,6 +34,14 @@ type AuthResult =
   | { ok: true; mode: "guest"; guestId: string; supabase: any; usage: GuestUsageInfo }
   | { ok: false; response: Response };
 
+type ModelRoute = {
+  level: "fast" | "medium" | "hard";
+  model: string;
+  maxTokens: number;
+  timeoutMs: number;
+  reason: string;
+};
+
 const GUEST_TEXT_LIMIT_24H = 10;
 const GUEST_FILE_LIMIT_24H = 1;
 const GUEST_WINDOW_HOURS = 24;
@@ -170,67 +178,124 @@ async function readRequestBody(req: Request): Promise<RequestBodyData> {
   };
 }
 
-async function callGroqText(params: {
+function chooseGroqModel(params: {
   message: string;
   messages: ChatMessage[];
-  profile: any;
   fileText: string;
-}) {
-  const groqApiKey = process.env.GROQ_API_KEY;
-  const groqModel = process.env.GROQ_MODEL || "llama-3.1-8b-instant";
+}): ModelRoute {
+  const message = String(params.message || "");
+  const fileText = String(params.fileText || "");
+  const historyText = Array.isArray(params.messages)
+    ? params.messages.map(m => String(m.text || "")).join("\n")
+    : "";
 
-  if (!groqApiKey) {
-    return (
-      "⚠️ Backend collegato, ma manca la chiave Groq per la chat testuale.\n\n" +
-      "Su Vercel aggiungi:\n\n" +
-      "```env\n" +
-      "GROQ_API_KEY=la_tua_chiave_groq\n" +
-      "GROQ_MODEL=llama-3.1-8b-instant\n" +
-      "```"
-    );
+  const fullText = `${message}\n${fileText}\n${historyText}`.toLowerCase();
+
+  const fastModel =
+    process.env.GROQ_MODEL_FAST ||
+    process.env.GROQ_MODEL ||
+    "llama-3.1-8b-instant";
+
+  const mediumModel =
+    process.env.GROQ_MODEL_MEDIUM ||
+    process.env.GROQ_MODEL ||
+    fastModel;
+
+  const hardModel =
+    process.env.GROQ_MODEL_HARD ||
+    process.env.GROQ_MODEL_MEDIUM ||
+    process.env.GROQ_MODEL ||
+    mediumModel;
+
+  let score = 0;
+  const reasons: string[] = [];
+
+  if (fileText.trim().length > 0) {
+    score += 4;
+    reasons.push("file allegato");
   }
 
-  const userName = params.profile?.userName || "Utente";
-  const focus = params.profile?.focus || "Ingegneria Meccanica";
+  if (message.length > 1000) {
+    score += 2;
+    reasons.push("prompt lungo");
+  }
 
-  const cleanHistory = Array.isArray(params.messages)
-    ? params.messages
-        .slice(-12)
-        .filter((m: ChatMessage) => String(m.text || "").trim())
-        .map((m: ChatMessage) => ({
-          role: m.role === "AI" || m.role === "assistant" ? "assistant" : "user",
-          content: String(m.text || ""),
-        }))
-    : [];
+  if (fullText.length > 6000) {
+    score += 3;
+    reasons.push("contesto molto lungo");
+  }
 
-  const finalUserContent =
-    `${params.message || "Rispondi all'utente."}` +
-    `${params.fileText ? `\n\n${params.fileText}` : ""}`;
+  if (
+    /errore|error|build|typescript|react|vite|vercel|supabase|api\/chat|codice|script|tsx|ts|javascript|funzione|debug|console|runtime|deploy|backend|frontend/i.test(fullText)
+  ) {
+    score += 3;
+    reasons.push("codice/debug");
+  }
 
-  let response: Response;
+  if (
+    /calcola|verifica|dimensiona|flessione|torsione|taglio|von mises|tresca|fatica|coefficiente|momento|tensione|formula|meccanica|albero|perno|cuscinetto|linguetta|bullone/i.test(fullText)
+  ) {
+    score += 2;
+    reasons.push("calcolo tecnico");
+  }
 
-  try {
-    response = await fetchWithTimeout(
-      "https://api.groq.com/openai/v1/chat/completions",
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${groqApiKey}`,
-        },
-        body: JSON.stringify({
-          model: groqModel,
-          messages: [
-          // ============================================================
-// SYSTEM PROMPT COMPLETO PER callGroqText in api/chat.ts
-// Sostituisci l'intero oggetto { role: "system", content: ... }
-// ============================================================
+  if (
+    /tavola|disegno tecnico|rugosità|rugosita|tolleranza|gd&t|quota|sezione|cartiglio|materiale|acciaio|c45|42crmo4|aisi|inventor|solidworks/i.test(fullText)
+  ) {
+    score += 2;
+    reasons.push("argomento tecnico");
+  }
 
-{
-  role: "system",
-  content:
+  if (
+    /riassumi|spiega|confronta|analizza|migliora|riscrivi|ottimizza|progetta|scrivimi completo|copia e incolla/i.test(fullText)
+  ) {
+    score += 1;
+    reasons.push("richiesta articolata");
+  }
+
+  if (message.length < 180 && score <= 1) {
+    return {
+      level: "fast",
+      model: fastModel,
+      maxTokens: 650,
+      timeoutMs: 14000,
+      reason: "domanda breve/semplice",
+    };
+  }
+
+  if (score >= 5) {
+    return {
+      level: "hard",
+      model: hardModel,
+      maxTokens: 1800,
+      timeoutMs: 22000,
+      reason: reasons.join(", ") || "richiesta complessa",
+    };
+  }
+
+  return {
+    level: "medium",
+    model: mediumModel,
+    maxTokens: 1200,
+    timeoutMs: 18000,
+    reason: reasons.join(", ") || "richiesta media",
+  };
+}
+
+function buildTechAiSystemPrompt(params: {
+  userName: string;
+  focus: string;
+  route: ModelRoute;
+}) {
+  const { userName, focus, route } = params;
+
+  return (
     `Sei TechAI, copilot tecnico per ingegneria meccanica industriale. Utente: ${userName}. Focus: ${focus}.\n` +
-    `Rispondi nella lingua in cui ti viene posta la domanda, tecnico e preciso. quando si parla di specifiche dei componenti rispondi in maniera tecnica e riporta la norma dicendo: "fare riferimento a normativa:...". Usa Markdown e notazione chiara per formule. Cita sempre le unità di misura. Se mancano dati, chiedi e non inventare. puoi utilizzare emoji in maniera limitata.\n\n` +
+    `Modello selezionato automaticamente: ${route.level}. Motivo scelta: ${route.reason}.\n` +
+    `Rispondi nella lingua in cui ti viene posta la domanda. Sii tecnico, preciso, ordinato e pratico.\n` +
+    `Quando si parla di specifiche dei componenti, rispondi in maniera tecnica e, quando opportuno, scrivi: "fare riferimento a normativa: ...".\n` +
+    `Usa Markdown e notazione chiara per formule. Cita sempre le unità di misura. Se mancano dati, chiedi e non inventare. Puoi utilizzare emoji in maniera limitata.\n` +
+    `Se la richiesta riguarda codice, dai modifiche precise, copiabili e complete quando l'utente lo chiede. Se chiede un file completo, riscrivi il file completo.\n\n` +
 
     `## MECCANICA BASE E STATICA\n` +
     `Newton: F=ma. Equilibrio: ΣF=0, ΣM=0. Gdl piano: 3 (2 traslazioni+1 rotazione). Spazio: 6. Isostatica=vincoli necessari e sufficienti.\n` +
@@ -317,29 +382,99 @@ async function callGroqText(params: {
     `Nu=hL/λ; Re=ρvL/μ; Pr=cpμ/λ; Ra=Gr·Pr; Gr=gβΔTL³/ν².\n` +
     `Irraggiamento: E=ε·σ·T⁴; σ=5,67×10⁻⁸W/(m²K⁴). ε: corpo nero=1; superfici reali 0<ε<1. α+ρ+τ=1; mezzo opaco: α+ρ=1.\n` +
     `Circuiti termici: q=ΔT/Rt (analogo I=ΔV/R). Serie: Rtot=ΣRi. Parallelo: 1/Rtot=Σ(1/Ri). U=1/(Rtot·A).\n` +
-    `Scambiatori: q=UAΔTml. LMTD: ΔTml=(ΔT1-ΔT2)/ln(ΔT1/ΔT2). Equicorrente: ΔT1=Tci-Tfi; ΔT2=Tcu-Tfu. Controcorrente: ΔT1=Tci-Tfu; ΔT2=Tcu-Tfi (più efficiente). ε-NTU: ε=Q_reale/Q_max=f(Cr,NTU); NTU=UA/Cmin; Cr=Cmin/Cmax.\n`,
-},
+    `Scambiatori: q=UAΔTml. LMTD: ΔTml=(ΔT1-ΔT2)/ln(ΔT1/ΔT2). Equicorrente: ΔT1=Tci-Tfi; ΔT2=Tcu-Tfu. Controcorrente: ΔT1=Tci-Tfu; ΔT2=Tcu-Tfi (più efficiente). ε-NTU: ε=Q_reale/Q_max=f(Cr,NTU); NTU=UA/Cmin; Cr=Cmin/Cmax.\n`
+  );
+}
+
+async function callGroqText(params: {
+  message: string;
+  messages: ChatMessage[];
+  profile: any;
+  fileText: string;
+}) {
+  const groqApiKey = process.env.GROQ_API_KEY;
+
+  const route = chooseGroqModel({
+    message: params.message,
+    messages: params.messages,
+    fileText: params.fileText,
+  });
+
+  const groqModel = route.model;
+
+  if (!groqApiKey) {
+    return (
+      "⚠️ Backend collegato, ma manca la chiave Groq per la chat testuale.\n\n" +
+      "Su Vercel aggiungi:\n\n" +
+      "```env\n" +
+      "GROQ_API_KEY=la_tua_chiave_groq\n" +
+      "GROQ_MODEL_FAST=llama-3.1-8b-instant\n" +
+      "GROQ_MODEL_MEDIUM=llama-3.3-70b-versatile\n" +
+      "GROQ_MODEL_HARD=llama-3.3-70b-versatile\n" +
+      "```"
+    );
+  }
+
+  const userName = params.profile?.userName || "Utente";
+  const focus = params.profile?.focus || "Ingegneria Meccanica";
+
+  const cleanHistory = Array.isArray(params.messages)
+    ? params.messages
+        .slice(-12)
+        .filter((m: ChatMessage) => String(m.text || "").trim())
+        .map((m: ChatMessage) => ({
+          role: m.role === "AI" || m.role === "assistant" ? "assistant" : "user",
+          content: String(m.text || ""),
+        }))
+    : [];
+
+  const finalUserContent =
+    `${params.message || "Rispondi all'utente."}` +
+    `${params.fileText ? `\n\n${params.fileText}` : ""}`;
+
+  let response: Response;
+
+  try {
+    response = await fetchWithTimeout(
+      "https://api.groq.com/openai/v1/chat/completions",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${groqApiKey}`,
+        },
+        body: JSON.stringify({
+          model: groqModel,
+          messages: [
+            {
+              role: "system",
+              content: buildTechAiSystemPrompt({
+                userName,
+                focus,
+                route,
+              }),
+            },
             ...cleanHistory,
             {
               role: "user",
               content: finalUserContent,
             },
           ],
-          temperature: 0.4,
-          max_tokens: 1200,
+          temperature: route.level === "fast" ? 0.35 : route.level === "medium" ? 0.4 : 0.3,
+          max_tokens: route.maxTokens,
         }),
       },
-      18000
+      route.timeoutMs
     );
   } catch (error: any) {
     if (error?.name === "AbortError") {
       return (
         "⚠️ Timeout Groq.\n\n" +
         "Il modello testuale non ha risposto entro il limite impostato.\n\n" +
-        "Prova a usare questo modello nelle variabili ambiente:\n\n" +
-        "```env\n" +
-        "GROQ_MODEL=llama-3.1-8b-instant\n" +
-        "```"
+        `Livello scelto: ${route.level}\n` +
+        `Modello usato: ${groqModel}\n` +
+        `Motivo scelta: ${route.reason}\n\n` +
+        "Se succede spesso, usa un modello più veloce per GROQ_MODEL_HARD oppure riduci la cronologia inviata."
       );
     }
 
@@ -353,6 +488,8 @@ async function callGroqText(params: {
     return (
       "⚠️ Il backend ha chiamato Groq, ma Groq ha restituito un errore.\n\n" +
       `Modello usato: ${groqModel}\n` +
+      `Livello scelto: ${route.level}\n` +
+      `Motivo scelta: ${route.reason}\n` +
       `Codice: ${response.status}\n\n` +
       `Dettaglio: ${raw || "nessun dettaglio ricevuto"}`
     );
@@ -824,7 +961,17 @@ export default async function handler(req: Request) {
       message: "API /api/chat funzionante",
       env: {
         hasGroqKey: Boolean(process.env.GROQ_API_KEY),
-        groqModel: process.env.GROQ_MODEL || "llama-3.1-8b-instant",
+        groqModelFallback: process.env.GROQ_MODEL || "llama-3.1-8b-instant",
+        groqModelFast: process.env.GROQ_MODEL_FAST || "llama-3.1-8b-instant",
+        groqModelMedium:
+          process.env.GROQ_MODEL_MEDIUM ||
+          process.env.GROQ_MODEL ||
+          "llama-3.1-8b-instant",
+        groqModelHard:
+          process.env.GROQ_MODEL_HARD ||
+          process.env.GROQ_MODEL_MEDIUM ||
+          process.env.GROQ_MODEL ||
+          "llama-3.1-8b-instant",
         hasOpenRouterKey: Boolean(process.env.OPENROUTER_API_KEY),
         openRouterVisionModel: process.env.OPENROUTER_VISION_MODEL || "openai/gpt-4o-mini",
         hasSupabase: Boolean(process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY),

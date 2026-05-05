@@ -3012,6 +3012,85 @@ quickFormulaChip: {
   fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
 },
 
+  quickSuggestionBox: {
+  borderRadius: 18,
+  padding: 14,
+  display: "flex",
+  flexDirection: "column",
+  gap: 12,
+},
+
+quickSuggestionHeader: {
+  display: "flex",
+  alignItems: "flex-start",
+  justifyContent: "space-between",
+  gap: 12,
+},
+
+quickSuggestionKicker: {
+  display: "block",
+  fontSize: 10,
+  fontWeight: 950,
+  textTransform: "uppercase",
+  letterSpacing: 0.7,
+  color: "#f97316",
+  marginBottom: 4,
+},
+
+quickSuggestionTitle: {
+  margin: 0,
+  fontSize: 16,
+  lineHeight: 1.2,
+  fontWeight: 950,
+},
+
+quickSuggestionBadge: {
+  flexShrink: 0,
+  borderRadius: 999,
+  padding: "7px 11px",
+  background: "rgba(249,115,22,0.14)",
+  color: "#f97316",
+  border: "1px solid rgba(249,115,22,0.55)",
+  fontSize: 13,
+  fontWeight: 950,
+},
+
+quickSuggestionGrid: {
+  display: "grid",
+  gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+  gap: 8,
+},
+
+quickSuggestionMiniCard: {
+  borderRadius: 14,
+  padding: "10px 11px",
+  background: "rgba(120,120,120,0.08)",
+  display: "flex",
+  flexDirection: "column",
+  gap: 5,
+},
+
+quickSuggestionMiniLabel: {
+  fontSize: 10,
+  fontWeight: 950,
+  textTransform: "uppercase",
+  opacity: 0.55,
+},
+
+quickSuggestionMiniValue: {
+  fontSize: 14,
+  fontWeight: 950,
+  lineHeight: 1.2,
+},
+
+quickSuggestionNote: {
+  margin: 0,
+  fontSize: 12,
+  lineHeight: 1.45,
+  opacity: 0.68,
+},
+  
+
 quickNotesBox: {
   borderRadius: 18,
   padding: 15,

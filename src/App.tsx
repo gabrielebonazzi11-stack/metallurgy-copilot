@@ -651,17 +651,43 @@ export default function App() {
     setQuickCalcForm(prev => ({ ...prev, [field]: value }));
   };
 
-  const resetQuickCalc = () => {
+ const resetQuickCalc = () => {
   setQuickCalcForm(prev => ({
     ...prev,
-    diameter: "",
-    axialLoad: "",
-    shearForce: "",
-    leverArm: "",
+
+    axialLoad: "0",
+    shearLoad: "2500",
     bendingMoment: "",
-    torqueMoment: "",
+    torque: "80000",
+    distance: "120",
+
+    diameter: "25",
+    outerDiameter: "40",
+    innerDiameter: "25",
+
+    base: "30",
+    height: "50",
+    outerBase: "60",
+    outerHeight: "80",
+    innerBase: "40",
+    innerHeight: "60",
+
+    pressure: "30",
+    radius: "150",
+    thickness: "4",
+
+    sigmaX: "80",
+    sigmaY: "20",
+    tauXY: "30",
+
+    sigmaMax: "180",
+    sigmaMin: "20",
+    fatigueLimit: "",
+
     safetyFactorRequired: "2",
   }));
+
+ 
 
   setQuickCalcResult(null);
 };

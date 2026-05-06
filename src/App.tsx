@@ -473,6 +473,20 @@ export default function App() {
   const [drawingAiLoading, setDrawingAiLoading] = useState(false);
   const [drawingResults, setDrawingResults] = useState<DrawingResult[]>([]);
   const [drawingIssues, setDrawingIssues] = useState<DrawingIssue[]>([]);
+  const [drawingForm, setDrawingForm] = useState<DrawingForm>({
+    partName: "",
+    partType: "",
+    material: "",
+    manufacturing: "",
+    mainFeatures: "",
+    functionalSurfaces: "",
+    holesThreads: "",
+    fits: "",
+    tolerances: "",
+    roughness: "",
+    assemblyFunction: "",
+    productionQuantity: "",
+  });
   const [projects, setProjects] = useState<ProjectRecord[]>([]);
   const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
   const [newProjectName, setNewProjectName] = useState("");

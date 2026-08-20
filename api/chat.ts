@@ -1,5 +1,6 @@
 // FILE: api/chat.ts
 
+
 import { createClient } from "@supabase/supabase-js";
 
 export const config = {
